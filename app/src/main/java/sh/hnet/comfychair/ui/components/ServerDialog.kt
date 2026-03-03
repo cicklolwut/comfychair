@@ -500,11 +500,17 @@ fun ServerDialog(
                             OutlinedButton(
                                 onClick = {
                                     val trimmedHostname = hostname.trim()
-                                    val portNum = port.trim().toIntOrNull() ?: 8188
+                                    val portNum = if (authType == AuthType.BROWSER && !showPortField) {
+                                        443
+                                    } else {
+                                        port.trim().toIntOrNull() ?: 8188
+                                    }
                                     if (trimmedHostname.isNotEmpty()) {
-                                        // Guess protocol: if port 443 or hostname has https, use https
-                                        val proto = if (portNum == 443) "https" else "http"
-                                        val serverUrl = "$proto://$trimmedHostname:$portNum"
+                                        val serverUrl = when (portNum) {
+                                            443 -> "https://$trimmedHostname"
+                                            80 -> "http://$trimmedHostname"
+                                            else -> "http://$trimmedHostname:$portNum"
+                                        }
                                         val intent = WebViewAuthActivity.createIntent(
                                             context, serverUrl, trimmedHostname
                                         )

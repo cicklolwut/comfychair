@@ -246,7 +246,7 @@ private fun WebViewAuthScreen(
                                     CookieManager.getInstance().flush()
                                     // Auto-finish if we're back on the ComfyUI host AND cookies exist
                                     if (authAppearsComplete) {
-                                        val cookies = extractCookies(url)
+                                        val cookies = WebViewAuthActivity.extractCookies(url)
                                         if (cookies.isNotEmpty()) {
                                             collectAndReturn()
                                         }

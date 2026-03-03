@@ -66,7 +66,7 @@ class MainContainerActivity : ComponentActivity() {
                 val serverId = ConnectionManager.currentServerId
                 if (serverId != null) {
                     sh.hnet.comfychair.storage.CredentialStorage(this)
-                        .saveCredentials(serverId, sh.hnet.comfychair.model.AuthType.BROWSER, newCreds)
+                        .saveCredentials(serverId, newCreds)
                 }
                 ConnectionManager.clearSessionExpired()
                 // Reconnect with fresh cookies

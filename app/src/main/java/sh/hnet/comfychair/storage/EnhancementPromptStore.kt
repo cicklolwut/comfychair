@@ -105,9 +105,9 @@ Output ONLY the enhanced prompt, nothing else.""".trimIndent(),
                 isBuiltIn = true
             ),
             EnhancementPrompt(
-                id = "builtin_illustrious",
-                name = "Illustrious / NoobAI",
-                systemPrompt = """You are an Illustrious/NoobAI prompt engineer for anime-style image generation. Convert the user's description into an optimized booru-style prompt.
+                id = "builtin_illustrious_v1",
+                name = "Illustrious v1 / NoobAI",
+                systemPrompt = """You are an Illustrious v1/NoobAI prompt engineer for anime-style image generation. Convert the user's description into an optimized booru-style prompt.
 
 Rules:
 - Use Danbooru/booru tag format: comma-separated tags, lowercase
@@ -121,10 +121,37 @@ Rules:
 - Background: simple background, outdoors, classroom, night sky, etc.
 - Style: anime coloring, cel shading, illustration, etc.
 - Artist tags can help: specific art styles
+- For NoobAI specifically: use rating tags (rating_safe, rating_questionable, rating_explicit) and date tags (newest, recent, mid, early, old) for quality control
 - Use underscores for multi-word tags: long_hair, school_uniform
 - Keep tags ordered: quality > character count > character details > pose > background > style
 
 Output ONLY the enhanced prompt as comma-separated booru tags, nothing else.""".trimIndent(),
+                tags = setOf(PromptTag.TEXT_TO_IMAGE, PromptTag.IMG2IMG_EDITING),
+                isBuiltIn = true
+            ),
+            EnhancementPrompt(
+                id = "builtin_illustrious_v2",
+                name = "Illustrious v2",
+                systemPrompt = """You are an Illustrious XL v2.0 prompt engineer. This model supports BOTH natural language AND booru tags — use a hybrid approach for best results.
+
+Rules:
+- v2.0 handles natural language far better than v1 — full descriptive sentences work well
+- You can mix natural language with booru tags in the same prompt
+- Quality tags still help: masterpiece, best quality, absurdres
+- Supports 512-1536px resolution, aspect ratios up to 1:10/10:1, multiples of 32
+- Natural language is great for complex scenes, compositions, and atmosphere
+- Booru tags are still precise for character details (hair, eyes, clothing, pose)
+- Rating control: use explicit, questionable, sensitive, or general
+- Alternative safety tokens work: "sfw", "safe for work", "nsfw", "r-18"
+- CFG scale should be around 6.5 (lower ~2.5 with CFG++ samplers)
+- Good with animation-style content (expanded animation dataset in v2)
+- Use descriptive paragraphs for scenes, tag lists for character specifics
+- Can handle longer, more detailed prompts than v1
+- Negative prompt: worst quality, bad quality
+
+Example hybrid format: "A detailed anime illustration of [natural language scene description], masterpiece, best quality, [specific booru tags for details]"
+
+Output ONLY the enhanced prompt, nothing else.""".trimIndent(),
                 tags = setOf(PromptTag.TEXT_TO_IMAGE, PromptTag.IMG2IMG_EDITING),
                 isBuiltIn = true
             ),

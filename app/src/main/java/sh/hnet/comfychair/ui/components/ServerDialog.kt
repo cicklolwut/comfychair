@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.VisibilityOff
 import sh.hnet.comfychair.WebViewAuthActivity
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
@@ -80,8 +81,8 @@ fun ServerDialog(
     var name by remember { mutableStateOf(server?.name ?: "") }
     var hostname by remember { mutableStateOf(server?.hostname ?: "") }
     var port by remember { mutableStateOf(server?.port?.toString() ?: "8188") }
-    val isCustomPort = server?.port != null && server.port != 443 && server.port != 80 && server.port != 8188
-    var showPortField by remember { mutableStateOf(isCustomPort) }
+    val isCustomPort = server?.port != null && server.port != 443 && server.port != 80
+    var showPortField by remember { mutableStateOf(isCustomPort || server?.authType != AuthType.BROWSER) }
 
     // Authentication state
     var authType by remember { mutableStateOf(server?.authType ?: AuthType.NONE) }
@@ -181,8 +182,9 @@ fun ServerDialog(
             isValid = false
         }
 
-        // Validate port (skip validation if using default/hidden port)
-        if (showPortField) {
+        // Validate port (skip if Browser auth with port hidden)
+        val portHidden = authType == AuthType.BROWSER && !showPortField
+        if (!portHidden) {
             if (trimmedPort.isEmpty()) {
                 portError = errorRequired
                 isValid = false
@@ -296,11 +298,13 @@ fun ServerDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                // Port — hidden by default, toggle to show
-                AnimatedVisibility(visible = !showPortField) {
-                    TextButton(
+                // Port — hidden for Browser auth by default (DNS handles it), toggle to show
+                val hidePort = authType == AuthType.BROWSER && !showPortField
+                if (hidePort) {
+                    Button(
                         onClick = { showPortField = true },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.textButtonColors()
                     ) {
                         Icon(
                             Icons.Default.Settings,
@@ -309,9 +313,7 @@ fun ServerDialog(
                         )
                         Text(stringResource(R.string.button_custom_port))
                     }
-                }
-
-                AnimatedVisibility(visible = showPortField) {
+                } else {
                     OutlinedTextField(
                         value = port,
                         onValueChange = { newValue ->
@@ -571,10 +573,10 @@ fun ServerDialog(
             Button(
                 onClick = {
                     if (validate()) {
-                        val effectivePort = if (showPortField) {
-                            port.trim().toInt()
+                        val effectivePort = if (authType == AuthType.BROWSER && !showPortField) {
+                            443
                         } else {
-                            if (authType == AuthType.BROWSER) 443 else 8188
+                            port.trim().toInt()
                         }
                         onSave(
                             name.trim(),

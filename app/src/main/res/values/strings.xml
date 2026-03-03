@@ -52,7 +52,6 @@
     <string name="label_prompt_tags">Tags</string>
     <string name="label_no_prompts">No prompts configured. Add one or restore defaults.</string>
     <string name="button_add_prompt">Add Prompt</string>
-    <string name="button_delete">Delete</string>
     <string name="title_new_prompt">New Enhancement Prompt</string>
     <string name="title_edit_prompt">Edit Enhancement Prompt</string>
     <string name="title_delete_prompt">Delete Prompt</string>

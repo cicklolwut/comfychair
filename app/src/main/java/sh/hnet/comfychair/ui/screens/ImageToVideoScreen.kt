@@ -98,6 +98,11 @@ fun ImageToVideoScreen(
     presetViewModel: PromptPresetViewModel = viewModel()
 ) {
     val context = LocalContext.current
+
+    // Prompt enhancement ViewModel
+    val enhancementViewModel: sh.hnet.comfychair.viewmodel.PromptEnhancementViewModel = viewModel()
+    val enhancementState by enhancementViewModel.uiState.collectAsState()
+
     val scope = rememberCoroutineScope()
     val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -467,6 +472,17 @@ fun ImageToVideoScreen(
                         }
                     }
                 },
+                onEnhancePrompt = if (enhancementState.isConfigured) {
+                    {
+                        enhancementViewModel.enhance(
+                            uiState.positivePrompt,
+                            sh.hnet.comfychair.model.PromptEnhancementMode.IMAGE_TO_VIDEO
+                        ) { enhanced ->
+                            enhanced?.let { imageToVideoViewModel.onPositivePromptChange(it) }
+                        }
+                    }
+                } else null,
+                isEnhancing = enhancementState.isEnhancing,
                 onCancelCurrent = { generationViewModel.cancelGeneration { } },
                 onAddToFrontOfQueue = {
                     scope.launch {

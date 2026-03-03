@@ -92,6 +92,10 @@ fun TextToImageScreen(
 
     // Prompt preset ViewModel
     val presetViewModel: PromptPresetViewModel = viewModel()
+
+    // Prompt enhancement ViewModel
+    val enhancementViewModel: sh.hnet.comfychair.viewmodel.PromptEnhancementViewModel = viewModel()
+    val enhancementState by enhancementViewModel.uiState.collectAsState()
     val lifecycleOwner = LocalLifecycleOwner.current
 
     // State and effects
@@ -352,6 +356,17 @@ fun TextToImageScreen(
                         }
                     }
                 },
+                onEnhancePrompt = if (enhancementState.isConfigured) {
+                    {
+                        enhancementViewModel.enhance(
+                            uiState.positivePrompt,
+                            sh.hnet.comfychair.model.PromptEnhancementMode.TEXT_TO_IMAGE
+                        ) { enhanced ->
+                            enhanced?.let { textToImageViewModel.onPositivePromptChange(it) }
+                        }
+                    }
+                } else null,
+                isEnhancing = enhancementState.isEnhancing,
                 onCancelCurrent = { generationViewModel.cancelGeneration { } },
                 onAddToFrontOfQueue = {
                     if (textToImageViewModel.hasValidConfiguration()) {

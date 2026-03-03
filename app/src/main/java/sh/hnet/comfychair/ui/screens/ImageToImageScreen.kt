@@ -103,6 +103,10 @@ fun ImageToImageScreen(
 
     // Prompt preset ViewModel
     val presetViewModel: PromptPresetViewModel = viewModel()
+
+    // Prompt enhancement ViewModel
+    val enhancementViewModel: sh.hnet.comfychair.viewmodel.PromptEnhancementViewModel = viewModel()
+    val enhancementState by enhancementViewModel.uiState.collectAsState()
     val lifecycleOwner = LocalLifecycleOwner.current
 
     // State and effects
@@ -489,6 +493,17 @@ fun ImageToImageScreen(
                         }
                     }
                 },
+                onEnhancePrompt = if (enhancementState.isConfigured) {
+                    {
+                        enhancementViewModel.enhance(
+                            uiState.positivePrompt,
+                            sh.hnet.comfychair.model.PromptEnhancementMode.IMAGE_TO_IMAGE
+                        ) { enhanced ->
+                            enhanced?.let { imageToImageViewModel.onPositivePromptChange(it) }
+                        }
+                    }
+                } else null,
+                isEnhancing = enhancementState.isEnhancing,
                 onCancelCurrent = { generationViewModel.cancelGeneration { } },
                 onAddToFrontOfQueue = {
                     scope.launch {

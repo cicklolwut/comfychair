@@ -31,6 +31,7 @@ import sh.hnet.comfychair.R
 import sh.hnet.comfychair.navigation.SettingsRoute
 import sh.hnet.comfychair.ui.screens.AboutSettingsScreen
 import sh.hnet.comfychair.ui.screens.ApplicationSettingsScreen
+import sh.hnet.comfychair.ui.screens.PromptEnhancementSettingsScreen
 import sh.hnet.comfychair.ui.screens.ServerSettingsScreen
 import sh.hnet.comfychair.ui.screens.WorkflowsSettingsScreen
 import sh.hnet.comfychair.viewmodel.SettingsViewModel
@@ -113,6 +114,38 @@ fun SettingsNavHost(
                             Icon(
                                 Icons.Filled.PhoneAndroid,
                                 contentDescription = stringResource(R.string.nav_application_settings),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    // Prompt Enhancement Settings
+                    if (currentRoute == SettingsRoute.PromptEnhancement.route) {
+                        FilledIconButton(
+                            onClick = { },
+                            colors = IconButtonDefaults.filledIconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        ) {
+                            Icon(
+                                Icons.Filled.AutoAwesome,
+                                contentDescription = stringResource(R.string.nav_prompt_enhancement_settings)
+                            )
+                        }
+                    } else {
+                        IconButton(onClick = {
+                            navController.navigate(SettingsRoute.PromptEnhancement.route) {
+                                popUpTo(navController.graph.findStartDestination().id) {
+                                    saveState = true
+                                }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        }) {
+                            Icon(
+                                Icons.Filled.AutoAwesome,
+                                contentDescription = stringResource(R.string.nav_prompt_enhancement_settings),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
@@ -216,6 +249,13 @@ fun SettingsNavHost(
                 ApplicationSettingsScreen(
                     viewModel = settingsViewModel,
                     onNavigateBack = onNavigateToGeneration,
+                    onNavigateToGeneration = onNavigateToGeneration,
+                    onLogout = onLogout
+                )
+            }
+
+            composable(SettingsRoute.PromptEnhancement.route) {
+                PromptEnhancementSettingsScreen(
                     onNavigateToGeneration = onNavigateToGeneration,
                     onLogout = onLogout
                 )

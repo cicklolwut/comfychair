@@ -30,6 +30,27 @@
     <string name="button_browser_sign_in">Sign In</string>
     <string name="label_auth_browser_signed_in">Signed in — cookies captured</string>
     <string name="title_browser_auth">Sign In</string>
+
+    <!-- Prompt Enhancement -->
+    <string name="nav_prompt_enhancement_settings">Prompt Enhancement</string>
+    <string name="label_enhancement_provider">Provider</string>
+    <string name="label_enhancement_api_key">API Key</string>
+    <string name="label_enhancement_base_url">Base URL</string>
+    <string name="label_enhancement_model">Model</string>
+    <string name="label_enhancement_system_prompts">System Prompts</string>
+    <string name="label_mode_txt2img">Text → Image</string>
+    <string name="label_mode_img2img">Image → Image</string>
+    <string name="label_mode_txt2vid">Text → Video</string>
+    <string name="label_mode_img2vid">Image → Video</string>
+    <string name="label_customized">customized</string>
+    <string name="button_enhance_prompt">Enhance Prompt</string>
+    <string name="button_enhancing">Enhancing…</string>
+    <string name="button_reset_all_prompts">Reset All</string>
+    <string name="button_reset_to_default">Reset to Default</string>
+    <string name="button_refresh">Refresh</string>
+    <string name="title_select_model">Select Model</string>
+    <string name="placeholder_filter_models">Filter models…</string>
+    <string name="label_model_count">%1$d of %2$d models</string>
     <string name="button_browser_auth_done">Done</string>
     <string name="label_auth_username">Username</string>
     <string name="label_auth_password">Password</string>

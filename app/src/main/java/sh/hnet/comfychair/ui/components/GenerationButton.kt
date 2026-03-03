@@ -10,9 +10,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistAddCheck
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -68,6 +70,8 @@ fun GenerationButton(
     isFetching: Boolean = false,
     isConnecting: Boolean = false,
     onGenerate: () -> Unit,
+    onEnhancePrompt: (() -> Unit)? = null,
+    isEnhancing: Boolean = false,
     onCancelCurrent: () -> Unit,
     onAddToFrontOfQueue: () -> Unit = {},
     onClearQueue: () -> Unit,
@@ -148,6 +152,34 @@ fun GenerationButton(
                 expanded = showMenu,
                 onDismissRequest = { showMenu = false }
             ) {
+                // Enhance prompt (top of menu)
+                if (onEnhancePrompt != null) {
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                if (isEnhancing) stringResource(R.string.button_enhancing)
+                                else stringResource(R.string.button_enhance_prompt)
+                            )
+                        },
+                        onClick = {
+                            showMenu = false
+                            onEnhancePrompt()
+                        },
+                        enabled = !isEnhancing && isEnabled,
+                        leadingIcon = {
+                            if (isEnhancing) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Icon(Icons.Default.AutoAwesome, contentDescription = null)
+                            }
+                        }
+                    )
+                    HorizontalDivider()
+                }
+
                 // Queue management actions (above gap)
                 // Add to front of queue
                 DropdownMenuItem(

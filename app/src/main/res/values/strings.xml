@@ -43,6 +43,8 @@
     <string name="label_mode_txt2vid">Text → Video</string>
     <string name="label_mode_img2vid">Image → Video</string>
     <string name="label_customized">customized</string>
+    <string name="button_save_and_test">Save &amp; Test Connection</string>
+    <string name="label_connection_verified">Connection verified</string>
     <string name="button_enhance_prompt">Enhance Prompt</string>
     <string name="button_enhancing">Enhancing…</string>
     <string name="button_reset_all_prompts">Reset All</string>

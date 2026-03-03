@@ -379,7 +379,7 @@ fun TextToVideoScreen(
                         ).show()
                     }
                 },
-                onEnhancePrompt = if (enhancementState.isConfigured) {
+                onEnhancePrompt = if (enhancementState.isValidated) {
                     {
                         enhancementViewModel.enhance(
                             uiState.positivePrompt,

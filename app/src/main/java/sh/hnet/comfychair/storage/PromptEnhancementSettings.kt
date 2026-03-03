@@ -21,6 +21,7 @@ class PromptEnhancementSettings(context: Context) {
         private const val KEY_MODEL = "model"
         private const val KEY_CUSTOM_BASE_URL = "custom_base_url"
         private const val KEY_API_KEY = "api_key"
+        private const val KEY_VALIDATED = "validated"
         private const val KEY_SYSTEM_PROMPT_PREFIX = "system_prompt_"
 
         val DEFAULT_PROMPTS = mapOf(
@@ -78,7 +79,10 @@ class PromptEnhancementSettings(context: Context) {
                 catch (_: Exception) { PromptEnhancementProvider.OPENAI }
             } ?: PromptEnhancementProvider.OPENAI
         }
-        set(value) = prefs.edit().putString(KEY_PROVIDER, value.name).apply()
+        set(value) {
+            prefs.edit().putString(KEY_PROVIDER, value.name).apply()
+            validated = false
+        }
 
     var model: String
         get() = prefs.getString(KEY_MODEL, null)
@@ -87,11 +91,23 @@ class PromptEnhancementSettings(context: Context) {
 
     var customBaseUrl: String
         get() = prefs.getString(KEY_CUSTOM_BASE_URL, "") ?: ""
-        set(value) = prefs.edit().putString(KEY_CUSTOM_BASE_URL, value).apply()
+        set(value) {
+            prefs.edit().putString(KEY_CUSTOM_BASE_URL, value).apply()
+            validated = false
+        }
 
     var apiKey: String
         get() = securePrefs.getString(KEY_API_KEY, "") ?: ""
-        set(value) = securePrefs.edit().putString(KEY_API_KEY, value).apply()
+        set(value) {
+            securePrefs.edit().putString(KEY_API_KEY, value).apply()
+            // Invalidate validation when key changes
+            validated = false
+        }
+
+    /** Whether the connection has been successfully tested. */
+    var validated: Boolean
+        get() = prefs.getBoolean(KEY_VALIDATED, false)
+        set(value) = prefs.edit().putBoolean(KEY_VALIDATED, value).apply()
 
     fun getSystemPrompt(mode: PromptEnhancementMode): String {
         return prefs.getString(

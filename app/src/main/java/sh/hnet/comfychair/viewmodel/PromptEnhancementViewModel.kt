@@ -16,7 +16,9 @@ import sh.hnet.comfychair.storage.PromptEnhancementSettings
 data class PromptEnhancementUiState(
     val isEnhancing: Boolean = false,
     val error: String? = null,
-    val isConfigured: Boolean = false,
+    val isValidated: Boolean = false,
+    val isTesting: Boolean = false,
+    val testResult: String? = null,
     // Settings fields
     val provider: PromptEnhancementProvider = PromptEnhancementProvider.OPENAI,
     val apiKey: String = "",
@@ -40,7 +42,7 @@ class PromptEnhancementViewModel(application: Application) : AndroidViewModel(ap
     private fun loadState(): PromptEnhancementUiState {
         val prompts = PromptEnhancementMode.entries.associateWith { settings.getSystemPrompt(it) }
         return PromptEnhancementUiState(
-            isConfigured = settings.isConfigured,
+            isValidated = settings.validated,
             provider = settings.provider,
             apiKey = settings.apiKey,
             model = settings.model,
@@ -60,7 +62,7 @@ class PromptEnhancementViewModel(application: Application) : AndroidViewModel(ap
 
     fun setApiKey(key: String) {
         settings.apiKey = key
-        _uiState.value = _uiState.value.copy(apiKey = key, isConfigured = key.isNotBlank())
+        _uiState.value = _uiState.value.copy(apiKey = key, isValidated = false, testResult = null)
     }
 
     fun setModel(model: String) {
@@ -135,6 +137,28 @@ class PromptEnhancementViewModel(application: Application) : AndroidViewModel(ap
                     error = e.message
                 )
                 onResult(null)
+            }
+        }
+    }
+
+    fun testConnection() {
+        _uiState.value = _uiState.value.copy(isTesting = true, testResult = null, error = null)
+        viewModelScope.launch {
+            try {
+                val modelCount = service.testConnection()
+                settings.validated = true
+                _uiState.value = _uiState.value.copy(
+                    isTesting = false,
+                    isValidated = true,
+                    testResult = "Connected ($modelCount models available)"
+                )
+            } catch (e: Exception) {
+                settings.validated = false
+                _uiState.value = _uiState.value.copy(
+                    isTesting = false,
+                    isValidated = false,
+                    testResult = "Failed: ${e.message}"
+                )
             }
         }
     }

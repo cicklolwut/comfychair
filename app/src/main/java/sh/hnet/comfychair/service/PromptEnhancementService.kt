@@ -30,6 +30,36 @@ class PromptEnhancementService(
         .build()
 
     /**
+     * Test the connection by hitting the /models endpoint.
+     * Returns the model count on success, throws on failure.
+     */
+    suspend fun testConnection(): Int = withContext(Dispatchers.IO) {
+        val baseUrl = settings.effectiveBaseUrl.trimEnd('/')
+        val apiKey = settings.apiKey
+
+        require(apiKey.isNotBlank()) { "API key not configured" }
+        require(baseUrl.isNotBlank()) { "API base URL not configured" }
+
+        val request = Request.Builder()
+            .url("$baseUrl/models")
+            .header("Authorization", "Bearer $apiKey")
+            .get()
+            .build()
+
+        val response = client.newCall(request).execute()
+
+        if (!response.isSuccessful) {
+            val errorBody = response.body?.string() ?: "Unknown error"
+            throw RuntimeException("API returned ${response.code}: $errorBody")
+        }
+
+        val body = response.body?.string() ?: throw RuntimeException("Empty response")
+        val json = JSONObject(body)
+        val data = json.optJSONArray("data")
+        data?.length() ?: 0
+    }
+
+    /**
      * Enhance a prompt using the configured LLM provider.
      *
      * @param userPrompt The user's raw prompt

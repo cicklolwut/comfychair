@@ -207,6 +207,57 @@ fun PromptEnhancementSettingsScreen(
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
+
+                    // Save & Test button
+                    Button(
+                        onClick = { viewModel.testConnection() },
+                        enabled = uiState.apiKey.isNotBlank() && !uiState.isTesting &&
+                            (uiState.provider != PromptEnhancementProvider.CUSTOM || uiState.customBaseUrl.isNotBlank()),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        if (uiState.isTesting) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
+                            Text(
+                                text = "  Testing…",
+                                modifier = Modifier.padding(start = 8.dp)
+                            )
+                        } else {
+                            Text(stringResource(R.string.button_save_and_test))
+                        }
+                    }
+
+                    // Test result
+                    uiState.testResult?.let { result ->
+                        Text(
+                            text = result,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (uiState.isValidated)
+                                MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.error
+                        )
+                    }
+
+                    // Validation status indicator
+                    if (uiState.isValidated) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.Check,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = stringResource(R.string.label_connection_verified),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(start = 4.dp)
+                            )
+                        }
+                    }
                 }
             }
 

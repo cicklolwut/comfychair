@@ -1,7 +1,12 @@
 package sh.hnet.comfychair.ui.screens
 
+import android.app.Activity
 import android.content.Intent
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import sh.hnet.comfychair.WebViewAuthActivity
+import sh.hnet.comfychair.connection.ConnectionFailure
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -104,6 +109,32 @@ fun LoginScreen() {
     var showDeleteConfirmation by remember { mutableStateOf(false) }
     var showOfflinePrompt by remember { mutableStateOf(false) }
     var offlinePromptServer by remember { mutableStateOf<Server?>(null) }
+    var showBrowserReauthPrompt by remember { mutableStateOf(false) }
+    var browserReauthServer by remember { mutableStateOf<Server?>(null) }
+
+    // Browser auth WebView launcher — used when session expired / first connect
+    val webViewAuthLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val server = browserReauthServer ?: return@rememberLauncherForActivityResult
+            val cookies = result.data?.getStringExtra(WebViewAuthActivity.EXTRA_COOKIES) ?: ""
+            if (cookies.isNotEmpty()) {
+                // Persist fresh cookies and retry connection
+                credentialStorage.saveCredentials(server.id, sh.hnet.comfychair.model.AuthCredentials.Cookie(cookies))
+                showBrowserReauthPrompt = false
+                browserReauthServer = null
+                connectionState = ConnectionState.IDLE
+                scope.launch {
+                    kotlinx.coroutines.delay(200)
+                    attemptConnection(server)
+                }
+            }
+        } else {
+            showBrowserReauthPrompt = false
+            browserReauthServer = null
+        }
+    }
 
     // String resources
     val warningSelfSigned = stringResource(R.string.warning_self_signed_cert)
@@ -115,6 +146,19 @@ fun LoginScreen() {
         warningMessage = null
 
         scope.launch {
+            // For browser auth with no stored cookies, open WebView immediately
+            if (server.authType == sh.hnet.comfychair.model.AuthType.BROWSER &&
+                !credentialStorage.hasCredentials(server.id, server.authType)) {
+                connectionState = ConnectionState.IDLE
+                val portNum = server.port
+                val proto = if (portNum == 443) "https" else "http"
+                val serverUrl = "$proto://${server.hostname}:$portNum"
+                browserReauthServer = server
+                val intent = WebViewAuthActivity.createIntent(context, serverUrl, server.hostname)
+                webViewAuthLauncher.launch(intent)
+                return@launch
+            }
+
             // Load credentials for the server
             val credentials = credentialStorage.getCredentials(server.id, server.authType)
 
@@ -174,19 +218,30 @@ fun LoginScreen() {
             } else {
                 connectionState = ConnectionState.FAILED
 
-                // Check if offline cache exists - offer offline mode
-                if (ConnectionManager.hasOfflineCache(context, server.id)) {
+                // For browser auth failures (expired session), offer re-auth via browser
+                if (server.authType == sh.hnet.comfychair.model.AuthType.BROWSER) {
+                    delay(500)
+                    connectionState = ConnectionState.IDLE
+                    val portNum = server.port
+                    val proto = if (portNum == 443) "https" else "http"
+                    val serverUrl = "$proto://${server.hostname}:$portNum"
+                    browserReauthServer = server
+                    val intent = WebViewAuthActivity.createIntent(context, serverUrl, server.hostname)
+                    webViewAuthLauncher.launch(intent)
+                } else if (ConnectionManager.hasOfflineCache(context, server.id)) {
+                    // Check if offline cache exists - offer offline mode
                     offlinePromptServer = server
                     showOfflinePrompt = true
+                    delay(2000)
+                    connectionState = ConnectionState.IDLE
                 } else {
                     // No cache available, just show error Toast
                     errorMessage?.let { msg ->
                         Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
                     }
+                    delay(2000)
+                    connectionState = ConnectionState.IDLE
                 }
-
-                delay(2000)
-                connectionState = ConnectionState.IDLE
             }
         }
     }

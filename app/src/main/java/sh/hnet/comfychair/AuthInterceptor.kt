@@ -32,18 +32,17 @@ class AuthInterceptor(
     override fun intercept(chain: Interceptor.Chain): Response {
         val originalRequest = chain.request()
 
-        val authHeader = when (val creds = currentCredentials) {
-            is AuthCredentials.None -> null
-            is AuthCredentials.Basic -> Credentials.basic(creds.username, creds.password)
-            is AuthCredentials.Bearer -> "Bearer ${creds.token}"
-        }
-
-        val newRequest = if (authHeader != null) {
-            originalRequest.newBuilder()
-                .header("Authorization", authHeader)
+        val newRequest = when (val creds = currentCredentials) {
+            is AuthCredentials.None -> originalRequest
+            is AuthCredentials.Basic -> originalRequest.newBuilder()
+                .header("Authorization", Credentials.basic(creds.username, creds.password))
                 .build()
-        } else {
-            originalRequest
+            is AuthCredentials.Bearer -> originalRequest.newBuilder()
+                .header("Authorization", "Bearer ${creds.token}")
+                .build()
+            is AuthCredentials.Cookie -> originalRequest.newBuilder()
+                .header("Cookie", creds.cookies)
+                .build()
         }
 
         return chain.proceed(newRequest)

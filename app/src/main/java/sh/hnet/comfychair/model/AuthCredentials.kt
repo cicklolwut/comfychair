@@ -20,4 +20,9 @@ sealed class AuthCredentials {
     data class Bearer(
         val token: String
     ) : AuthCredentials()
+
+    /** Browser-captured session cookies (e.g., from Authentik SSO) */
+    data class Cookie(
+        val cookies: String
+    ) : AuthCredentials()
 }

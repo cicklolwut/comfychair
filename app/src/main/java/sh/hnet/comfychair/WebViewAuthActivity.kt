@@ -1,0 +1,284 @@
+package sh.hnet.comfychair
+
+import android.annotation.SuppressLint
+import android.app.Activity
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.Bundle
+import android.view.ViewGroup
+import android.webkit.CookieManager
+import android.webkit.WebResourceRequest
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import android.widget.FrameLayout
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.viewinterop.AndroidView
+import sh.hnet.comfychair.ui.theme.ComfyChairTheme
+
+/**
+ * Activity that presents a WebView for browser-based authentication.
+ *
+ * Used with reverse proxies that have SSO/OAuth in front of ComfyUI (e.g., Authentik forward-auth).
+ * After the user authenticates, this activity captures all session cookies and returns them
+ * to the caller via the Activity result.
+ *
+ * Extras (input):
+ *   EXTRA_URL  — Full URL to load (e.g., "https://comfy.example.com")
+ *   EXTRA_HOST — ComfyUI hostname used to detect when auth is complete
+ *
+ * Result extras:
+ *   EXTRA_COOKIES — Raw Cookie header string ready for injection into OkHttp requests
+ */
+class WebViewAuthActivity : ComponentActivity() {
+
+    companion object {
+        const val EXTRA_URL = "url"
+        const val EXTRA_HOST = "host"
+        const val EXTRA_COOKIES = "cookies"
+
+        /** Launch this activity and expect a result via ActivityResultLauncher. */
+        fun createIntent(context: Context, url: String, host: String): Intent {
+            return Intent(context, WebViewAuthActivity::class.java).apply {
+                putExtra(EXTRA_URL, url)
+                putExtra(EXTRA_HOST, host)
+            }
+        }
+
+        /**
+         * Collect all cookies from Android's CookieManager for a given URL and any
+         * auth-domain cookies that were set during the session, merging them into a
+         * single "Cookie: name=value; name2=value2" header string.
+         *
+         * We collect from the target URL and trust the system CookieManager to have
+         * accumulated cookies across all redirect domains visited in the WebView.
+         */
+        fun extractCookies(targetUrl: String): String {
+            val cookieManager = CookieManager.getInstance()
+            // CookieManager.getCookie returns the cookies applicable to the given URL
+            // (respects domain/path scoping). This is exactly what OkHttp will need
+            // to pass when talking to the ComfyUI server.
+            return cookieManager.getCookie(targetUrl)?.trim() ?: ""
+        }
+    }
+
+    @OptIn(ExperimentalMaterial3Api::class)
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        val url = intent.getStringExtra(EXTRA_URL) ?: run {
+            setResult(Activity.RESULT_CANCELED)
+            finish()
+            return
+        }
+        val host = intent.getStringExtra(EXTRA_HOST) ?: ""
+
+        // Clear existing WebView cookies for a clean login session
+        CookieManager.getInstance().apply {
+            setAcceptCookie(true)
+            // Flush any stale cookies so the user definitely hits the auth flow
+            removeAllCookies(null)
+            flush()
+        }
+
+        setContent {
+            ComfyChairTheme {
+                WebViewAuthScreen(
+                    url = url,
+                    host = host,
+                    onDone = { cookies ->
+                        val result = Intent().apply {
+                            putExtra(EXTRA_COOKIES, cookies)
+                        }
+                        setResult(Activity.RESULT_OK, result)
+                        finish()
+                    },
+                    onCancel = {
+                        setResult(Activity.RESULT_CANCELED)
+                        finish()
+                    }
+                )
+            }
+        }
+    }
+}
+
+@SuppressLint("SetJavaScriptEnabled")
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun WebViewAuthScreen(
+    url: String,
+    host: String,
+    onDone: (cookies: String) -> Unit,
+    onCancel: () -> Unit
+) {
+    var isLoading by remember { mutableStateOf(true) }
+    var currentUrl by remember { mutableStateOf(url) }
+    // Whether we're back on the ComfyUI server (auth chain likely complete)
+    var authAppearsComplete by remember { mutableStateOf(false) }
+    var webViewRef: WebView? by remember { mutableStateOf(null) }
+
+    fun collectAndReturn() {
+        val cookies = WebViewAuthActivity.extractCookies(url)
+        onDone(cookies)
+    }
+
+    Surface(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            TopAppBar(
+                modifier = Modifier.statusBarsPadding(),
+                title = {
+                    Column {
+                        Text(
+                            text = stringResource(R.string.title_browser_auth),
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        if (currentUrl.isNotEmpty()) {
+                            Text(
+                                text = currentUrl,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1
+                            )
+                        }
+                    }
+                },
+                navigationIcon = {
+                    IconButton(onClick = onCancel) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = stringResource(R.string.button_cancel)
+                        )
+                    }
+                },
+                actions = {
+                    // Done button - enabled when we detect auth is complete OR always available
+                    // so the user can manually signal "I'm done"
+                    IconButton(onClick = { collectAndReturn() }) {
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = stringResource(R.string.button_browser_auth_done),
+                            tint = if (authAppearsComplete) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurface
+                            }
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = if (authAppearsComplete) {
+                        MaterialTheme.colorScheme.primaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.surface
+                    }
+                )
+            )
+
+            if (isLoading) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            }
+
+            Box(modifier = Modifier.fillMaxSize()) {
+                AndroidView(
+                    factory = { context ->
+                        WebView(context).apply {
+                            layoutParams = FrameLayout.LayoutParams(
+                                ViewGroup.LayoutParams.MATCH_PARENT,
+                                ViewGroup.LayoutParams.MATCH_PARENT
+                            )
+                            settings.apply {
+                                javaScriptEnabled = true
+                                domStorageEnabled = true
+                                // Allow mixed content for servers that may redirect between
+                                // http/https during the auth flow
+                                @SuppressLint("SetJavaScriptEnabled")
+                                setSupportMultipleWindows(false)
+                                userAgentString = "ComfyChair/1.0 (Android)"
+                            }
+
+                            CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+
+                            webViewClient = object : WebViewClient() {
+                                override fun onPageStarted(
+                                    view: WebView?,
+                                    pageUrl: String?,
+                                    favicon: android.graphics.Bitmap?
+                                ) {
+                                    isLoading = true
+                                    currentUrl = pageUrl ?: ""
+                                    // Check if we're back on the ComfyUI host
+                                    authAppearsComplete = isOnTargetHost(pageUrl, host)
+                                }
+
+                                override fun onPageFinished(view: WebView?, pageUrl: String?) {
+                                    isLoading = false
+                                    currentUrl = pageUrl ?: ""
+                                    authAppearsComplete = isOnTargetHost(pageUrl, host)
+                                    // Flush cookies to disk so getCookie() is up to date
+                                    CookieManager.getInstance().flush()
+                                    // Auto-finish if we're back on the ComfyUI host
+                                    if (authAppearsComplete) {
+                                        collectAndReturn()
+                                    }
+                                }
+
+                                override fun shouldOverrideUrlLoading(
+                                    view: WebView?,
+                                    request: WebResourceRequest?
+                                ): Boolean {
+                                    // Let the WebView handle all redirects internally
+                                    return false
+                                }
+                            }
+
+                            loadUrl(url)
+                            webViewRef = this
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Returns true if [pageUrl] is on the same host as [targetHost].
+ * Used to detect when the auth redirect chain has returned us to the ComfyUI server.
+ */
+private fun isOnTargetHost(pageUrl: String?, targetHost: String): Boolean {
+    if (pageUrl.isNullOrEmpty() || targetHost.isEmpty()) return false
+    return try {
+        val uri = Uri.parse(pageUrl)
+        uri.host?.equals(targetHost, ignoreCase = true) == true
+    } catch (e: Exception) {
+        false
+    }
+}

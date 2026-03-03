@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Password
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import sh.hnet.comfychair.WebViewAuthActivity
@@ -79,6 +80,8 @@ fun ServerDialog(
     var name by remember { mutableStateOf(server?.name ?: "") }
     var hostname by remember { mutableStateOf(server?.hostname ?: "") }
     var port by remember { mutableStateOf(server?.port?.toString() ?: "8188") }
+    val isCustomPort = server?.port != null && server.port != 443 && server.port != 80 && server.port != 8188
+    var showPortField by remember { mutableStateOf(isCustomPort) }
 
     // Authentication state
     var authType by remember { mutableStateOf(server?.authType ?: AuthType.NONE) }
@@ -178,15 +181,17 @@ fun ServerDialog(
             isValid = false
         }
 
-        // Validate port
-        if (trimmedPort.isEmpty()) {
-            portError = errorRequired
-            isValid = false
-        } else {
-            val portNum = trimmedPort.toIntOrNull()
-            if (portNum == null || portNum !in 1..65535) {
-                portError = errorInvalidPort
+        // Validate port (skip validation if using default/hidden port)
+        if (showPortField) {
+            if (trimmedPort.isEmpty()) {
+                portError = errorRequired
                 isValid = false
+            } else {
+                val portNum = trimmedPort.toIntOrNull()
+                if (portNum == null || portNum !in 1..65535) {
+                    portError = errorInvalidPort
+                    isValid = false
+                }
             }
         }
 
@@ -291,41 +296,48 @@ fun ServerDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                // Port
-                OutlinedTextField(
-                    value = port,
-                    onValueChange = { newValue ->
-                        port = newValue
-                        // Live validation
-                        val trimmed = newValue.trim()
-                        portError = when {
-                            trimmed.isEmpty() -> null
-                            else -> {
-                                val portNum = trimmed.toIntOrNull()
-                                if (portNum == null || portNum !in 1..65535) {
-                                    errorInvalidPort
-                                } else {
-                                    null
+                // Port — hidden by default, toggle to show
+                AnimatedVisibility(visible = !showPortField) {
+                    TextButton(
+                        onClick = { showPortField = true },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(
+                            Icons.Default.Settings,
+                            contentDescription = null,
+                            modifier = Modifier.padding(end = 4.dp)
+                        )
+                        Text(stringResource(R.string.button_custom_port))
+                    }
+                }
+
+                AnimatedVisibility(visible = showPortField) {
+                    OutlinedTextField(
+                        value = port,
+                        onValueChange = { newValue ->
+                            port = newValue
+                            // Live validation
+                            val trimmed = newValue.trim()
+                            portError = when {
+                                trimmed.isEmpty() -> null
+                                else -> {
+                                    val portNum = trimmed.toIntOrNull()
+                                    if (portNum == null || portNum !in 1..65535) {
+                                        errorInvalidPort
+                                    } else {
+                                        null
+                                    }
                                 }
                             }
-                        }
-                    },
-                    label = { Text(stringResource(R.string.hint_port)) },
-                    isError = portError != null,
-                    supportingText = {
-                        when {
-                            portError != null -> Text(portError!!)
-                            authType == AuthType.BROWSER && port.trim() == "443" ->
-                                Text(stringResource(R.string.hint_port_https))
-                            authType == AuthType.BROWSER && port.trim() == "80" ->
-                                Text(stringResource(R.string.hint_port_http))
-                            else -> {}
-                        }
-                    },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth()
-                )
+                        },
+                        label = { Text(stringResource(R.string.hint_port)) },
+                        isError = portError != null,
+                        supportingText = portError?.let { { Text(it) } },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(8.dp))
 
@@ -397,8 +409,6 @@ fun ServerDialog(
                         onCheckedChange = { isChecked ->
                             if (isChecked) {
                                 authType = AuthType.BROWSER
-                                // Default to 443 for browser auth (reverse proxy with TLS)
-                                if (port == "8188") port = "443"
                                 usernameError = null
                                 passwordError = null
                                 tokenError = null
@@ -561,10 +571,15 @@ fun ServerDialog(
             Button(
                 onClick = {
                     if (validate()) {
+                        val effectivePort = if (showPortField) {
+                            port.trim().toInt()
+                        } else {
+                            if (authType == AuthType.BROWSER) 443 else 8188
+                        }
                         onSave(
                             name.trim(),
                             hostname.trim(),
-                            port.trim().toInt(),
+                            effectivePort,
                             authType,
                             buildCredentials()
                         )

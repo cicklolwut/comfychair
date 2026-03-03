@@ -80,13 +80,14 @@ enum class ConnectionState {
  */
 /**
  * Build a server URL with proper protocol detection.
- * Port 443 → HTTPS (standard), port 80 → HTTP (standard), omit port from URL.
- * Other ports → HTTPS (assume reverse proxy with TLS), include port in URL.
+ * Port 443 → HTTPS, port 80 → HTTP, port 8188 → HTTP (ComfyUI default).
+ * Standard ports (80/443) omitted from URL. Others included.
  */
 private fun buildServerUrl(hostname: String, port: Int): String {
     return when (port) {
         443 -> "https://$hostname"
         80 -> "http://$hostname"
+        8188 -> "http://$hostname:8188"
         else -> "https://$hostname:$port"
     }
 }

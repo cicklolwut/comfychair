@@ -79,6 +79,7 @@ import sh.hnet.comfychair.ui.components.config.ConfigBottomSheetContent
 import sh.hnet.comfychair.ui.components.config.UnifiedCallbacks
 import sh.hnet.comfychair.ui.components.config.toBottomSheetConfig
 import sh.hnet.comfychair.ui.components.VideoPlayer
+import sh.hnet.comfychair.ui.components.enhancingGlow
 import sh.hnet.comfychair.util.VideoUtils
 import sh.hnet.comfychair.viewmodel.ContentType
 import sh.hnet.comfychair.viewmodel.GenerationViewModel
@@ -140,10 +141,13 @@ fun ImageToVideoScreen(
         }
     }
 
-    // Observe lifecycle to control video playback during navigation transitions
+    // Observe lifecycle to control video playback and refresh enhancement state
     DisposableEffect(lifecycleOwner) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             isScreenVisible = event.targetState.isAtLeast(Lifecycle.State.RESUMED)
+            if (event == Lifecycle.Event.ON_RESUME) {
+                enhancementViewModel.refreshState()
+            }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
@@ -405,7 +409,8 @@ fun ImageToVideoScreen(
             label = { Text(stringResource(R.string.hint_prompt)) },
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .enhancingGlow(enhancementState.isEnhancing),
             minLines = 2,
             maxLines = 4,
             leadingIcon = {

@@ -81,6 +81,7 @@ import sh.hnet.comfychair.ui.components.config.ConfigBottomSheetContent
 import sh.hnet.comfychair.ui.components.config.UnifiedCallbacks
 import sh.hnet.comfychair.ui.components.config.toBottomSheetConfig
 import sh.hnet.comfychair.ui.components.MaskPreview
+import sh.hnet.comfychair.ui.components.enhancingGlow
 import sh.hnet.comfychair.viewmodel.ConnectionStatus
 import sh.hnet.comfychair.viewmodel.GenerationViewModel
 import sh.hnet.comfychair.viewmodel.ImageToImageEvent
@@ -123,11 +124,12 @@ fun ImageToImageScreen(
         presetViewModel.initialize(context, ScreenType.IMAGE_TO_IMAGE)
     }
 
-    // Refresh presets when screen resumes (catches external changes from Media Viewer)
+    // Refresh presets and enhancement state when screen resumes
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 presetViewModel.refreshPresets()
+                enhancementViewModel.refreshState()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -419,7 +421,8 @@ fun ImageToImageScreen(
             label = { Text(stringResource(R.string.hint_prompt)) },
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .enhancingGlow(enhancementState.isEnhancing),
             minLines = 2,
             maxLines = 4,
             leadingIcon = {

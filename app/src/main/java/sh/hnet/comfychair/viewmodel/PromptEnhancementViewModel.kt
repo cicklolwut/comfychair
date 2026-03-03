@@ -163,6 +163,22 @@ class PromptEnhancementViewModel(application: Application) : AndroidViewModel(ap
         }
     }
 
+    /**
+     * Refresh state from persisted settings. Call on screen resume
+     * to pick up changes made in the settings screen.
+     */
+    fun refreshState() {
+        val current = _uiState.value
+        _uiState.value = current.copy(
+            isValidated = settings.validated,
+            provider = settings.provider,
+            apiKey = settings.apiKey,
+            model = settings.model,
+            customBaseUrl = settings.customBaseUrl,
+            systemPrompts = PromptEnhancementMode.entries.associateWith { settings.getSystemPrompt(it) }
+        )
+    }
+
     fun clearError() {
         _uiState.value = _uiState.value.copy(error = null)
     }

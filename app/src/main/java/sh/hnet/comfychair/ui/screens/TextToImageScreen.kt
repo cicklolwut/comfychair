@@ -69,6 +69,7 @@ import sh.hnet.comfychair.ui.components.config.UnifiedCallbacks
 import sh.hnet.comfychair.ui.components.config.toBottomSheetConfig
 import sh.hnet.comfychair.storage.AppSettings
 import sh.hnet.comfychair.ui.components.GenerationButton
+import sh.hnet.comfychair.ui.components.enhancingGlow
 import sh.hnet.comfychair.ui.components.GenerationProgressBar
 import sh.hnet.comfychair.viewmodel.ConnectionStatus
 import sh.hnet.comfychair.viewmodel.GenerationViewModel
@@ -97,6 +98,17 @@ fun TextToImageScreen(
     val enhancementViewModel: sh.hnet.comfychair.viewmodel.PromptEnhancementViewModel = viewModel()
     val enhancementState by enhancementViewModel.uiState.collectAsState()
     val lifecycleOwner = LocalLifecycleOwner.current
+
+    // Refresh enhancement state on resume (picks up settings changes)
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                enhancementViewModel.refreshState()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     // State and effects
     // Initialize ViewModels
@@ -294,7 +306,8 @@ fun TextToImageScreen(
             label = { Text(stringResource(R.string.hint_prompt)) },
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .enhancingGlow(enhancementState.isEnhancing),
             minLines = 2,
             maxLines = 4,
             leadingIcon = {

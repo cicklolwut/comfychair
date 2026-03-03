@@ -46,21 +46,25 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         run: ./gradlew assembleRelease --no-daemon
 
-      - name: Upload release APK
+      - name: Create Forgejo release and upload APK
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: actions/upload-artifact@v4
-        with:
-          name: comfychair-release-${{ github.ref_name }}
-          path: app/build/outputs/apk/release/app-release-unsigned.apk
-          retention-days: 90
-
-      - name: Create Release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: actions/create-release@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.FORGEJO_TOKEN }}
-        with:
-          tag_name: ${{ github.ref_name }}
-          release_name: ComfyChair ${{ github.ref_name }}
-          draft: false
-          prerelease: false
+          FORGEJO_TOKEN: ${{ secrets.FORGEJO_TOKEN }}
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+          SERVER: ${{ github.server_url }}
+        run: |
+          API="${SERVER}/api/v1"
+
+          # Create the release
+          RELEASE=$(curl -sf -X POST "${API}/repos/${REPO}/releases" \
+            -H "Authorization: token ${FORGEJO_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"tag_name\":\"${TAG}\",\"name\":\"ComfyChair ${TAG}\",\"draft\":false,\"prerelease\":false}")
+          RELEASE_ID=$(echo "$RELEASE" | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2)
+
+          # Upload the APK
+          curl -sf -X POST "${API}/repos/${REPO}/releases/${RELEASE_ID}/assets?name=comfychair-${TAG}-unsigned.apk" \
+            -H "Authorization: token ${FORGEJO_TOKEN}" \
+            -H "Content-Type: application/vnd.android.package-archive" \
+            --data-binary @app/build/outputs/apk/release/app-release-unsigned.apk

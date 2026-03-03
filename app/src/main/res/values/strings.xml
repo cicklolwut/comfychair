@@ -64,11 +64,17 @@
     <string name="label_example_output">Example enhanced output</string>
     <string name="button_revert">Revert to original</string>
     <string name="button_reroll">Re-enhance prompt</string>
-    <string name="label_associations_optional">Associations (optional, comma-separated)</string>
+    <string name="label_associations_optional">Associations (optional)</string>
     <string name="label_workflow_names">Workflow names</string>
     <string name="placeholder_workflow_names">e.g. SDXL Lightning, Flux Dev</string>
     <string name="label_model_names">Model names</string>
     <string name="placeholder_model_names">e.g. illustrious, noobai, flux</string>
+    <string name="title_select_associations">Select Associations</string>
+    <string name="placeholder_all_workflows">All workflows (tap to filter)</string>
+    <string name="placeholder_all_models">All models (tap to filter)</string>
+    <string name="label_no_workflows_available">No workflows available</string>
+    <string name="label_no_models_available">No models available (connect to server)</string>
+    <string name="label_selected_count">%1$d selected</string>
     <string name="label_output_fields">Output Fields</string>
     <string name="label_output_fields_desc">Choose which parameters the LLM should suggest. The JSON schema sent to the model will include only enabled fields.</string>
     <string name="button_browser_auth_done">Done</string>
@@ -576,6 +582,7 @@
     <string name="button_confirm">Confirm</string>
     <string name="button_apply">Apply</string>
     <string name="button_done">Done</string>
+    <string name="button_edit">Edit</string>
     <string name="button_ok">OK</string>
     <string name="msg_validating_workflow">Validating workflow…</string>
 

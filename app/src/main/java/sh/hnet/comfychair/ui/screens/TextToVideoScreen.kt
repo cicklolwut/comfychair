@@ -340,13 +340,15 @@ fun TextToVideoScreen(
                 if (enhancementState.hasEnhanced && uiState.positivePrompt.isNotEmpty()) {
                     Row {
                         IconButton(onClick = {
-                            enhancementState.preEnhancementState?.let { pre ->
-                                textToVideoViewModel.onPositivePromptChange(pre.prompt)
-                                if (pre.negativePrompt.isNotBlank()) textToVideoViewModel.onNegativePromptChange(pre.negativePrompt)
-                                if (pre.cfgScale.isNotBlank()) textToVideoViewModel.onCfgChange(pre.cfgScale)
-                                if (pre.steps.isNotBlank()) textToVideoViewModel.onStepsChange(pre.steps)
-                                if (pre.sampler.isNotBlank()) textToVideoViewModel.onSamplerChange(pre.sampler)
-                                if (pre.scheduler.isNotBlank()) textToVideoViewModel.onSchedulerChange(pre.scheduler)
+                            val pre = enhancementState.preEnhancementState
+                            val changed = enhancementState.lastResult
+                            if (pre != null && changed != null) {
+                                if (changed.prompt != null) textToVideoViewModel.onPositivePromptChange(pre.prompt)
+                                if (changed.negativePrompt != null) textToVideoViewModel.onNegativePromptChange(pre.negativePrompt)
+                                if (changed.cfgScale != null) textToVideoViewModel.onCfgChange(pre.cfgScale)
+                                if (changed.steps != null) textToVideoViewModel.onStepsChange(pre.steps)
+                                if (changed.sampler != null) textToVideoViewModel.onSamplerChange(pre.sampler)
+                                if (changed.scheduler != null) textToVideoViewModel.onSchedulerChange(pre.scheduler)
                             }
                             enhancementViewModel.clearEnhancementState()
                         }) {

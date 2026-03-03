@@ -44,6 +44,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -65,6 +66,7 @@ import sh.hnet.comfychair.model.PromptTag
 import sh.hnet.comfychair.model.PromptEnhancementProvider
 import sh.hnet.comfychair.service.OpenRouterModels
 import sh.hnet.comfychair.ui.components.SettingsScreenScaffold
+import sh.hnet.comfychair.ui.components.TagPickerBottomSheet
 import sh.hnet.comfychair.viewmodel.PromptEnhancementViewModel
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -537,7 +539,7 @@ fun PromptEnhancementSettingsScreen(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 private fun PromptEditorDialog(
     prompt: EnhancementPrompt,
@@ -550,8 +552,9 @@ private fun PromptEditorDialog(
     var selectedTags by remember { mutableStateOf(prompt.tags) }
     var exampleInput by remember { mutableStateOf(prompt.exampleInput) }
     var exampleOutput by remember { mutableStateOf(prompt.exampleOutput) }
-    var workflowNamesText by remember { mutableStateOf(prompt.workflowNames.joinToString(", ")) }
-    var modelNamesText by remember { mutableStateOf(prompt.modelNames.joinToString(", ")) }
+    var workflowNames by remember { mutableStateOf(prompt.workflowNames) }
+    var modelNames by remember { mutableStateOf(prompt.modelNames) }
+    var showTagPicker by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -632,21 +635,17 @@ private fun PromptEditorDialog(
                     text = stringResource(R.string.label_associations_optional),
                     style = MaterialTheme.typography.labelMedium
                 )
-                OutlinedTextField(
-                    value = workflowNamesText,
-                    onValueChange = { workflowNamesText = it },
-                    label = { Text(stringResource(R.string.label_workflow_names)) },
-                    placeholder = { Text(stringResource(R.string.placeholder_workflow_names)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                AssociationField(
+                    label = stringResource(R.string.label_workflow_names),
+                    values = workflowNames,
+                    placeholder = stringResource(R.string.placeholder_all_workflows),
+                    onClick = { showTagPicker = true }
                 )
-                OutlinedTextField(
-                    value = modelNamesText,
-                    onValueChange = { modelNamesText = it },
-                    label = { Text(stringResource(R.string.label_model_names)) },
-                    placeholder = { Text(stringResource(R.string.placeholder_model_names)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                AssociationField(
+                    label = stringResource(R.string.label_model_names),
+                    values = modelNames,
+                    placeholder = stringResource(R.string.placeholder_all_models),
+                    onClick = { showTagPicker = true }
                 )
             }
         },
@@ -659,10 +658,8 @@ private fun PromptEditorDialog(
                         tags = selectedTags,
                         exampleInput = exampleInput.trim(),
                         exampleOutput = exampleOutput.trim(),
-                        workflowNames = workflowNamesText.split(",")
-                            .map { it.trim() }.filter { it.isNotBlank() }.toSet(),
-                        modelNames = modelNamesText.split(",")
-                            .map { it.trim() }.filter { it.isNotBlank() }.toSet()
+                        workflowNames = workflowNames,
+                        modelNames = modelNames
                     ))
                 },
                 enabled = name.isNotBlank() && systemPrompt.isNotBlank() && selectedTags.isNotEmpty()
@@ -673,6 +670,48 @@ private fun PromptEditorDialog(
         dismissButton = {
             OutlinedButton(onClick = onDismiss) {
                 Text(stringResource(R.string.button_cancel))
+            }
+        }
+    )
+
+    // Tag picker bottom sheet
+    if (showTagPicker) {
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        TagPickerBottomSheet(
+            selectedWorkflowNames = workflowNames,
+            selectedModelNames = modelNames,
+            onWorkflowNamesChanged = { workflowNames = it },
+            onModelNamesChanged = { modelNames = it },
+            sheetState = sheetState,
+            onDismiss = { showTagPicker = false }
+        )
+    }
+}
+
+/**
+ * Read-only text field showing selected values with an edit button.
+ * Clicking opens the tag picker bottom sheet.
+ */
+@Composable
+private fun AssociationField(
+    label: String,
+    values: Set<String>,
+    placeholder: String,
+    onClick: () -> Unit
+) {
+    OutlinedTextField(
+        value = if (values.isEmpty()) "" else values.joinToString(", "),
+        onValueChange = { },
+        label = { Text(label) },
+        placeholder = { Text(placeholder, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+        readOnly = true,
+        singleLine = true,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        trailingIcon = {
+            IconButton(onClick = onClick) {
+                Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.button_edit))
             }
         }
     )

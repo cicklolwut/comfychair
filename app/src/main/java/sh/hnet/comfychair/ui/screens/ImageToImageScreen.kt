@@ -442,13 +442,15 @@ fun ImageToImageScreen(
                 if (enhancementState.hasEnhanced && uiState.positivePrompt.isNotEmpty()) {
                     Row {
                         IconButton(onClick = {
-                            enhancementState.preEnhancementState?.let { pre ->
-                                imageToImageViewModel.onPositivePromptChange(pre.prompt)
-                                if (pre.negativePrompt.isNotBlank()) imageToImageViewModel.onNegativePromptChange(pre.negativePrompt)
-                                if (pre.cfgScale.isNotBlank()) imageToImageViewModel.onCfgChange(pre.cfgScale)
-                                if (pre.steps.isNotBlank()) imageToImageViewModel.onStepsChange(pre.steps)
-                                if (pre.sampler.isNotBlank()) imageToImageViewModel.onSamplerChange(pre.sampler)
-                                if (pre.scheduler.isNotBlank()) imageToImageViewModel.onSchedulerChange(pre.scheduler)
+                            val pre = enhancementState.preEnhancementState
+                            val changed = enhancementState.lastResult
+                            if (pre != null && changed != null) {
+                                if (changed.prompt != null) imageToImageViewModel.onPositivePromptChange(pre.prompt)
+                                if (changed.negativePrompt != null) imageToImageViewModel.onNegativePromptChange(pre.negativePrompt)
+                                if (changed.cfgScale != null) imageToImageViewModel.onCfgChange(pre.cfgScale)
+                                if (changed.steps != null) imageToImageViewModel.onStepsChange(pre.steps)
+                                if (changed.sampler != null) imageToImageViewModel.onSamplerChange(pre.sampler)
+                                if (changed.scheduler != null) imageToImageViewModel.onSchedulerChange(pre.scheduler)
                             }
                             enhancementViewModel.clearEnhancementState()
                         }) {

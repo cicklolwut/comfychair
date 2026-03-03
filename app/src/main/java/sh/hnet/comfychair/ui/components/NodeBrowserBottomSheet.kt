@@ -50,6 +50,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import sh.hnet.comfychair.R
+import sh.hnet.comfychair.ui.components.shared.ExpandableFilterChipRow
 import sh.hnet.comfychair.ui.components.shared.NoOverscrollContainer
 import sh.hnet.comfychair.util.ConnectionValidator
 import sh.hnet.comfychair.workflow.NodeTypeDefinition
@@ -475,103 +476,4 @@ private fun NodeTypeRow(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3ExpressiveApi::class)
-@Composable
-private fun ExpandableFilterChipRow(
-    options: List<String>,
-    selectedOption: String?,
-    onOptionSelected: (String?) -> Unit,
-    expanded: Boolean,
-    onExpandedChange: (Boolean) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    if (options.isEmpty()) return
 
-    // Only show expand/collapse if there are enough options
-    val canExpand = options.size > 3
-
-    if (expanded) {
-        // Expanded mode: wrapping flow layout with collapse button first
-        FlowRow(
-            modifier = modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            // Collapse button first (FilledTonalIconButton for visual distinction)
-            if (canExpand) {
-                FilledTonalIconButton(
-                    onClick = { onExpandedChange(false) }
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.KeyboardArrowUp,
-                        contentDescription = null
-                    )
-                }
-            }
-            options.forEach { option ->
-                key(option) {
-                    val isSelected = option == selectedOption
-                    FilterChip(
-                        selected = isSelected,
-                        onClick = {
-                            onOptionSelected(if (isSelected) null else option)
-                        },
-                        label = { Text(option) },
-                        leadingIcon = if (isSelected) {
-                            {
-                                Icon(
-                                    imageVector = Icons.Filled.Done,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(FilterChipDefaults.IconSize)
-                                )
-                            }
-                        } else null
-                    )
-                }
-            }
-        }
-    } else {
-        // Collapsed mode: horizontal scrolling with expand button first
-        NoOverscrollContainer(modifier = modifier.fillMaxWidth()) {
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                // Expand button first (FilledTonalIconButton for visual distinction)
-                if (canExpand) {
-                    item(key = "expand_chip") {
-                        FilledTonalIconButton(
-                            onClick = { onExpandedChange(true) }
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.KeyboardArrowDown,
-                                contentDescription = null
-                            )
-                        }
-                    }
-                }
-                items(
-                    items = options,
-                    key = { "chip_$it" }
-                ) { option ->
-                    val isSelected = option == selectedOption
-                    FilterChip(
-                        selected = isSelected,
-                        onClick = {
-                            onOptionSelected(if (isSelected) null else option)
-                        },
-                        label = { Text(option) },
-                        leadingIcon = if (isSelected) {
-                            {
-                                Icon(
-                                    imageVector = Icons.Filled.Done,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(FilterChipDefaults.IconSize)
-                                )
-                            }
-                        } else null
-                    )
-                }
-            }
-        }
-    }
-}

@@ -328,13 +328,15 @@ fun TextToImageScreen(
                     // Post-enhancement: revert + reroll buttons
                     Row {
                         IconButton(onClick = {
-                            enhancementState.preEnhancementState?.let { pre ->
-                                textToImageViewModel.onPositivePromptChange(pre.prompt)
-                                if (pre.negativePrompt.isNotBlank()) textToImageViewModel.onNegativePromptChange(pre.negativePrompt)
-                                if (pre.cfgScale.isNotBlank()) textToImageViewModel.onCfgChange(pre.cfgScale)
-                                if (pre.steps.isNotBlank()) textToImageViewModel.onStepsChange(pre.steps)
-                                if (pre.sampler.isNotBlank()) textToImageViewModel.onSamplerChange(pre.sampler)
-                                if (pre.scheduler.isNotBlank()) textToImageViewModel.onSchedulerChange(pre.scheduler)
+                            val pre = enhancementState.preEnhancementState
+                            val changed = enhancementState.lastResult
+                            if (pre != null && changed != null) {
+                                if (changed.prompt != null) textToImageViewModel.onPositivePromptChange(pre.prompt)
+                                if (changed.negativePrompt != null) textToImageViewModel.onNegativePromptChange(pre.negativePrompt)
+                                if (changed.cfgScale != null) textToImageViewModel.onCfgChange(pre.cfgScale)
+                                if (changed.steps != null) textToImageViewModel.onStepsChange(pre.steps)
+                                if (changed.sampler != null) textToImageViewModel.onSamplerChange(pre.sampler)
+                                if (changed.scheduler != null) textToImageViewModel.onSchedulerChange(pre.scheduler)
                             }
                             enhancementViewModel.clearEnhancementState()
                         }) {

@@ -32,7 +32,7 @@
     <string name="title_browser_auth">Sign In</string>
 
     <!-- Prompt Enhancement -->
-    <string name="nav_prompt_enhancement_settings">Prompt Enhancement</string>
+    <string name="nav_prompt_enhancement_settings">Prompt Enhancement (Experimental)</string>
     <string name="label_enhancement_provider">Provider</string>
     <string name="label_enhancement_api_key">API Key</string>
     <string name="label_enhancement_base_url">Base URL</string>

@@ -384,14 +384,16 @@ fun TextToVideoScreen(
                         ).show()
                     }
                 },
-                onEnhancePrompt = if (enhancementState.isValidated) {
-                    {
-                        enhancementViewModel.enhance(
-                            uiState.positivePrompt,
-                            sh.hnet.comfychair.model.PromptEnhancementMode.TEXT_TO_VIDEO
-                        ) { enhanced ->
-                            enhanced?.let { textToVideoViewModel.onPositivePromptChange(it) }
-                        }
+                enhancementPrompts = if (enhancementState.isValidated)
+                    enhancementViewModel.getPromptsForMode(sh.hnet.comfychair.model.PromptEnhancementMode.TEXT_TO_VIDEO)
+                else emptyList(),
+                onEnhancePrompt = if (enhancementState.isValidated) { promptId: String ->
+                    enhancementViewModel.enhance(
+                        uiState.positivePrompt,
+                        sh.hnet.comfychair.model.PromptEnhancementMode.TEXT_TO_VIDEO,
+                        promptId
+                    ) { enhanced ->
+                        enhanced?.let { textToVideoViewModel.onPositivePromptChange(it) }
                     }
                 } else null,
                 isEnhancing = enhancementState.isEnhancing,

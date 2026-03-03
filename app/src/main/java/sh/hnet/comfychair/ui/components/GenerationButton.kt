@@ -70,7 +70,8 @@ fun GenerationButton(
     isFetching: Boolean = false,
     isConnecting: Boolean = false,
     onGenerate: () -> Unit,
-    onEnhancePrompt: (() -> Unit)? = null,
+    enhancementPrompts: List<sh.hnet.comfychair.model.EnhancementPrompt> = emptyList(),
+    onEnhancePrompt: ((String) -> Unit)? = null,  // promptId
     isEnhancing: Boolean = false,
     onCancelCurrent: () -> Unit,
     onAddToFrontOfQueue: () -> Unit = {},
@@ -152,31 +153,65 @@ fun GenerationButton(
                 expanded = showMenu,
                 onDismissRequest = { showMenu = false }
             ) {
-                // Enhance prompt (top of menu)
-                if (onEnhancePrompt != null) {
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                if (isEnhancing) stringResource(R.string.button_enhancing)
-                                else stringResource(R.string.button_enhance_prompt)
-                            )
-                        },
-                        onClick = {
-                            showMenu = false
-                            onEnhancePrompt()
-                        },
-                        enabled = !isEnhancing && isEnabled,
-                        leadingIcon = {
-                            if (isEnhancing) {
+                // Enhance prompt section
+                if (onEnhancePrompt != null && enhancementPrompts.isNotEmpty()) {
+                    if (isEnhancing) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.button_enhancing)) },
+                            onClick = {},
+                            enabled = false,
+                            leadingIcon = {
                                 CircularProgressIndicator(
                                     modifier = Modifier.size(20.dp),
                                     strokeWidth = 2.dp
                                 )
-                            } else {
+                            }
+                        )
+                    } else if (enhancementPrompts.size == 1) {
+                        // Single prompt — direct action
+                        DropdownMenuItem(
+                            text = { Text("${stringResource(R.string.button_enhance_prompt)} (${enhancementPrompts[0].name})") },
+                            onClick = {
+                                showMenu = false
+                                onEnhancePrompt(enhancementPrompts[0].id)
+                            },
+                            enabled = isEnabled,
+                            leadingIcon = {
                                 Icon(Icons.Default.AutoAwesome, contentDescription = null)
                             }
+                        )
+                    } else {
+                        // Multiple prompts — show each as a menu item
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    stringResource(R.string.button_enhance_prompt),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            },
+                            onClick = {},
+                            enabled = false,
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Default.AutoAwesome,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        )
+                        enhancementPrompts.forEach { prompt ->
+                            DropdownMenuItem(
+                                text = { Text(prompt.name) },
+                                onClick = {
+                                    showMenu = false
+                                    onEnhancePrompt(prompt.id)
+                                },
+                                enabled = isEnabled,
+                                modifier = Modifier.padding(start = 16.dp)
+                            )
                         }
-                    )
+                    }
                     HorizontalDivider()
                 }
 

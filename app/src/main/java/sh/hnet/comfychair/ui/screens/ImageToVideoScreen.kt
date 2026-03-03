@@ -477,14 +477,16 @@ fun ImageToVideoScreen(
                         }
                     }
                 },
-                onEnhancePrompt = if (enhancementState.isValidated) {
-                    {
-                        enhancementViewModel.enhance(
-                            uiState.positivePrompt,
-                            sh.hnet.comfychair.model.PromptEnhancementMode.IMAGE_TO_VIDEO
-                        ) { enhanced ->
-                            enhanced?.let { imageToVideoViewModel.onPositivePromptChange(it) }
-                        }
+                enhancementPrompts = if (enhancementState.isValidated)
+                    enhancementViewModel.getPromptsForMode(sh.hnet.comfychair.model.PromptEnhancementMode.IMAGE_TO_VIDEO)
+                else emptyList(),
+                onEnhancePrompt = if (enhancementState.isValidated) { promptId: String ->
+                    enhancementViewModel.enhance(
+                        uiState.positivePrompt,
+                        sh.hnet.comfychair.model.PromptEnhancementMode.IMAGE_TO_VIDEO,
+                        promptId
+                    ) { enhanced ->
+                        enhanced?.let { imageToVideoViewModel.onPositivePromptChange(it) }
                     }
                 } else null,
                 isEnhancing = enhancementState.isEnhancing,

@@ -5,6 +5,8 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,14 +16,18 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -29,6 +35,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -53,14 +60,14 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import sh.hnet.comfychair.R
-import sh.hnet.comfychair.service.OpenRouterModels
-import sh.hnet.comfychair.model.PromptEnhancementMode
+import sh.hnet.comfychair.model.EnhancementPrompt
+import sh.hnet.comfychair.model.PromptTag
 import sh.hnet.comfychair.model.PromptEnhancementProvider
-import sh.hnet.comfychair.storage.PromptEnhancementSettings
+import sh.hnet.comfychair.service.OpenRouterModels
 import sh.hnet.comfychair.ui.components.SettingsScreenScaffold
 import sh.hnet.comfychair.viewmodel.PromptEnhancementViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun PromptEnhancementSettingsScreen(
     onNavigateToGeneration: () -> Unit,
@@ -72,8 +79,10 @@ fun PromptEnhancementSettingsScreen(
 
     var apiKeyVisible by remember { mutableStateOf(false) }
     var providerExpanded by remember { mutableStateOf(false) }
-    var editingPromptMode by remember { mutableStateOf<PromptEnhancementMode?>(null) }
     var showModelPicker by remember { mutableStateOf(false) }
+    var editingPrompt by remember { mutableStateOf<EnhancementPrompt?>(null) }
+    var showNewPromptDialog by remember { mutableStateOf(false) }
+    var promptToDelete by remember { mutableStateOf<EnhancementPrompt?>(null) }
 
     // Load OpenRouter models when provider is OPENROUTER
     LaunchedEffect(uiState.provider) {
@@ -102,7 +111,7 @@ fun PromptEnhancementSettingsScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // --- Provider Section ---
+            // --- Provider / Connection Section ---
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(
@@ -177,7 +186,6 @@ fun PromptEnhancementSettingsScreen(
 
                     // Model selection
                     if (uiState.provider == PromptEnhancementProvider.OPENROUTER) {
-                        // OpenRouter: clickable field that opens model picker dialog
                         OutlinedTextField(
                             value = uiState.model,
                             onValueChange = {},
@@ -197,7 +205,6 @@ fun PromptEnhancementSettingsScreen(
                             }
                         )
                     } else {
-                        // OpenAI/Custom: free text input
                         OutlinedTextField(
                             value = uiState.model,
                             onValueChange = { viewModel.setModel(it) },
@@ -221,10 +228,7 @@ fun PromptEnhancementSettingsScreen(
                                 strokeWidth = 2.dp,
                                 color = MaterialTheme.colorScheme.onPrimary
                             )
-                            Text(
-                                text = "  Testing…",
-                                modifier = Modifier.padding(start = 8.dp)
-                            )
+                            Text("  Testing…", modifier = Modifier.padding(start = 8.dp))
                         } else {
                             Text(stringResource(R.string.button_save_and_test))
                         }
@@ -235,13 +239,12 @@ fun PromptEnhancementSettingsScreen(
                         Text(
                             text = result,
                             style = MaterialTheme.typography.bodySmall,
-                            color = if (uiState.isValidated)
-                                MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.error
+                            color = if (uiState.isValidated) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.error
                         )
                     }
 
-                    // Validation status indicator
+                    // Validation status
                     if (uiState.isValidated) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
@@ -261,7 +264,7 @@ fun PromptEnhancementSettingsScreen(
                 }
             }
 
-            // --- System Prompts Section ---
+            // --- Enhancement Prompts Library ---
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(
@@ -270,49 +273,111 @@ fun PromptEnhancementSettingsScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = stringResource(R.string.label_enhancement_system_prompts),
+                            text = stringResource(R.string.label_enhancement_prompts),
                             style = MaterialTheme.typography.titleSmall
                         )
-                        TextButton(onClick = { viewModel.resetAllSystemPrompts() }) {
-                            Text(stringResource(R.string.button_reset_all_prompts))
+                        Row {
+                            IconButton(onClick = { viewModel.restoreBuiltinPrompts() }) {
+                                Icon(
+                                    Icons.Default.Restore,
+                                    contentDescription = stringResource(R.string.button_restore_defaults),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            IconButton(onClick = { showNewPromptDialog = true }) {
+                                Icon(
+                                    Icons.Default.Add,
+                                    contentDescription = stringResource(R.string.button_add_prompt),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
                         }
                     }
 
-                    PromptEnhancementMode.entries.forEach { mode ->
-                        val displayName = when (mode) {
-                            PromptEnhancementMode.TEXT_TO_IMAGE -> stringResource(R.string.label_mode_txt2img)
-                            PromptEnhancementMode.IMAGE_TO_IMAGE -> stringResource(R.string.label_mode_img2img)
-                            PromptEnhancementMode.TEXT_TO_VIDEO -> stringResource(R.string.label_mode_txt2vid)
-                            PromptEnhancementMode.IMAGE_TO_VIDEO -> stringResource(R.string.label_mode_img2vid)
-                        }
-                        val currentPrompt = uiState.systemPrompts[mode] ?: ""
-                        val isDefault = currentPrompt == PromptEnhancementSettings.DEFAULT_PROMPTS[mode]
-
-                        OutlinedButton(
-                            onClick = { editingPromptMode = mode },
-                            modifier = Modifier.fillMaxWidth()
+                    // Prompt list
+                    uiState.availablePrompts.forEach { prompt ->
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { editingPrompt = prompt }
                         ) {
-                            Column(modifier = Modifier.fillMaxWidth()) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(displayName)
-                                    if (!isDefault) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                verticalAlignment = Alignment.Top
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
                                         Text(
-                                            text = stringResource(R.string.label_customized),
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.primary
+                                            text = prompt.name,
+                                            style = MaterialTheme.typography.bodyMedium
                                         )
+                                        if (prompt.isBuiltIn) {
+                                            Text(
+                                                text = " (built-in)",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
                                     }
+                                    // Tags
+                                    FlowRow(
+                                        modifier = Modifier.padding(top = 4.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        prompt.tags.forEach { tag ->
+                                            AssistChip(
+                                                onClick = {},
+                                                label = {
+                                                    Text(
+                                                        tag.displayName,
+                                                        style = MaterialTheme.typography.labelSmall
+                                                    )
+                                                },
+                                                modifier = Modifier.height(24.dp)
+                                            )
+                                        }
+                                    }
+                                    // Preview
+                                    Text(
+                                        text = prompt.systemPrompt.take(80) +
+                                            if (prompt.systemPrompt.length > 80) "…" else "",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 2,
+                                        modifier = Modifier.padding(top = 4.dp)
+                                    )
                                 }
-                                Text(
-                                    text = currentPrompt.take(80) + if (currentPrompt.length > 80) "…" else "",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 2
-                                )
+                                // Edit & Delete icons
+                                IconButton(onClick = { editingPrompt = prompt }) {
+                                    Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
+                                }
+                                IconButton(onClick = { promptToDelete = prompt }) {
+                                    Icon(
+                                        Icons.Default.Delete,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
                             }
+                        }
+                    }
+
+                    if (uiState.availablePrompts.isEmpty()) {
+                        Text(
+                            text = stringResource(R.string.label_no_prompts),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        TextButton(onClick = { viewModel.restoreBuiltinPrompts() }) {
+                            Icon(Icons.Default.Restore, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Text(
+                                stringResource(R.string.button_restore_defaults),
+                                modifier = Modifier.padding(start = 4.dp)
+                            )
                         }
                     }
                 }
@@ -320,56 +385,59 @@ fun PromptEnhancementSettingsScreen(
         }
     }
 
-    // --- System Prompt Editor Dialog ---
-    editingPromptMode?.let { mode ->
-        val displayName = when (mode) {
-            PromptEnhancementMode.TEXT_TO_IMAGE -> stringResource(R.string.label_mode_txt2img)
-            PromptEnhancementMode.IMAGE_TO_IMAGE -> stringResource(R.string.label_mode_img2img)
-            PromptEnhancementMode.TEXT_TO_VIDEO -> stringResource(R.string.label_mode_txt2vid)
-            PromptEnhancementMode.IMAGE_TO_VIDEO -> stringResource(R.string.label_mode_img2vid)
-        }
-        var editText by remember(mode) {
-            mutableStateOf(uiState.systemPrompts[mode] ?: "")
-        }
+    // --- Prompt Editor Dialog (edit existing) ---
+    editingPrompt?.let { prompt ->
+        PromptEditorDialog(
+            prompt = prompt,
+            isNew = false,
+            onSave = { updated ->
+                viewModel.updatePrompt(updated)
+                editingPrompt = null
+            },
+            onDismiss = { editingPrompt = null }
+        )
+    }
 
+    // --- New Prompt Dialog ---
+    if (showNewPromptDialog) {
+        PromptEditorDialog(
+            prompt = EnhancementPrompt(
+                name = "",
+                systemPrompt = "",
+                tags = setOf(PromptTag.TEXT_TO_IMAGE)
+            ),
+            isNew = true,
+            onSave = { newPrompt ->
+                viewModel.addPrompt(newPrompt)
+                showNewPromptDialog = false
+            },
+            onDismiss = { showNewPromptDialog = false }
+        )
+    }
+
+    // --- Delete Confirmation ---
+    promptToDelete?.let { prompt ->
         AlertDialog(
-            onDismissRequest = { editingPromptMode = null },
-            title = { Text(displayName) },
+            onDismissRequest = { promptToDelete = null },
+            title = { Text(stringResource(R.string.title_delete_prompt)) },
             text = {
-                Column {
-                    OutlinedTextField(
-                        value = editText,
-                        onValueChange = { editText = it },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(200.dp),
-                        minLines = 5
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    TextButton(
-                        onClick = {
-                            viewModel.resetSystemPrompt(mode)
-                            editText = PromptEnhancementSettings.DEFAULT_PROMPTS[mode] ?: ""
-                        }
-                    ) {
-                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Text(
-                            stringResource(R.string.button_reset_to_default),
-                            modifier = Modifier.padding(start = 4.dp)
-                        )
-                    }
-                }
+                Text(
+                    if (prompt.isBuiltIn)
+                        stringResource(R.string.msg_delete_builtin_prompt, prompt.name)
+                    else
+                        stringResource(R.string.msg_delete_custom_prompt, prompt.name)
+                )
             },
             confirmButton = {
                 Button(onClick = {
-                    viewModel.setSystemPrompt(mode, editText)
-                    editingPromptMode = null
+                    viewModel.deletePrompt(prompt.id)
+                    promptToDelete = null
                 }) {
-                    Text(stringResource(R.string.button_save))
+                    Text(stringResource(R.string.button_delete))
                 }
             },
             dismissButton = {
-                OutlinedButton(onClick = { editingPromptMode = null }) {
+                OutlinedButton(onClick = { promptToDelete = null }) {
                     Text(stringResource(R.string.button_cancel))
                 }
             }
@@ -392,6 +460,94 @@ fun PromptEnhancementSettingsScreen(
             onDismiss = { showModelPicker = false }
         )
     }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun PromptEditorDialog(
+    prompt: EnhancementPrompt,
+    isNew: Boolean,
+    onSave: (EnhancementPrompt) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var name by remember { mutableStateOf(prompt.name) }
+    var systemPrompt by remember { mutableStateOf(prompt.systemPrompt) }
+    var selectedTags by remember { mutableStateOf(prompt.tags) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                if (isNew) stringResource(R.string.title_new_prompt)
+                else stringResource(R.string.title_edit_prompt)
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                // Name
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text(stringResource(R.string.label_prompt_name)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                // Tags
+                Text(
+                    text = stringResource(R.string.label_prompt_tags),
+                    style = MaterialTheme.typography.labelMedium
+                )
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    PromptTag.entries.forEach { tag ->
+                        FilterChip(
+                            selected = tag in selectedTags,
+                            onClick = {
+                                selectedTags = if (tag in selectedTags)
+                                    selectedTags - tag
+                                else
+                                    selectedTags + tag
+                            },
+                            label = { Text(tag.displayName, style = MaterialTheme.typography.labelSmall) }
+                        )
+                    }
+                }
+
+                // System Prompt
+                OutlinedTextField(
+                    value = systemPrompt,
+                    onValueChange = { systemPrompt = it },
+                    label = { Text(stringResource(R.string.label_enhancement_system_prompt)) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp),
+                    minLines = 5
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    onSave(prompt.copy(
+                        name = name.trim(),
+                        systemPrompt = systemPrompt,
+                        tags = selectedTags
+                    ))
+                },
+                enabled = name.isNotBlank() && systemPrompt.isNotBlank() && selectedTags.isNotEmpty()
+            ) {
+                Text(stringResource(R.string.button_save))
+            }
+        },
+        dismissButton = {
+            OutlinedButton(onClick = onDismiss) {
+                Text(stringResource(R.string.button_cancel))
+            }
+        }
+    )
 }
 
 @Composable
@@ -433,7 +589,6 @@ private fun OpenRouterModelPickerDialog(
         },
         text = {
             Column(modifier = Modifier.fillMaxWidth()) {
-                // Filter field
                 OutlinedTextField(
                     value = filter,
                     onValueChange = onFilterChange,
@@ -442,18 +597,13 @@ private fun OpenRouterModelPickerDialog(
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                     modifier = Modifier.fillMaxWidth()
                 )
-
                 Spacer(modifier = Modifier.height(8.dp))
-
                 Text(
                     text = stringResource(R.string.label_model_count, filteredModels.size, models.size),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-
                 Spacer(modifier = Modifier.height(4.dp))
-
-                // Model list
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -503,5 +653,3 @@ private fun OpenRouterModelPickerDialog(
         }
     )
 }
-
-

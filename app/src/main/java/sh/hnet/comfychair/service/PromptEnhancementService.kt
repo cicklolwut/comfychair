@@ -60,6 +60,14 @@ class PromptEnhancementService(
     }
 
     /**
+     * Enhance a prompt using a specific system prompt.
+     */
+    suspend fun enhanceWithSystemPrompt(
+        userPrompt: String,
+        systemPrompt: String
+    ): String = enhanceInternal(userPrompt, systemPrompt)
+
+    /**
      * Enhance a prompt using the configured LLM provider.
      *
      * @param userPrompt The user's raw prompt
@@ -69,11 +77,15 @@ class PromptEnhancementService(
     suspend fun enhance(
         userPrompt: String,
         mode: PromptEnhancementMode
+    ): String = enhanceInternal(userPrompt, settings.getSystemPrompt(mode))
+
+    private suspend fun enhanceInternal(
+        userPrompt: String,
+        systemPrompt: String
     ): String = withContext(Dispatchers.IO) {
         val baseUrl = settings.effectiveBaseUrl.trimEnd('/')
         val apiKey = settings.apiKey
         val model = settings.model
-        val systemPrompt = settings.getSystemPrompt(mode)
 
         require(apiKey.isNotBlank()) { "API key not configured" }
         require(baseUrl.isNotBlank()) { "API base URL not configured" }

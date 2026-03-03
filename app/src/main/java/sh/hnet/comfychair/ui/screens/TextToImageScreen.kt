@@ -369,14 +369,16 @@ fun TextToImageScreen(
                         }
                     }
                 },
-                onEnhancePrompt = if (enhancementState.isValidated) {
-                    {
-                        enhancementViewModel.enhance(
-                            uiState.positivePrompt,
-                            sh.hnet.comfychair.model.PromptEnhancementMode.TEXT_TO_IMAGE
-                        ) { enhanced ->
-                            enhanced?.let { textToImageViewModel.onPositivePromptChange(it) }
-                        }
+                enhancementPrompts = if (enhancementState.isValidated)
+                    enhancementViewModel.getPromptsForMode(sh.hnet.comfychair.model.PromptEnhancementMode.TEXT_TO_IMAGE)
+                else emptyList(),
+                onEnhancePrompt = if (enhancementState.isValidated) { promptId: String ->
+                    enhancementViewModel.enhance(
+                        uiState.positivePrompt,
+                        sh.hnet.comfychair.model.PromptEnhancementMode.TEXT_TO_IMAGE,
+                        promptId
+                    ) { enhanced ->
+                        enhanced?.let { textToImageViewModel.onPositivePromptChange(it) }
                     }
                 } else null,
                 isEnhancing = enhancementState.isEnhancing,

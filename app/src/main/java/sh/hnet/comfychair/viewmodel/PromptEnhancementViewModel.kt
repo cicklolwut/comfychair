@@ -7,10 +7,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import sh.hnet.comfychair.model.EnhancementPrompt
 import sh.hnet.comfychair.model.PromptEnhancementMode
 import sh.hnet.comfychair.model.PromptEnhancementProvider
 import sh.hnet.comfychair.service.OpenRouterModels
 import sh.hnet.comfychair.service.PromptEnhancementService
+import sh.hnet.comfychair.storage.EnhancementPromptStore
 import sh.hnet.comfychair.storage.PromptEnhancementSettings
 
 data class PromptEnhancementUiState(
@@ -24,8 +26,9 @@ data class PromptEnhancementUiState(
     val apiKey: String = "",
     val model: String = "",
     val customBaseUrl: String = "",
-    // System prompts per mode
-    val systemPrompts: Map<PromptEnhancementMode, String> = emptyMap(),
+    // Prompt library
+    val availablePrompts: List<EnhancementPrompt> = emptyList(),
+    val selectedPromptId: String? = null,
     // OpenRouter model list
     val openRouterModels: List<OpenRouterModels.Model> = emptyList(),
     val isLoadingModels: Boolean = false,
@@ -34,20 +37,20 @@ data class PromptEnhancementUiState(
 
 class PromptEnhancementViewModel(application: Application) : AndroidViewModel(application) {
     val settings = PromptEnhancementSettings(application)
+    val promptStore = EnhancementPromptStore(application)
     private val service = PromptEnhancementService(settings)
 
     private val _uiState = MutableStateFlow(loadState())
     val uiState: StateFlow<PromptEnhancementUiState> = _uiState.asStateFlow()
 
     private fun loadState(): PromptEnhancementUiState {
-        val prompts = PromptEnhancementMode.entries.associateWith { settings.getSystemPrompt(it) }
         return PromptEnhancementUiState(
             isValidated = settings.validated,
             provider = settings.provider,
             apiKey = settings.apiKey,
             model = settings.model,
             customBaseUrl = settings.customBaseUrl,
-            systemPrompts = prompts
+            availablePrompts = promptStore.getPrompts()
         )
     }
 
@@ -75,24 +78,42 @@ class PromptEnhancementViewModel(application: Application) : AndroidViewModel(ap
         _uiState.value = _uiState.value.copy(customBaseUrl = url)
     }
 
-    fun setSystemPrompt(mode: PromptEnhancementMode, prompt: String) {
-        settings.setSystemPrompt(mode, prompt)
+    // --- Prompt Library ---
+
+    fun addPrompt(prompt: EnhancementPrompt) {
+        promptStore.addPrompt(prompt)
+        _uiState.value = _uiState.value.copy(availablePrompts = promptStore.getPrompts())
+    }
+
+    fun updatePrompt(prompt: EnhancementPrompt) {
+        promptStore.updatePrompt(prompt)
+        _uiState.value = _uiState.value.copy(availablePrompts = promptStore.getPrompts())
+    }
+
+    fun deletePrompt(id: String) {
+        promptStore.deletePrompt(id)
+        val newPrompts = promptStore.getPrompts()
         _uiState.value = _uiState.value.copy(
-            systemPrompts = _uiState.value.systemPrompts + (mode to prompt)
+            availablePrompts = newPrompts,
+            selectedPromptId = if (_uiState.value.selectedPromptId == id) null
+                else _uiState.value.selectedPromptId
         )
     }
 
-    fun resetSystemPrompt(mode: PromptEnhancementMode) {
-        settings.resetSystemPrompt(mode)
-        val defaultPrompt = PromptEnhancementSettings.DEFAULT_PROMPTS[mode] ?: ""
-        _uiState.value = _uiState.value.copy(
-            systemPrompts = _uiState.value.systemPrompts + (mode to defaultPrompt)
-        )
+    fun restoreBuiltinPrompts() {
+        promptStore.restoreBuiltinPrompts()
+        _uiState.value = _uiState.value.copy(availablePrompts = promptStore.getPrompts())
     }
 
-    fun resetAllSystemPrompts() {
-        settings.resetAllSystemPrompts()
-        _uiState.value = loadState()
+    fun selectPrompt(id: String?) {
+        _uiState.value = _uiState.value.copy(selectedPromptId = id)
+    }
+
+    /**
+     * Get prompts filtered for a specific generation mode.
+     */
+    fun getPromptsForMode(mode: PromptEnhancementMode): List<EnhancementPrompt> {
+        return promptStore.getPromptsForMode(mode)
     }
 
     fun setModelFilter(filter: String) {
@@ -118,17 +139,31 @@ class PromptEnhancementViewModel(application: Application) : AndroidViewModel(ap
     }
 
     /**
-     * Enhance a prompt. Returns the enhanced text via the callback.
+     * Enhance a prompt using the selected enhancement prompt (or first available for mode).
+     * Returns the enhanced text via the callback.
      */
     fun enhance(
         prompt: String,
         mode: PromptEnhancementMode,
+        promptId: String? = _uiState.value.selectedPromptId,
         onResult: (String?) -> Unit
     ) {
+        // Resolve the system prompt to use
+        val enhancementPrompt = promptId?.let { promptStore.getPrompt(it) }
+            ?: getPromptsForMode(mode).firstOrNull()
+
+        if (enhancementPrompt == null) {
+            onResult(null)
+            return
+        }
+
         _uiState.value = _uiState.value.copy(isEnhancing = true, error = null)
         viewModelScope.launch {
             try {
-                val enhanced = service.enhance(prompt, mode)
+                val enhanced = service.enhanceWithSystemPrompt(
+                    prompt,
+                    enhancementPrompt.systemPrompt
+                )
                 _uiState.value = _uiState.value.copy(isEnhancing = false)
                 onResult(enhanced)
             } catch (e: Exception) {
@@ -175,7 +210,7 @@ class PromptEnhancementViewModel(application: Application) : AndroidViewModel(ap
             apiKey = settings.apiKey,
             model = settings.model,
             customBaseUrl = settings.customBaseUrl,
-            systemPrompts = PromptEnhancementMode.entries.associateWith { settings.getSystemPrompt(it) }
+            availablePrompts = promptStore.getPrompts()
         )
     }
 

@@ -111,6 +111,8 @@ fun LoginScreen() {
     var offlinePromptServer by remember { mutableStateOf<Server?>(null) }
     var showBrowserReauthPrompt by remember { mutableStateOf(false) }
     var browserReauthServer by remember { mutableStateOf<Server?>(null) }
+    // Set to a server to trigger attemptConnection via LaunchedEffect (avoids forward-ref)
+    var pendingBrowserConnect by remember { mutableStateOf<Server?>(null) }
 
     // Browser auth WebView launcher — used when session expired / first connect
     val webViewAuthLauncher = rememberLauncherForActivityResult(
@@ -120,15 +122,11 @@ fun LoginScreen() {
             val server = browserReauthServer ?: return@rememberLauncherForActivityResult
             val cookies = result.data?.getStringExtra(WebViewAuthActivity.EXTRA_COOKIES) ?: ""
             if (cookies.isNotEmpty()) {
-                // Persist fresh cookies and retry connection
                 credentialStorage.saveCredentials(server.id, sh.hnet.comfychair.model.AuthCredentials.Cookie(cookies))
                 showBrowserReauthPrompt = false
                 browserReauthServer = null
                 connectionState = ConnectionState.IDLE
-                scope.launch {
-                    kotlinx.coroutines.delay(200)
-                    attemptConnection(server)
-                }
+                pendingBrowserConnect = server  // triggers LaunchedEffect below
             }
         } else {
             showBrowserReauthPrompt = false
@@ -243,6 +241,15 @@ fun LoginScreen() {
                     connectionState = ConnectionState.IDLE
                 }
             }
+        }
+    }
+
+    // Trigger attemptConnection after WebView auth completes (avoids forward-reference issue)
+    LaunchedEffect(pendingBrowserConnect) {
+        pendingBrowserConnect?.let { server ->
+            pendingBrowserConnect = null
+            delay(200)
+            attemptConnection(server)
         }
     }
 

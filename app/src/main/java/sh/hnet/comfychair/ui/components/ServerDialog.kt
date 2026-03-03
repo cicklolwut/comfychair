@@ -360,6 +360,7 @@ fun ServerDialog(
                         onCheckedChange = { isChecked ->
                             if (isChecked) {
                                 authType = AuthType.NONE
+                                showPortField = true
                                 usernameError = null
                                 passwordError = null
                                 tokenError = null
@@ -378,6 +379,7 @@ fun ServerDialog(
                         onCheckedChange = { isChecked ->
                             if (isChecked) {
                                 authType = AuthType.BASIC
+                                showPortField = true
                                 tokenError = null
                             }
                         },
@@ -394,6 +396,7 @@ fun ServerDialog(
                         onCheckedChange = { isChecked ->
                             if (isChecked) {
                                 authType = AuthType.BEARER
+                                showPortField = true
                                 usernameError = null
                                 passwordError = null
                             }
@@ -411,6 +414,7 @@ fun ServerDialog(
                         onCheckedChange = { isChecked ->
                             if (isChecked) {
                                 authType = AuthType.BROWSER
+                                showPortField = false
                                 usernameError = null
                                 passwordError = null
                                 tokenError = null

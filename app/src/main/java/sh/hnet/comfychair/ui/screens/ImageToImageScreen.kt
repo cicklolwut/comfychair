@@ -504,8 +504,15 @@ fun ImageToImageScreen(
                         uiState.positivePrompt,
                         sh.hnet.comfychair.model.PromptEnhancementMode.IMAGE_TO_IMAGE,
                         promptId
-                    ) { enhanced ->
-                        enhanced?.let { imageToImageViewModel.onPositivePromptChange(it) }
+                    ) { result ->
+                        result?.let { r ->
+                            r.prompt?.let { imageToImageViewModel.onPositivePromptChange(it) }
+                            r.negativePrompt?.let { imageToImageViewModel.onNegativePromptChange(it) }
+                            r.cfgScale?.let { imageToImageViewModel.onCfgChange(it.toString()) }
+                            r.steps?.let { imageToImageViewModel.onStepsChange(it.toString()) }
+                            r.sampler?.let { imageToImageViewModel.onSamplerChange(it) }
+                            r.scheduler?.let { imageToImageViewModel.onSchedulerChange(it) }
+                        }
                     }
                 } else null,
                 isEnhancing = enhancementState.isEnhancing,

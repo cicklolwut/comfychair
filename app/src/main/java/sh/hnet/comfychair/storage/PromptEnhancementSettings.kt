@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKeys
+import sh.hnet.comfychair.model.EnhancementOutputField
 import sh.hnet.comfychair.model.PromptEnhancementMode
 import sh.hnet.comfychair.model.PromptEnhancementProvider
 
@@ -23,6 +24,7 @@ class PromptEnhancementSettings(context: Context) {
         private const val KEY_API_KEY = "api_key"
         private const val KEY_VALIDATED = "validated"
         private const val KEY_INCLUDE_EXAMPLES = "include_examples"
+        private const val KEY_ENABLED_OUTPUT_FIELDS = "enabled_output_fields"
         private const val KEY_SYSTEM_PROMPT_PREFIX = "system_prompt_"
 
         val DEFAULT_PROMPTS = mapOf(
@@ -114,6 +116,19 @@ class PromptEnhancementSettings(context: Context) {
     var includeExamples: Boolean
         get() = prefs.getBoolean(KEY_INCLUDE_EXAMPLES, false)
         set(value) = prefs.edit().putBoolean(KEY_INCLUDE_EXAMPLES, value).apply()
+
+    /** Which output fields the LLM should populate. */
+    var enabledOutputFields: Set<EnhancementOutputField>
+        get() {
+            val stored = prefs.getStringSet(KEY_ENABLED_OUTPUT_FIELDS, null)
+            return stored?.mapNotNull { name ->
+                try { EnhancementOutputField.valueOf(name) }
+                catch (_: Exception) { null }
+            }?.toSet() ?: EnhancementOutputField.DEFAULTS
+        }
+        set(value) = prefs.edit()
+            .putStringSet(KEY_ENABLED_OUTPUT_FIELDS, value.map { it.name }.toSet())
+            .apply()
 
     fun getSystemPrompt(mode: PromptEnhancementMode): String {
         return prefs.getString(

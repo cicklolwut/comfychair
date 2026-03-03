@@ -485,8 +485,15 @@ fun ImageToVideoScreen(
                         uiState.positivePrompt,
                         sh.hnet.comfychair.model.PromptEnhancementMode.IMAGE_TO_VIDEO,
                         promptId
-                    ) { enhanced ->
-                        enhanced?.let { imageToVideoViewModel.onPositivePromptChange(it) }
+                    ) { result ->
+                        result?.let { r ->
+                            r.prompt?.let { imageToVideoViewModel.onPositivePromptChange(it) }
+                            r.negativePrompt?.let { imageToVideoViewModel.onNegativePromptChange(it) }
+                            r.cfgScale?.let { imageToVideoViewModel.onCfgChange(it.toString()) }
+                            r.steps?.let { imageToVideoViewModel.onStepsChange(it.toString()) }
+                            r.sampler?.let { imageToVideoViewModel.onSamplerChange(it) }
+                            r.scheduler?.let { imageToVideoViewModel.onSchedulerChange(it) }
+                        }
                     }
                 } else null,
                 isEnhancing = enhancementState.isEnhancing,

@@ -392,8 +392,15 @@ fun TextToVideoScreen(
                         uiState.positivePrompt,
                         sh.hnet.comfychair.model.PromptEnhancementMode.TEXT_TO_VIDEO,
                         promptId
-                    ) { enhanced ->
-                        enhanced?.let { textToVideoViewModel.onPositivePromptChange(it) }
+                    ) { result ->
+                        result?.let { r ->
+                            r.prompt?.let { textToVideoViewModel.onPositivePromptChange(it) }
+                            r.negativePrompt?.let { textToVideoViewModel.onNegativePromptChange(it) }
+                            r.cfgScale?.let { textToVideoViewModel.onCfgChange(it.toString()) }
+                            r.steps?.let { textToVideoViewModel.onStepsChange(it.toString()) }
+                            r.sampler?.let { textToVideoViewModel.onSamplerChange(it) }
+                            r.scheduler?.let { textToVideoViewModel.onSchedulerChange(it) }
+                        }
                     }
                 } else null,
                 isEnhancing = enhancementState.isEnhancing,

@@ -8,6 +8,7 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
+import sh.hnet.comfychair.model.EnhancementResult
 import sh.hnet.comfychair.model.PromptEnhancementMode
 import sh.hnet.comfychair.storage.PromptEnhancementSettings
 import java.util.concurrent.TimeUnit
@@ -60,12 +61,50 @@ class PromptEnhancementService(
     }
 
     /**
-     * Enhance a prompt using a specific system prompt.
+     * Enhance a prompt using a specific system prompt. Returns raw text.
      */
     suspend fun enhanceWithSystemPrompt(
         userPrompt: String,
         systemPrompt: String
     ): String = enhanceInternal(userPrompt, systemPrompt)
+
+    /**
+     * Enhance a prompt and parse the structured JSON result.
+     */
+    suspend fun enhanceStructured(
+        userPrompt: String,
+        systemPrompt: String
+    ): EnhancementResult = withContext(Dispatchers.IO) {
+        val rawResponse = enhanceInternal(userPrompt, systemPrompt)
+        parseEnhancementResult(rawResponse)
+    }
+
+    /**
+     * Parse LLM response into EnhancementResult.
+     * Handles both clean JSON and JSON wrapped in markdown code blocks.
+     */
+    private fun parseEnhancementResult(raw: String): EnhancementResult {
+        // Strip markdown code blocks if present
+        val cleaned = raw.trim()
+            .removePrefix("```json").removePrefix("```")
+            .removeSuffix("```")
+            .trim()
+
+        return try {
+            val json = JSONObject(cleaned)
+            EnhancementResult(
+                prompt = json.optString("prompt", null),
+                negativePrompt = json.optString("negative_prompt", null),
+                cfgScale = if (json.has("cfg_scale")) json.optDouble("cfg_scale") else null,
+                steps = if (json.has("steps")) json.optInt("steps") else null,
+                sampler = json.optString("sampler", null),
+                scheduler = json.optString("scheduler", null)
+            )
+        } catch (_: Exception) {
+            // Fallback: treat entire response as prompt text
+            EnhancementResult(prompt = cleaned)
+        }
+    }
 
     /**
      * Enhance a prompt using the configured LLM provider.

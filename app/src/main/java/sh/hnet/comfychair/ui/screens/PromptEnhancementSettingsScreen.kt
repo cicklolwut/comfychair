@@ -292,6 +292,53 @@ fun PromptEnhancementSettingsScreen(
                 }
             }
 
+            // --- Output Fields ---
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = stringResource(R.string.label_output_fields),
+                        style = MaterialTheme.typography.titleSmall
+                    )
+                    Text(
+                        text = stringResource(R.string.label_output_fields_desc),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    sh.hnet.comfychair.model.EnhancementOutputField.entries.forEach { field ->
+                        val isPrompt = field == sh.hnet.comfychair.model.EnhancementOutputField.PROMPT
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable(enabled = !isPrompt) {
+                                    viewModel.setOutputFieldEnabled(
+                                        field,
+                                        field !in uiState.enabledOutputFields
+                                    )
+                                }
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = field.displayName,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = if (isPrompt) MaterialTheme.colorScheme.onSurfaceVariant
+                                    else MaterialTheme.colorScheme.onSurface
+                            )
+                            androidx.compose.material3.Switch(
+                                checked = field in uiState.enabledOutputFields,
+                                onCheckedChange = { checked ->
+                                    viewModel.setOutputFieldEnabled(field, checked)
+                                },
+                                enabled = !isPrompt // Prompt is always on
+                            )
+                        }
+                    }
+                }
+            }
+
             // --- Enhancement Prompts Library ---
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {

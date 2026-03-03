@@ -41,16 +41,54 @@ data class EnhancementPrompt(
     val isDeleted: Boolean = false  // soft-delete for built-ins (can be restored)
 ) {
     /**
-     * Build the effective system prompt, optionally appending examples.
+     * Build the effective system prompt with JSON output schema and optional examples.
      */
-    fun buildSystemPrompt(includeExamples: Boolean): String {
-        if (!includeExamples || exampleInput.isBlank() || exampleOutput.isBlank()) {
-            return systemPrompt
-        }
-        return """$systemPrompt
+    fun buildSystemPrompt(
+        enabledFields: Set<EnhancementOutputField>,
+        includeExamples: Boolean
+    ): String {
+        val sb = StringBuilder(systemPrompt)
 
-Example:
-User: $exampleInput
-Output: $exampleOutput"""
+        // Add JSON output format instructions
+        sb.append("\n\n")
+        sb.append("IMPORTANT: You MUST respond with a valid JSON object containing ONLY these fields:\n")
+        sb.append("{\n")
+        enabledFields.sortedBy { it.ordinal }.forEach { field ->
+            val desc = when (field) {
+                EnhancementOutputField.PROMPT -> "\"prompt\": \"the enhanced positive prompt\""
+                EnhancementOutputField.NEGATIVE_PROMPT -> "\"negative_prompt\": \"things to avoid in generation\""
+                EnhancementOutputField.CFG_SCALE -> "\"cfg_scale\": <number, typically 2.0-15.0>"
+                EnhancementOutputField.STEPS -> "\"steps\": <integer, typically 20-50>"
+                EnhancementOutputField.SAMPLER -> "\"sampler\": \"recommended sampler name\""
+                EnhancementOutputField.SCHEDULER -> "\"scheduler\": \"recommended scheduler name\""
+            }
+            sb.append("  $desc,\n")
+        }
+        sb.append("}\n")
+        sb.append("Do NOT include any text outside the JSON object. No markdown, no explanation.")
+
+        // Add examples if enabled
+        if (includeExamples && exampleInput.isNotBlank() && exampleOutput.isNotBlank()) {
+            // Build example JSON from the example fields
+            val exampleJson = buildExampleJson(enabledFields)
+            sb.append("\n\nExample:\nUser: $exampleInput\nOutput: $exampleJson")
+        }
+
+        return sb.toString()
+    }
+
+    private fun buildExampleJson(enabledFields: Set<EnhancementOutputField>): String {
+        val parts = mutableListOf<String>()
+        enabledFields.sortedBy { it.ordinal }.forEach { field ->
+            when (field) {
+                EnhancementOutputField.PROMPT -> parts.add("\"prompt\": \"$exampleOutput\"")
+                EnhancementOutputField.NEGATIVE_PROMPT -> parts.add("\"negative_prompt\": \"worst quality, bad quality, blurry, lowres\"")
+                EnhancementOutputField.CFG_SCALE -> parts.add("\"cfg_scale\": 7.0")
+                EnhancementOutputField.STEPS -> parts.add("\"steps\": 28")
+                EnhancementOutputField.SAMPLER -> parts.add("\"sampler\": \"euler\"")
+                EnhancementOutputField.SCHEDULER -> parts.add("\"scheduler\": \"normal\"")
+            }
+        }
+        return "{ ${parts.joinToString(", ")} }"
     }
 }

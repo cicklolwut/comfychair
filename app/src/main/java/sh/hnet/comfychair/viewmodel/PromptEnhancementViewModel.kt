@@ -7,7 +7,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import sh.hnet.comfychair.model.EnhancementOutputField
 import sh.hnet.comfychair.model.EnhancementPrompt
+import sh.hnet.comfychair.model.EnhancementResult
 import sh.hnet.comfychair.model.PromptEnhancementMode
 import sh.hnet.comfychair.model.PromptEnhancementProvider
 import sh.hnet.comfychair.service.OpenRouterModels
@@ -30,6 +32,7 @@ data class PromptEnhancementUiState(
     val availablePrompts: List<EnhancementPrompt> = emptyList(),
     val selectedPromptId: String? = null,
     val includeExamples: Boolean = false,
+    val enabledOutputFields: Set<EnhancementOutputField> = EnhancementOutputField.DEFAULTS,
     // OpenRouter model list
     val openRouterModels: List<OpenRouterModels.Model> = emptyList(),
     val isLoadingModels: Boolean = false,
@@ -52,7 +55,8 @@ class PromptEnhancementViewModel(application: Application) : AndroidViewModel(ap
             model = settings.model,
             customBaseUrl = settings.customBaseUrl,
             availablePrompts = promptStore.getPrompts(),
-            includeExamples = settings.includeExamples
+            includeExamples = settings.includeExamples,
+            enabledOutputFields = settings.enabledOutputFields
         )
     }
 
@@ -147,13 +151,13 @@ class PromptEnhancementViewModel(application: Application) : AndroidViewModel(ap
 
     /**
      * Enhance a prompt using the selected enhancement prompt (or first available for mode).
-     * Returns the enhanced text via the callback.
+     * Returns structured result via the callback.
      */
     fun enhance(
         prompt: String,
         mode: PromptEnhancementMode,
         promptId: String? = _uiState.value.selectedPromptId,
-        onResult: (String?) -> Unit
+        onResult: (EnhancementResult?) -> Unit
     ) {
         // Resolve the system prompt to use
         val enhancementPrompt = promptId?.let { promptStore.getPrompt(it) }
@@ -164,15 +168,17 @@ class PromptEnhancementViewModel(application: Application) : AndroidViewModel(ap
             return
         }
 
+        val enabledFields = settings.enabledOutputFields
         _uiState.value = _uiState.value.copy(isEnhancing = true, error = null)
         viewModelScope.launch {
             try {
-                val enhanced = service.enhanceWithSystemPrompt(
-                    prompt,
-                    enhancementPrompt.buildSystemPrompt(settings.includeExamples)
+                val systemPrompt = enhancementPrompt.buildSystemPrompt(
+                    enabledFields,
+                    settings.includeExamples
                 )
+                val result = service.enhanceStructured(prompt, systemPrompt)
                 _uiState.value = _uiState.value.copy(isEnhancing = false)
-                onResult(enhanced)
+                onResult(result)
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     isEnhancing = false,
@@ -218,8 +224,18 @@ class PromptEnhancementViewModel(application: Application) : AndroidViewModel(ap
             model = settings.model,
             customBaseUrl = settings.customBaseUrl,
             availablePrompts = promptStore.getPrompts(),
-            includeExamples = settings.includeExamples
+            includeExamples = settings.includeExamples,
+            enabledOutputFields = settings.enabledOutputFields
         )
+    }
+
+    fun setOutputFieldEnabled(field: EnhancementOutputField, enabled: Boolean) {
+        val current = settings.enabledOutputFields.toMutableSet()
+        if (enabled) current.add(field) else current.remove(field)
+        // PROMPT is always enabled
+        current.add(EnhancementOutputField.PROMPT)
+        settings.enabledOutputFields = current
+        _uiState.value = _uiState.value.copy(enabledOutputFields = current)
     }
 
     fun clearError() {

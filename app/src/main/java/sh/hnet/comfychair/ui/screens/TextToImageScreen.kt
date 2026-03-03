@@ -377,8 +377,15 @@ fun TextToImageScreen(
                         uiState.positivePrompt,
                         sh.hnet.comfychair.model.PromptEnhancementMode.TEXT_TO_IMAGE,
                         promptId
-                    ) { enhanced ->
-                        enhanced?.let { textToImageViewModel.onPositivePromptChange(it) }
+                    ) { result ->
+                        result?.let { r ->
+                            r.prompt?.let { textToImageViewModel.onPositivePromptChange(it) }
+                            r.negativePrompt?.let { textToImageViewModel.onNegativePromptChange(it) }
+                            r.cfgScale?.let { textToImageViewModel.onCfgChange(it.toString()) }
+                            r.steps?.let { textToImageViewModel.onStepsChange(it.toString()) }
+                            r.sampler?.let { textToImageViewModel.onSamplerChange(it) }
+                            r.scheduler?.let { textToImageViewModel.onSchedulerChange(it) }
+                        }
                     }
                 } else null,
                 isEnhancing = enhancementState.isEnhancing,

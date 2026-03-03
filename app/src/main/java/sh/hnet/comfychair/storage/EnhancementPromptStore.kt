@@ -33,6 +33,8 @@ class EnhancementPromptStore(context: Context) {
                 name = "Generic (Text to Image)",
                 systemPrompt = """You are a Stable Diffusion prompt engineer. Given a user's description, produce a detailed, comma-separated prompt optimized for image generation. Focus on subject, composition, lighting, style, and quality tags. Output ONLY the enhanced prompt, nothing else.""".trimIndent(),
                 tags = setOf(PromptTag.TEXT_TO_IMAGE),
+                exampleInput = "a girl reading in a library",
+                exampleOutput = "a young woman reading a book in a grand library, warm ambient lighting, bookshelves stretching to the ceiling, dust motes in sunbeams, cozy atmosphere, detailed, sharp focus, soft shadows",
                 isBuiltIn = true
             ),
             EnhancementPrompt(
@@ -82,6 +84,8 @@ Rules:
 
 Output ONLY the enhanced prompt, nothing else.""".trimIndent(),
                 tags = setOf(PromptTag.TEXT_TO_IMAGE, PromptTag.IMG2IMG_EDITING),
+                exampleInput = "a girl reading in a library",
+                exampleOutput = "masterpiece, best quality, highly detailed, 1girl, solo, reading, book, library interior, bookshelves, warm lighting, volumetric light, sharp focus, cozy atmosphere, detailed eyes, sitting, indoors, 4k",
                 isBuiltIn = true
             ),
             EnhancementPrompt(
@@ -102,6 +106,8 @@ Rules:
 
 Output ONLY the enhanced prompt, nothing else.""".trimIndent(),
                 tags = setOf(PromptTag.TEXT_TO_IMAGE, PromptTag.IMG2IMG_EDITING),
+                exampleInput = "a girl reading in a library",
+                exampleOutput = "A young woman sits in a sunlit corner of an old library, deeply absorbed in a leather-bound book. Warm golden light streams through tall arched windows, casting long shadows across rows of towering bookshelves. Dust particles float in the light beams. She wears a cream knit sweater. Close-up shot with shallow depth of field, the background bookshelves softly blurred.",
                 isBuiltIn = true
             ),
             EnhancementPrompt(
@@ -127,6 +133,8 @@ Rules:
 
 Output ONLY the enhanced prompt as comma-separated booru tags, nothing else.""".trimIndent(),
                 tags = setOf(PromptTag.TEXT_TO_IMAGE, PromptTag.IMG2IMG_EDITING),
+                exampleInput = "a girl reading in a library",
+                exampleOutput = "masterpiece, best quality, absurdres, 1girl, solo, reading, book, library, indoors, sitting, long hair, brown hair, school uniform, warm lighting, bookshelves, looking down, detailed eyes, soft smile",
                 isBuiltIn = true
             ),
             EnhancementPrompt(
@@ -153,6 +161,8 @@ Example hybrid format: "A detailed anime illustration of [natural language scene
 
 Output ONLY the enhanced prompt, nothing else.""".trimIndent(),
                 tags = setOf(PromptTag.TEXT_TO_IMAGE, PromptTag.IMG2IMG_EDITING),
+                exampleInput = "a girl reading in a library",
+                exampleOutput = "A detailed anime illustration of a young woman quietly reading a leather-bound book in a grand old library, surrounded by towering wooden bookshelves. Warm afternoon sunlight filters through tall windows, masterpiece, best quality, absurdres, 1girl, solo, long hair, sitting, indoors, detailed eyes",
                 isBuiltIn = true
             ),
             EnhancementPrompt(
@@ -173,6 +183,8 @@ Rules:
 
 Output ONLY the enhanced prompt, nothing else.""".trimIndent(),
                 tags = setOf(PromptTag.TEXT_TO_IMAGE, PromptTag.IMG2IMG_EDITING),
+                exampleInput = "a girl reading in a library",
+                exampleOutput = "score_9, score_8_up, score_7_up, source_anime, rating_safe, masterpiece, best quality, absurdres, 1girl, solo, reading, book, library, indoors, sitting, long hair, brown hair, warm lighting, bookshelves, looking down, cozy, soft smile",
                 isBuiltIn = true
             ),
             EnhancementPrompt(
@@ -214,6 +226,8 @@ Rules:
 
 Output ONLY the enhanced prompt, nothing else.""".trimIndent(),
                 tags = setOf(PromptTag.TEXT_TO_VIDEO, PromptTag.IMAGE_TO_VIDEO),
+                exampleInput = "a girl reading, then looks up and smiles",
+                exampleOutput = "A young woman sits in a cozy library reading a book. She slowly raises her head, her eyes shifting from the pages to the camera. A gentle smile spreads across her face. Warm afternoon light from a nearby window highlights her features. Static camera, medium close-up, soft focus background.",
                 isBuiltIn = true
             )
         )
@@ -341,6 +355,8 @@ Output ONLY the enhanced prompt, nothing else.""".trimIndent(),
                     name = obj.getString("name"),
                     systemPrompt = obj.getString("systemPrompt"),
                     tags = tags,
+                    exampleInput = obj.optString("exampleInput", ""),
+                    exampleOutput = obj.optString("exampleOutput", ""),
                     isBuiltIn = obj.optBoolean("isBuiltIn", false)
                 )
             }
@@ -357,6 +373,8 @@ Output ONLY the enhanced prompt, nothing else.""".trimIndent(),
                 put("name", prompt.name)
                 put("systemPrompt", prompt.systemPrompt)
                 put("tags", JSONArray(prompt.tags.map { it.name }))
+                put("exampleInput", prompt.exampleInput)
+                put("exampleOutput", prompt.exampleOutput)
                 put("isBuiltIn", prompt.isBuiltIn)
             }
             array.put(obj)

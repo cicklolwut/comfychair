@@ -57,6 +57,11 @@
     <string name="title_delete_prompt">Delete Prompt</string>
     <string name="msg_delete_builtin_prompt">Hide "%1$s"? You can restore it later from the defaults.</string>
     <string name="msg_delete_custom_prompt">Delete "%1$s"? This cannot be undone.</string>
+    <string name="label_include_examples">Include Examples</string>
+    <string name="label_include_examples_desc">Append example input/output to system prompts. Helps cheaper models follow the format.</string>
+    <string name="label_example_optional">Example (optional, used when Include Examples is on)</string>
+    <string name="label_example_input">Example user input</string>
+    <string name="label_example_output">Example enhanced output</string>
     <string name="button_browser_auth_done">Done</string>
     <string name="label_auth_username">Username</string>
     <string name="label_auth_password">Password</string>

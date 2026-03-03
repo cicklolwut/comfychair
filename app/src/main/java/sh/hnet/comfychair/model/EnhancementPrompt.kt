@@ -35,6 +35,22 @@ data class EnhancementPrompt(
     val name: String,
     val systemPrompt: String,
     val tags: Set<PromptTag>,
+    val exampleInput: String = "",
+    val exampleOutput: String = "",
     val isBuiltIn: Boolean = false,
     val isDeleted: Boolean = false  // soft-delete for built-ins (can be restored)
-)
+) {
+    /**
+     * Build the effective system prompt, optionally appending examples.
+     */
+    fun buildSystemPrompt(includeExamples: Boolean): String {
+        if (!includeExamples || exampleInput.isBlank() || exampleOutput.isBlank()) {
+            return systemPrompt
+        }
+        return """$systemPrompt
+
+Example:
+User: $exampleInput
+Output: $exampleOutput"""
+    }
+}

@@ -29,6 +29,7 @@ data class PromptEnhancementUiState(
     // Prompt library
     val availablePrompts: List<EnhancementPrompt> = emptyList(),
     val selectedPromptId: String? = null,
+    val includeExamples: Boolean = false,
     // OpenRouter model list
     val openRouterModels: List<OpenRouterModels.Model> = emptyList(),
     val isLoadingModels: Boolean = false,
@@ -50,7 +51,8 @@ class PromptEnhancementViewModel(application: Application) : AndroidViewModel(ap
             apiKey = settings.apiKey,
             model = settings.model,
             customBaseUrl = settings.customBaseUrl,
-            availablePrompts = promptStore.getPrompts()
+            availablePrompts = promptStore.getPrompts(),
+            includeExamples = settings.includeExamples
         )
     }
 
@@ -109,6 +111,11 @@ class PromptEnhancementViewModel(application: Application) : AndroidViewModel(ap
         _uiState.value = _uiState.value.copy(selectedPromptId = id)
     }
 
+    fun setIncludeExamples(include: Boolean) {
+        settings.includeExamples = include
+        _uiState.value = _uiState.value.copy(includeExamples = include)
+    }
+
     /**
      * Get prompts filtered for a specific generation mode.
      */
@@ -162,7 +169,7 @@ class PromptEnhancementViewModel(application: Application) : AndroidViewModel(ap
             try {
                 val enhanced = service.enhanceWithSystemPrompt(
                     prompt,
-                    enhancementPrompt.systemPrompt
+                    enhancementPrompt.buildSystemPrompt(settings.includeExamples)
                 )
                 _uiState.value = _uiState.value.copy(isEnhancing = false)
                 onResult(enhanced)
@@ -210,7 +217,8 @@ class PromptEnhancementViewModel(application: Application) : AndroidViewModel(ap
             apiKey = settings.apiKey,
             model = settings.model,
             customBaseUrl = settings.customBaseUrl,
-            availablePrompts = promptStore.getPrompts()
+            availablePrompts = promptStore.getPrompts(),
+            includeExamples = settings.includeExamples
         )
     }
 

@@ -264,6 +264,34 @@ fun PromptEnhancementSettingsScreen(
                 }
             }
 
+            // --- Include Examples Toggle ---
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { viewModel.setIncludeExamples(!uiState.includeExamples) }
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = stringResource(R.string.label_include_examples),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Text(
+                            text = stringResource(R.string.label_include_examples_desc),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    androidx.compose.material3.Switch(
+                        checked = uiState.includeExamples,
+                        onCheckedChange = { viewModel.setIncludeExamples(it) }
+                    )
+                }
+            }
+
             // --- Enhancement Prompts Library ---
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -473,6 +501,8 @@ private fun PromptEditorDialog(
     var name by remember { mutableStateOf(prompt.name) }
     var systemPrompt by remember { mutableStateOf(prompt.systemPrompt) }
     var selectedTags by remember { mutableStateOf(prompt.tags) }
+    var exampleInput by remember { mutableStateOf(prompt.exampleInput) }
+    var exampleOutput by remember { mutableStateOf(prompt.exampleOutput) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -526,6 +556,27 @@ private fun PromptEditorDialog(
                         .height(200.dp),
                     minLines = 5
                 )
+
+                // Example (optional)
+                Text(
+                    text = stringResource(R.string.label_example_optional),
+                    style = MaterialTheme.typography.labelMedium
+                )
+                OutlinedTextField(
+                    value = exampleInput,
+                    onValueChange = { exampleInput = it },
+                    label = { Text(stringResource(R.string.label_example_input)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = exampleOutput,
+                    onValueChange = { exampleOutput = it },
+                    label = { Text(stringResource(R.string.label_example_output)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 2,
+                    maxLines = 4
+                )
             }
         },
         confirmButton = {
@@ -534,7 +585,9 @@ private fun PromptEditorDialog(
                     onSave(prompt.copy(
                         name = name.trim(),
                         systemPrompt = systemPrompt,
-                        tags = selectedTags
+                        tags = selectedTags,
+                        exampleInput = exampleInput.trim(),
+                        exampleOutput = exampleOutput.trim()
                     ))
                 },
                 enabled = name.isNotBlank() && systemPrompt.isNotBlank() && selectedTags.isNotEmpty()

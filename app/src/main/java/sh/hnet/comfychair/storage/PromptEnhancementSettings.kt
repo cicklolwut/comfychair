@@ -22,6 +22,7 @@ class PromptEnhancementSettings(context: Context) {
         private const val KEY_CUSTOM_BASE_URL = "custom_base_url"
         private const val KEY_API_KEY = "api_key"
         private const val KEY_VALIDATED = "validated"
+        private const val KEY_INCLUDE_EXAMPLES = "include_examples"
         private const val KEY_SYSTEM_PROMPT_PREFIX = "system_prompt_"
 
         val DEFAULT_PROMPTS = mapOf(
@@ -108,6 +109,11 @@ class PromptEnhancementSettings(context: Context) {
     var validated: Boolean
         get() = prefs.getBoolean(KEY_VALIDATED, false)
         set(value) = prefs.edit().putBoolean(KEY_VALIDATED, value).apply()
+
+    /** Whether to include example prompts in the system prompt (helps cheaper models). */
+    var includeExamples: Boolean
+        get() = prefs.getBoolean(KEY_INCLUDE_EXAMPLES, false)
+        set(value) = prefs.edit().putBoolean(KEY_INCLUDE_EXAMPLES, value).apply()
 
     fun getSystemPrompt(mode: PromptEnhancementMode): String {
         return prefs.getString(

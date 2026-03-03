@@ -269,6 +269,29 @@ Output ONLY the enhanced prompt, nothing else.""".trimIndent(),
     }
 
     /**
+     * Get prompts matching a mode, optionally filtered by workflow/model name.
+     * If workflow/model filters are set on a prompt, it only shows for matching workflows/models.
+     * Prompts with empty workflow/model sets show for all.
+     */
+    fun getPromptsForContext(
+        mode: sh.hnet.comfychair.model.PromptEnhancementMode,
+        workflowName: String? = null,
+        modelName: String? = null
+    ): List<EnhancementPrompt> {
+        return getPromptsForMode(mode).filter { prompt ->
+            val workflowMatch = prompt.workflowNames.isEmpty() ||
+                (workflowName != null && prompt.workflowNames.any {
+                    workflowName.contains(it, ignoreCase = true)
+                })
+            val modelMatch = prompt.modelNames.isEmpty() ||
+                (modelName != null && prompt.modelNames.any {
+                    modelName.contains(it, ignoreCase = true)
+                })
+            workflowMatch && modelMatch
+        }
+    }
+
+    /**
      * Add a new user-created prompt.
      */
     fun addPrompt(prompt: EnhancementPrompt) {
@@ -350,6 +373,13 @@ Output ONLY the enhanced prompt, nothing else.""".trimIndent(),
                     catch (_: Exception) { null }
                 }.toSet()
 
+                val workflowNames = obj.optJSONArray("workflowNames")?.let { arr ->
+                    (0 until arr.length()).map { arr.getString(it) }.toSet()
+                } ?: emptySet()
+                val modelNames = obj.optJSONArray("modelNames")?.let { arr ->
+                    (0 until arr.length()).map { arr.getString(it) }.toSet()
+                } ?: emptySet()
+
                 EnhancementPrompt(
                     id = obj.getString("id"),
                     name = obj.getString("name"),
@@ -357,6 +387,8 @@ Output ONLY the enhanced prompt, nothing else.""".trimIndent(),
                     tags = tags,
                     exampleInput = obj.optString("exampleInput", ""),
                     exampleOutput = obj.optString("exampleOutput", ""),
+                    workflowNames = workflowNames,
+                    modelNames = modelNames,
                     isBuiltIn = obj.optBoolean("isBuiltIn", false)
                 )
             }
@@ -375,6 +407,8 @@ Output ONLY the enhanced prompt, nothing else.""".trimIndent(),
                 put("tags", JSONArray(prompt.tags.map { it.name }))
                 put("exampleInput", prompt.exampleInput)
                 put("exampleOutput", prompt.exampleOutput)
+                put("workflowNames", JSONArray(prompt.workflowNames.toList()))
+                put("modelNames", JSONArray(prompt.modelNames.toList()))
                 put("isBuiltIn", prompt.isBuiltIn)
             }
             array.put(obj)

@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Undo
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.ui.res.painterResource
 import androidx.compose.material.icons.filled.Save
@@ -322,7 +324,43 @@ fun TextToImageScreen(
                 )
             },
             trailingIcon = {
-                if (uiState.positivePrompt.isNotEmpty()) {
+                if (enhancementState.hasEnhanced && uiState.positivePrompt.isNotEmpty()) {
+                    // Post-enhancement: revert + reroll buttons
+                    Row {
+                        IconButton(onClick = {
+                            enhancementState.preEnhancementState?.let { pre ->
+                                textToImageViewModel.onPositivePromptChange(pre.prompt)
+                                if (pre.negativePrompt.isNotBlank()) textToImageViewModel.onNegativePromptChange(pre.negativePrompt)
+                                if (pre.cfgScale.isNotBlank()) textToImageViewModel.onCfgChange(pre.cfgScale)
+                                if (pre.steps.isNotBlank()) textToImageViewModel.onStepsChange(pre.steps)
+                                if (pre.sampler.isNotBlank()) textToImageViewModel.onSamplerChange(pre.sampler)
+                                if (pre.scheduler.isNotBlank()) textToImageViewModel.onSchedulerChange(pre.scheduler)
+                            }
+                            enhancementViewModel.clearEnhancementState()
+                        }) {
+                            Icon(Icons.Default.Undo, contentDescription = stringResource(R.string.button_revert))
+                        }
+                        IconButton(onClick = {
+                            val promptId = enhancementState.preEnhancementState?.enhancementPromptId
+                            enhancementViewModel.enhance(
+                                uiState.positivePrompt,
+                                sh.hnet.comfychair.model.PromptEnhancementMode.TEXT_TO_IMAGE,
+                                promptId
+                            ) { result ->
+                                result?.let { r ->
+                                    r.prompt?.let { textToImageViewModel.onPositivePromptChange(it) }
+                                    r.negativePrompt?.let { textToImageViewModel.onNegativePromptChange(it) }
+                                    r.cfgScale?.let { textToImageViewModel.onCfgChange(it.toString()) }
+                                    r.steps?.let { textToImageViewModel.onStepsChange(it.toString()) }
+                                    r.sampler?.let { textToImageViewModel.onSamplerChange(it) }
+                                    r.scheduler?.let { textToImageViewModel.onSchedulerChange(it) }
+                                }
+                            }
+                        }) {
+                            Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.button_reroll))
+                        }
+                    }
+                } else if (uiState.positivePrompt.isNotEmpty()) {
                     IconButton(onClick = { textToImageViewModel.onPositivePromptChange("") }) {
                         Icon(Icons.Default.Clear, contentDescription = stringResource(R.string.content_description_clear))
                     }
@@ -373,10 +411,19 @@ fun TextToImageScreen(
                     enhancementViewModel.getPromptsForMode(sh.hnet.comfychair.model.PromptEnhancementMode.TEXT_TO_IMAGE)
                 else emptyList(),
                 onEnhancePrompt = if (enhancementState.isValidated) { promptId: String ->
+                    val preState = sh.hnet.comfychair.model.PreEnhancementState(
+                        prompt = uiState.positivePrompt,
+                        negativePrompt = uiState.negativePrompt,
+                        cfgScale = uiState.cfg,
+                        steps = uiState.steps,
+                        sampler = uiState.sampler,
+                        scheduler = uiState.scheduler
+                    )
                     enhancementViewModel.enhance(
                         uiState.positivePrompt,
                         sh.hnet.comfychair.model.PromptEnhancementMode.TEXT_TO_IMAGE,
-                        promptId
+                        promptId,
+                        preState
                     ) { result ->
                         result?.let { r ->
                             r.prompt?.let { textToImageViewModel.onPositivePromptChange(it) }
@@ -385,6 +432,15 @@ fun TextToImageScreen(
                             r.steps?.let { textToImageViewModel.onStepsChange(it.toString()) }
                             r.sampler?.let { textToImageViewModel.onSamplerChange(it) }
                             r.scheduler?.let { textToImageViewModel.onSchedulerChange(it) }
+                            // Show updated fields
+                            val fields = r.updatedFieldNames()
+                            if (fields.isNotEmpty()) {
+                                Toast.makeText(
+                                    context,
+                                    "Updated: ${fields.joinToString(", ")}",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
                         }
                     }
                 } else null,

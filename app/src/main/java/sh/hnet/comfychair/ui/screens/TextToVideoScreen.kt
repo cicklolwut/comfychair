@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Undo
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Settings
@@ -335,7 +337,42 @@ fun TextToVideoScreen(
                 )
             },
             trailingIcon = {
-                if (uiState.positivePrompt.isNotEmpty()) {
+                if (enhancementState.hasEnhanced && uiState.positivePrompt.isNotEmpty()) {
+                    Row {
+                        IconButton(onClick = {
+                            enhancementState.preEnhancementState?.let { pre ->
+                                textToVideoViewModel.onPositivePromptChange(pre.prompt)
+                                if (pre.negativePrompt.isNotBlank()) textToVideoViewModel.onNegativePromptChange(pre.negativePrompt)
+                                if (pre.cfgScale.isNotBlank()) textToVideoViewModel.onCfgChange(pre.cfgScale)
+                                if (pre.steps.isNotBlank()) textToVideoViewModel.onStepsChange(pre.steps)
+                                if (pre.sampler.isNotBlank()) textToVideoViewModel.onSamplerChange(pre.sampler)
+                                if (pre.scheduler.isNotBlank()) textToVideoViewModel.onSchedulerChange(pre.scheduler)
+                            }
+                            enhancementViewModel.clearEnhancementState()
+                        }) {
+                            Icon(Icons.Default.Undo, contentDescription = stringResource(R.string.button_revert))
+                        }
+                        IconButton(onClick = {
+                            val promptId = enhancementState.preEnhancementState?.enhancementPromptId
+                            enhancementViewModel.enhance(
+                                uiState.positivePrompt,
+                                sh.hnet.comfychair.model.PromptEnhancementMode.TEXT_TO_VIDEO,
+                                promptId
+                            ) { result ->
+                                result?.let { r ->
+                                    r.prompt?.let { textToVideoViewModel.onPositivePromptChange(it) }
+                                    r.negativePrompt?.let { textToVideoViewModel.onNegativePromptChange(it) }
+                                    r.cfgScale?.let { textToVideoViewModel.onCfgChange(it.toString()) }
+                                    r.steps?.let { textToVideoViewModel.onStepsChange(it.toString()) }
+                                    r.sampler?.let { textToVideoViewModel.onSamplerChange(it) }
+                                    r.scheduler?.let { textToVideoViewModel.onSchedulerChange(it) }
+                                }
+                            }
+                        }) {
+                            Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.button_reroll))
+                        }
+                    }
+                } else if (uiState.positivePrompt.isNotEmpty()) {
                     IconButton(onClick = {
                         textToVideoViewModel.onPositivePromptChange("")
                         presetViewModel.clearActivePreset()
@@ -388,10 +425,19 @@ fun TextToVideoScreen(
                     enhancementViewModel.getPromptsForMode(sh.hnet.comfychair.model.PromptEnhancementMode.TEXT_TO_VIDEO)
                 else emptyList(),
                 onEnhancePrompt = if (enhancementState.isValidated) { promptId: String ->
+                    val preState = sh.hnet.comfychair.model.PreEnhancementState(
+                        prompt = uiState.positivePrompt,
+                        negativePrompt = uiState.negativePrompt,
+                        cfgScale = uiState.cfg,
+                        steps = uiState.steps,
+                        sampler = uiState.sampler,
+                        scheduler = uiState.scheduler
+                    )
                     enhancementViewModel.enhance(
                         uiState.positivePrompt,
                         sh.hnet.comfychair.model.PromptEnhancementMode.TEXT_TO_VIDEO,
-                        promptId
+                        promptId,
+                        preState
                     ) { result ->
                         result?.let { r ->
                             r.prompt?.let { textToVideoViewModel.onPositivePromptChange(it) }
@@ -400,6 +446,10 @@ fun TextToVideoScreen(
                             r.steps?.let { textToVideoViewModel.onStepsChange(it.toString()) }
                             r.sampler?.let { textToVideoViewModel.onSamplerChange(it) }
                             r.scheduler?.let { textToVideoViewModel.onSchedulerChange(it) }
+                            val fields = r.updatedFieldNames()
+                            if (fields.isNotEmpty()) {
+                                Toast.makeText(context, "Updated: ${fields.joinToString(", ")}", Toast.LENGTH_SHORT).show()
+                            }
                         }
                     }
                 } else null,

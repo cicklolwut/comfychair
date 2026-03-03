@@ -28,4 +28,29 @@ data class EnhancementResult(
     val steps: Int? = null,
     val sampler: String? = null,
     val scheduler: String? = null
+) {
+    /** Returns list of field names that were populated. */
+    fun updatedFieldNames(): List<String> {
+        val fields = mutableListOf<String>()
+        if (prompt != null) fields.add("Prompt")
+        if (negativePrompt != null) fields.add("Negative Prompt")
+        if (cfgScale != null) fields.add("CFG Scale → $cfgScale")
+        if (steps != null) fields.add("Steps → $steps")
+        if (sampler != null) fields.add("Sampler → $sampler")
+        if (scheduler != null) fields.add("Scheduler → $scheduler")
+        return fields
+    }
+}
+
+/**
+ * Snapshot of generation parameters before enhancement, for revert.
+ */
+data class PreEnhancementState(
+    val prompt: String = "",
+    val negativePrompt: String = "",
+    val cfgScale: String = "",
+    val steps: String = "",
+    val sampler: String = "",
+    val scheduler: String = "",
+    val enhancementPromptId: String? = null  // for reroll
 )

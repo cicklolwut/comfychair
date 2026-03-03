@@ -10,6 +10,7 @@ import kotlinx.coroutines.launch
 import sh.hnet.comfychair.model.EnhancementOutputField
 import sh.hnet.comfychair.model.EnhancementPrompt
 import sh.hnet.comfychair.model.EnhancementResult
+import sh.hnet.comfychair.model.PreEnhancementState
 import sh.hnet.comfychair.model.PromptEnhancementMode
 import sh.hnet.comfychair.model.PromptEnhancementProvider
 import sh.hnet.comfychair.service.OpenRouterModels
@@ -33,6 +34,10 @@ data class PromptEnhancementUiState(
     val selectedPromptId: String? = null,
     val includeExamples: Boolean = false,
     val enabledOutputFields: Set<EnhancementOutputField> = EnhancementOutputField.DEFAULTS,
+    // Post-enhancement state
+    val hasEnhanced: Boolean = false,
+    val preEnhancementState: PreEnhancementState? = null,
+    val lastResult: EnhancementResult? = null,
     // OpenRouter model list
     val openRouterModels: List<OpenRouterModels.Model> = emptyList(),
     val isLoadingModels: Boolean = false,
@@ -151,12 +156,15 @@ class PromptEnhancementViewModel(application: Application) : AndroidViewModel(ap
 
     /**
      * Enhance a prompt using the selected enhancement prompt (or first available for mode).
-     * Returns structured result via the callback.
+     * Stores pre-enhancement state for revert. Returns structured result via the callback.
+     *
+     * @param preState snapshot of current generation params (for revert)
      */
     fun enhance(
         prompt: String,
         mode: PromptEnhancementMode,
         promptId: String? = _uiState.value.selectedPromptId,
+        preState: PreEnhancementState? = null,
         onResult: (EnhancementResult?) -> Unit
     ) {
         // Resolve the system prompt to use
@@ -169,7 +177,16 @@ class PromptEnhancementViewModel(application: Application) : AndroidViewModel(ap
         }
 
         val enabledFields = settings.enabledOutputFields
-        _uiState.value = _uiState.value.copy(isEnhancing = true, error = null)
+        // Store pre-enhancement state (only on first enhance, not reroll)
+        val stateToStore = preState?.copy(enhancementPromptId = promptId)
+            ?: _uiState.value.preEnhancementState
+
+        _uiState.value = _uiState.value.copy(
+            isEnhancing = true,
+            error = null,
+            preEnhancementState = stateToStore
+        )
+
         viewModelScope.launch {
             try {
                 val systemPrompt = enhancementPrompt.buildSystemPrompt(
@@ -177,7 +194,11 @@ class PromptEnhancementViewModel(application: Application) : AndroidViewModel(ap
                     settings.includeExamples
                 )
                 val result = service.enhanceStructured(prompt, systemPrompt)
-                _uiState.value = _uiState.value.copy(isEnhancing = false)
+                _uiState.value = _uiState.value.copy(
+                    isEnhancing = false,
+                    hasEnhanced = true,
+                    lastResult = result
+                )
                 onResult(result)
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
@@ -187,6 +208,17 @@ class PromptEnhancementViewModel(application: Application) : AndroidViewModel(ap
                 onResult(null)
             }
         }
+    }
+
+    /**
+     * Clear the post-enhancement state (called after revert).
+     */
+    fun clearEnhancementState() {
+        _uiState.value = _uiState.value.copy(
+            hasEnhanced = false,
+            preEnhancementState = null,
+            lastResult = null
+        )
     }
 
     fun testConnection() {

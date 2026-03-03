@@ -37,6 +37,10 @@ data class EnhancementPrompt(
     val tags: Set<PromptTag>,
     val exampleInput: String = "",
     val exampleOutput: String = "",
+    /** Workflow names this prompt is associated with (empty = all workflows). */
+    val workflowNames: Set<String> = emptySet(),
+    /** Model names/patterns this prompt is associated with (empty = all models). */
+    val modelNames: Set<String> = emptySet(),
     val isBuiltIn: Boolean = false,
     val isDeleted: Boolean = false  // soft-delete for built-ins (can be restored)
 ) {

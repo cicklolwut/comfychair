@@ -62,6 +62,13 @@
     <string name="label_example_optional">Example (optional, used when Include Examples is on)</string>
     <string name="label_example_input">Example user input</string>
     <string name="label_example_output">Example enhanced output</string>
+    <string name="button_revert">Revert to original</string>
+    <string name="button_reroll">Re-enhance prompt</string>
+    <string name="label_associations_optional">Associations (optional, comma-separated)</string>
+    <string name="label_workflow_names">Workflow names</string>
+    <string name="placeholder_workflow_names">e.g. SDXL Lightning, Flux Dev</string>
+    <string name="label_model_names">Model names</string>
+    <string name="placeholder_model_names">e.g. illustrious, noobai, flux</string>
     <string name="label_output_fields">Output Fields</string>
     <string name="label_output_fields_desc">Choose which parameters the LLM should suggest. The JSON schema sent to the model will include only enabled fields.</string>
     <string name="button_browser_auth_done">Done</string>

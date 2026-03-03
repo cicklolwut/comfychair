@@ -550,6 +550,8 @@ private fun PromptEditorDialog(
     var selectedTags by remember { mutableStateOf(prompt.tags) }
     var exampleInput by remember { mutableStateOf(prompt.exampleInput) }
     var exampleOutput by remember { mutableStateOf(prompt.exampleOutput) }
+    var workflowNamesText by remember { mutableStateOf(prompt.workflowNames.joinToString(", ")) }
+    var modelNamesText by remember { mutableStateOf(prompt.modelNames.joinToString(", ")) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -624,6 +626,28 @@ private fun PromptEditorDialog(
                     minLines = 2,
                     maxLines = 4
                 )
+
+                // Workflow/Model associations (optional)
+                Text(
+                    text = stringResource(R.string.label_associations_optional),
+                    style = MaterialTheme.typography.labelMedium
+                )
+                OutlinedTextField(
+                    value = workflowNamesText,
+                    onValueChange = { workflowNamesText = it },
+                    label = { Text(stringResource(R.string.label_workflow_names)) },
+                    placeholder = { Text(stringResource(R.string.placeholder_workflow_names)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = modelNamesText,
+                    onValueChange = { modelNamesText = it },
+                    label = { Text(stringResource(R.string.label_model_names)) },
+                    placeholder = { Text(stringResource(R.string.placeholder_model_names)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         },
         confirmButton = {
@@ -634,7 +658,11 @@ private fun PromptEditorDialog(
                         systemPrompt = systemPrompt,
                         tags = selectedTags,
                         exampleInput = exampleInput.trim(),
-                        exampleOutput = exampleOutput.trim()
+                        exampleOutput = exampleOutput.trim(),
+                        workflowNames = workflowNamesText.split(",")
+                            .map { it.trim() }.filter { it.isNotBlank() }.toSet(),
+                        modelNames = modelNamesText.split(",")
+                            .map { it.trim() }.filter { it.isNotBlank() }.toSet()
                     ))
                 },
                 enabled = name.isNotBlank() && systemPrompt.isNotBlank() && selectedTags.isNotEmpty()

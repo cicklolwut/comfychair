@@ -112,6 +112,15 @@ object ConnectionManager {
     private val _isReconnecting = MutableStateFlow(false)
     val isReconnecting: StateFlow<Boolean> = _isReconnecting.asStateFlow()
 
+    // Browser auth session expired — triggers re-auth flow in UI
+    private val _sessionExpired = MutableStateFlow(false)
+    val sessionExpired: StateFlow<Boolean> = _sessionExpired.asStateFlow()
+
+    /** Reset session expired flag after re-auth completes. */
+    fun clearSessionExpired() {
+        _sessionExpired.value = false
+    }
+
     private var _client: ComfyUIClient? = null
     private var _clientId: String? = null
     private var _applicationContext: Context? = null
@@ -256,6 +265,11 @@ object ConnectionManager {
         _client = ComfyUIClient(context.applicationContext, hostname, port, credentials).apply {
             setWorkingProtocol(protocol)
             setClientId(_clientId!!)
+            // Wire session expiry detection for cookie-based auth
+            authInterceptor.onSessionExpired = {
+                DebugLogger.w(TAG, "Browser auth session expired — re-auth required")
+                _sessionExpired.value = true
+            }
         }
 
         _connectionState.value = ConnectionState.Connected(

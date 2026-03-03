@@ -1,5 +1,6 @@
 package sh.hnet.comfychair
 
+import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -8,10 +9,16 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import sh.hnet.comfychair.connection.ConnectionState
 import kotlinx.coroutines.runBlocking
 import sh.hnet.comfychair.cache.MediaCache
 import sh.hnet.comfychair.cache.MediaStateHolder
@@ -44,6 +51,34 @@ class MainContainerActivity : ComponentActivity() {
     private val generationViewModel: GenerationViewModel by viewModels()
     private val imageToImageViewModel: ImageToImageViewModel by viewModels()
     private val imageToVideoViewModel: ImageToVideoViewModel by viewModels()
+
+    // Re-auth launcher for expired browser sessions
+    private val reAuthLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val cookies = result.data?.getStringExtra(WebViewAuthActivity.EXTRA_COOKIES) ?: ""
+            if (cookies.isNotEmpty()) {
+                // Update credentials in the client
+                val newCreds = sh.hnet.comfychair.model.AuthCredentials.Cookie(cookies)
+                ConnectionManager.clientOrNull?.setCredentials(newCreds)
+                // Persist updated cookies
+                val serverId = ConnectionManager.currentServerId
+                if (serverId != null) {
+                    sh.hnet.comfychair.storage.CredentialStorage(this)
+                        .saveCredentials(serverId, sh.hnet.comfychair.model.AuthType.BROWSER, newCreds)
+                }
+                ConnectionManager.clearSessionExpired()
+                // Reconnect with fresh cookies
+                ConnectionManager.attemptSilentReconnect()
+            }
+        } else {
+            // User cancelled re-auth — go back to login
+            ConnectionManager.clearSessionExpired()
+            generationViewModel.logout()
+            finish()
+        }
+    }
 
     // Activity result launchers
     private val settingsLauncher = registerForActivityResult(
@@ -146,6 +181,41 @@ class MainContainerActivity : ComponentActivity() {
                     )
                 }
 
+                // Session expired — prompt re-auth for browser/cookie auth
+                val sessionExpired by ConnectionManager.sessionExpired.collectAsState()
+                if (sessionExpired) {
+                    AlertDialog(
+                        onDismissRequest = { /* don't dismiss by tapping outside */ },
+                        title = { Text(stringResource(R.string.title_session_expired)) },
+                        text = { Text(stringResource(R.string.message_session_expired)) },
+                        confirmButton = {
+                            Button(onClick = {
+                                val connState = ConnectionManager.connectionState.value
+                                if (connState is ConnectionState.Connected) {
+                                    val serverUrl = buildServerUrl(connState.hostname, connState.port)
+                                    val intent = WebViewAuthActivity.createIntent(
+                                        this@MainContainerActivity,
+                                        serverUrl,
+                                        connState.hostname
+                                    )
+                                    reAuthLauncher.launch(intent)
+                                }
+                            }) {
+                                Text(stringResource(R.string.button_reauthenticate))
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = {
+                                ConnectionManager.clearSessionExpired()
+                                generationViewModel.logout()
+                                finish()
+                            }) {
+                                Text(stringResource(R.string.button_logout))
+                            }
+                        }
+                    )
+                }
+
                 // Show connection alert dialog when connection fails
                 connectionAlertState?.let { state ->
                     ConnectionAlertDialog(
@@ -235,5 +305,14 @@ class MainContainerActivity : ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         // ViewModel handles cleanup automatically via onCleared()
+    }
+
+    private fun buildServerUrl(hostname: String, port: Int): String {
+        return when (port) {
+            443 -> "https://$hostname"
+            80 -> "http://$hostname"
+            8188 -> "http://$hostname:8188"
+            else -> "https://$hostname:$port"
+        }
     }
 }

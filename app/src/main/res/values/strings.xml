@@ -63,6 +63,10 @@
     <string name="label_example_input">Example user input</string>
     <string name="label_example_output">Example enhanced output</string>
     <string name="button_custom_port">Custom port</string>
+    <string name="title_session_expired">Session Expired</string>
+    <string name="message_session_expired">Your login session has expired. Please re-authenticate to continue.</string>
+    <string name="button_reauthenticate">Re-authenticate</string>
+    <string name="button_logout">Log out</string>
     <string name="button_revert">Revert to original</string>
     <string name="button_reroll">Re-enhance prompt</string>
     <string name="label_associations_optional">Associations (optional)</string>
@@ -87,7 +91,6 @@
     <!-- Connection alert dialog -->
     <string name="title_connection_lost">Connection Lost</string>
     <string name="msg_connection_lost">Unable to connect to the server after multiple attempts.</string>
-    <string name="title_session_expired">Session Expired</string>
     <string name="msg_session_expired">Your session has expired. Please log in again.</string>
     <string name="title_transfer_stalled">Transfer Stalled</string>
     <string name="msg_transfer_stalled">No data was transferred for 30 seconds. This may indicate a connection problem.</string>

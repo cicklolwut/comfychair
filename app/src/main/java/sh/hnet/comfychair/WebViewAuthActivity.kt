@@ -99,11 +99,12 @@ class WebViewAuthActivity : ComponentActivity() {
         }
         val host = intent.getStringExtra(EXTRA_HOST) ?: ""
 
-        // Clear existing WebView cookies for a clean login session
+        // Clear cookies for the target domain so the user hits the auth flow fresh.
+        // We only clear the target domain's cookies — not removeAllCookies() which
+        // would nuke cookies for every site the system WebView has visited.
         CookieManager.getInstance().apply {
             setAcceptCookie(true)
-            // Flush any stale cookies so the user definitely hits the auth flow
-            removeAllCookies(null)
+            clearCookiesForUrl(url)
             flush()
         }
 
@@ -243,9 +244,14 @@ private fun WebViewAuthScreen(
                                     authAppearsComplete = isOnTargetHost(pageUrl, host)
                                     // Flush cookies to disk so getCookie() is up to date
                                     CookieManager.getInstance().flush()
-                                    // Auto-finish if we're back on the ComfyUI host
+                                    // Auto-finish if we're back on the ComfyUI host AND cookies exist
                                     if (authAppearsComplete) {
-                                        collectAndReturn()
+                                        val cookies = extractCookies(url)
+                                        if (cookies.isNotEmpty()) {
+                                            collectAndReturn()
+                                        }
+                                        // If no cookies yet, don't auto-finish — user can
+                                        // manually tap Done or the redirect chain will continue
                                     }
                                 }
 
@@ -266,6 +272,19 @@ private fun WebViewAuthScreen(
                 )
             }
         }
+    }
+}
+
+/**
+ * Clear cookies for a specific URL by setting each cookie's value to empty with
+ * an expired date. CookieManager has no per-URL delete API, so this is the
+ * standard workaround.
+ */
+private fun CookieManager.clearCookiesForUrl(url: String) {
+    val existing = getCookie(url) ?: return
+    existing.split(";").forEach { cookie ->
+        val name = cookie.trim().split("=").firstOrNull()?.trim() ?: return@forEach
+        setCookie(url, "$name=; Expires=Thu, 01 Jan 1970 00:00:00 GMT")
     }
 }
 

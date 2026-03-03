@@ -62,6 +62,8 @@
     <string name="label_example_optional">Example (optional, used when Include Examples is on)</string>
     <string name="label_example_input">Example user input</string>
     <string name="label_example_output">Example enhanced output</string>
+    <string name="hint_port_https">HTTPS — port will be hidden from URL</string>
+    <string name="hint_port_http">HTTP — port will be hidden from URL</string>
     <string name="button_revert">Revert to original</string>
     <string name="button_reroll">Re-enhance prompt</string>
     <string name="label_associations_optional">Associations (optional)</string>

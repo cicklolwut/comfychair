@@ -312,7 +312,16 @@ fun ServerDialog(
                     },
                     label = { Text(stringResource(R.string.hint_port)) },
                     isError = portError != null,
-                    supportingText = portError?.let { { Text(it) } },
+                    supportingText = {
+                        when {
+                            portError != null -> Text(portError!!)
+                            authType == AuthType.BROWSER && port.trim() == "443" ->
+                                Text(stringResource(R.string.hint_port_https))
+                            authType == AuthType.BROWSER && port.trim() == "80" ->
+                                Text(stringResource(R.string.hint_port_http))
+                            else -> {}
+                        }
+                    },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth()
@@ -388,6 +397,8 @@ fun ServerDialog(
                         onCheckedChange = { isChecked ->
                             if (isChecked) {
                                 authType = AuthType.BROWSER
+                                // Default to 443 for browser auth (reverse proxy with TLS)
+                                if (port == "8188") port = "443"
                                 usernameError = null
                                 passwordError = null
                                 tokenError = null

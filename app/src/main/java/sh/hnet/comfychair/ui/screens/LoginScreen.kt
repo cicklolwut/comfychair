@@ -78,6 +78,19 @@ enum class ConnectionState {
 /**
  * Login screen composable - handles connection to ComfyUI server
  */
+/**
+ * Build a server URL with proper protocol detection.
+ * Port 443 → HTTPS (standard), port 80 → HTTP (standard), omit port from URL.
+ * Other ports → HTTPS (assume reverse proxy with TLS), include port in URL.
+ */
+private fun buildServerUrl(hostname: String, port: Int): String {
+    return when (port) {
+        443 -> "https://$hostname"
+        80 -> "http://$hostname"
+        else -> "https://$hostname:$port"
+    }
+}
+
 @Composable
 fun LoginScreen() {
     val context = LocalContext.current
@@ -148,9 +161,7 @@ fun LoginScreen() {
             if (server.authType == sh.hnet.comfychair.model.AuthType.BROWSER &&
                 !credentialStorage.hasCredentials(server.id, server.authType)) {
                 connectionState = ConnectionState.IDLE
-                val portNum = server.port
-                val proto = if (portNum == 443) "https" else "http"
-                val serverUrl = "$proto://${server.hostname}:$portNum"
+                val serverUrl = buildServerUrl(server.hostname, server.port)
                 browserReauthServer = server
                 val intent = WebViewAuthActivity.createIntent(context, serverUrl, server.hostname)
                 webViewAuthLauncher.launch(intent)
@@ -220,9 +231,7 @@ fun LoginScreen() {
                 if (server.authType == sh.hnet.comfychair.model.AuthType.BROWSER) {
                     delay(500)
                     connectionState = ConnectionState.IDLE
-                    val portNum = server.port
-                    val proto = if (portNum == 443) "https" else "http"
-                    val serverUrl = "$proto://${server.hostname}:$portNum"
+                    val serverUrl = buildServerUrl(server.hostname, server.port)
                     browserReauthServer = server
                     val intent = WebViewAuthActivity.createIntent(context, serverUrl, server.hostname)
                     webViewAuthLauncher.launch(intent)

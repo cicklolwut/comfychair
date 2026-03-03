@@ -907,7 +907,8 @@ object ConnectionManager {
                 _modelCache.value = models.copy(isLoaded = true, isLoading = false)
                 DebugLogger.i(TAG, "Server data loaded: ${models.checkpoints.size} checkpoints, " +
                         "${models.unets.size} unets, ${models.vaes.size} vaes, " +
-                        "${models.clips.size} clips, ${models.loras.size} loras")
+                        "${models.clips.size} clips, ${models.loras.size} loras, " +
+                        "${models.samplers.size} samplers, ${models.schedulers.size} schedulers")
             } else {
                 DebugLogger.w(TAG, "Failed to fetch server data")
                 _modelCache.value = _modelCache.value.copy(

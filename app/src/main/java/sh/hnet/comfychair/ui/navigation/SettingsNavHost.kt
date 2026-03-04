@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.AccountTree
+import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Storage
@@ -178,6 +179,38 @@ fun SettingsNavHost(
                             Icon(
                                 Icons.Filled.Storage,
                                 contentDescription = stringResource(R.string.nav_server_settings),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    // Model Browser
+                    if (currentRoute == SettingsRoute.ModelBrowser.route) {
+                        FilledIconButton(
+                            onClick = { },
+                            colors = IconButtonDefaults.filledIconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        ) {
+                            Icon(
+                                Icons.Filled.CloudDownload,
+                                contentDescription = "Model Browser"
+                            )
+                        }
+                    } else {
+                        IconButton(onClick = {
+                            navController.navigate(SettingsRoute.ModelBrowser.route) {
+                                popUpTo(navController.graph.findStartDestination().id) {
+                                    saveState = true
+                                }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        }) {
+                            Icon(
+                                Icons.Filled.CloudDownload,
+                                contentDescription = "Model Browser",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }

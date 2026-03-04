@@ -270,6 +270,15 @@ fun SettingsNavHost(
                 )
             }
 
+            composable(SettingsRoute.ModelBrowser.route) {
+                sh.hnet.comfychair.ui.screens.ModelBrowserScreen(
+                    viewModel = sh.hnet.comfychair.viewmodel.ModelBrowserViewModel(
+                        context = androidx.compose.ui.platform.LocalContext.current
+                    ),
+                    onNavigateBack = onNavigateToGeneration
+                )
+            }
+
             composable(SettingsRoute.About.route) {
                 AboutSettingsScreen(
                     onNavigateToGeneration = onNavigateToGeneration,

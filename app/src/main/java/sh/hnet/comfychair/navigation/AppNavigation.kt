@@ -21,5 +21,6 @@ sealed class SettingsRoute(val route: String) {
     data object Application : SettingsRoute("application_settings")
     data object Server : SettingsRoute("server_settings")
     data object PromptEnhancement : SettingsRoute("prompt_enhancement_settings")
+    data object ModelBrowser : SettingsRoute("model_browser")
     data object About : SettingsRoute("about_settings")
 }

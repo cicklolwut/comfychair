@@ -144,11 +144,12 @@ class ModelBrowserViewModel(context: Context) : ViewModel() {
      * Select a model to view details.
      */
     fun selectModel(model: ModelSearchResult) {
+        val autoType = sh.hnet.comfychair.model.CivitaiTypeMapper.toComfyUIType(model.civitaiType)
         _uiState.value = _uiState.value.copy(
             selectedModel = model,
             selectedVersion = model.versions.firstOrNull(),
             selectedFile = null,
-            selectedModelType = null
+            selectedModelType = autoType
         )
     }
 
@@ -208,7 +209,7 @@ class ModelBrowserViewModel(context: Context) : ViewModel() {
     /**
      * Download the selected model via ComfyUI Manager.
      */
-    fun downloadModel() {
+    fun downloadModel(subfolder: String = "") {
         val model = _uiState.value.selectedModel ?: return
         val version = _uiState.value.selectedVersion ?: return
         val modelType = _uiState.value.selectedModelType
@@ -246,13 +247,16 @@ class ModelBrowserViewModel(context: Context) : ViewModel() {
                     }
                 }
 
+                // Determine save path from subfolder
+                val savePath = if (subfolder.isBlank()) "default" else subfolder
+
                 // Queue the download via ComfyUI Manager
                 comfyUIManagerService.queueModelDownload(
                     url = downloadUrl,
                     filename = filename,
                     modelType = modelType.value,
                     modelName = model.name,
-                    savePath = "default"
+                    savePath = savePath
                 )
 
                 // Start the queue processing

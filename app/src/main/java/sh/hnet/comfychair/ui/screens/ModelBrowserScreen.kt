@@ -1,17 +1,24 @@
 package sh.hnet.comfychair.ui.screens
 
 import androidx.compose.material3.ExperimentalMaterial3Api
+import android.text.Html
 import android.widget.Toast
+import android.widget.TextView
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.items as lazyItems
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -19,16 +26,24 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
+import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
+import coil3.request.crossfade
+import sh.hnet.comfychair.model.CivitaiTypeMapper
 import sh.hnet.comfychair.model.ModelProvider
 import sh.hnet.comfychair.model.ModelSearchResult
 import sh.hnet.comfychair.model.ModelType
+import sh.hnet.comfychair.model.ModelVersion
 import sh.hnet.comfychair.viewmodel.ModelBrowserEvent
 import sh.hnet.comfychair.viewmodel.ModelBrowserViewModel
 
@@ -188,13 +203,16 @@ fun ModelBrowserScreen(
                     )
                 }
 
-                // Search results
-                LazyColumn(
+                // Search results - 2-column grid
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(2),
                     modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(uiState.searchResults) { model ->
-                        ModelResultCard(
+                        ModelGridCard(
                             model = model,
                             onClick = { viewModel.selectModel(model) }
                         )
@@ -204,10 +222,10 @@ fun ModelBrowserScreen(
         }
     }
 
-    // Model detail dialog
-    uiState.selectedModel?.let { model ->
-        ModelDetailDialog(
-            model = model,
+    // Model detail bottom sheet
+    if (uiState.selectedModel != null) {
+        ModelDetailBottomSheet(
+            model = uiState.selectedModel!!,
             viewModel = viewModel,
             onDismiss = { viewModel.clearSelection() }
         )
@@ -289,67 +307,344 @@ fun ApiKeySetupCard(
 }
 
 @Composable
-fun ModelResultCard(
+fun ModelGridCard(
     model: ModelSearchResult,
     onClick: () -> Unit
 ) {
+    val context = LocalContext.current
+    
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = model.name,
-                style = MaterialTheme.typography.titleMedium
-            )
-
-            model.creator?.let { creator ->
-                Text(
-                    text = "by $creator",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            model.description?.let { desc ->
-                Text(
-                    text = desc.take(150) + if (desc.length > 150) "..." else "",
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
-            }
-
-            Row(
-                modifier = Modifier.padding(top = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
+        Column {
+            // Cover image with 2:3 aspect ratio
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(0.67f)
             ) {
-                model.downloadCount?.let {
-                    Text(
-                        text = "⬇ ${formatNumber(it)}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                if (model.thumbnailUrl != null) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(context)
+                            .data(model.thumbnailUrl)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = model.name,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
                     )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = model.name,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
-                model.favoriteCount?.let {
-                    Text(
-                        text = "❤ ${formatNumber(it)}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+            }
+
+            // Model info
+            Column(
+                modifier = Modifier.padding(8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = model.name,
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                // Base model + tags in FlowRow
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    // Base model chip
+                    model.baseModel?.let { baseModel ->
+                        SuggestionChip(
+                            onClick = { },
+                            label = { 
+                                Text(
+                                    baseModel,
+                                    style = MaterialTheme.typography.labelSmall
+                                ) 
+                            }
+                        )
+                    }
+                    
+                    // Up to 3 tags
+                    model.tags.take(3).forEach { tag ->
+                        AssistChip(
+                            onClick = { },
+                            label = { 
+                                Text(
+                                    tag,
+                                    style = MaterialTheme.typography.labelSmall
+                                ) 
+                            }
+                        )
+                    }
                 }
             }
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ModelDetailDialog(
+fun ModelDetailBottomSheet(
+    model: ModelSearchResult,
+    viewModel: ModelBrowserViewModel,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    val uiState by viewModel.uiState.collectAsState()
+    var showDownloadDialog by remember { mutableStateOf(false) }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        modifier = Modifier.fillMaxHeight(0.9f)
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(16.dp)
+                    .padding(bottom = 80.dp) // Space for FAB
+            ) {
+                // Image gallery (if version has images)
+                uiState.selectedVersion?.let { version ->
+                    // Note: images field will be added by another agent
+                    // For now, use a placeholder that won't crash
+                    try {
+                        val images = version.javaClass.getDeclaredField("images").get(version) as? List<*>
+                        if (images != null && images.isNotEmpty()) {
+                            LazyRow(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                lazyItems(images) { image ->
+                                    // image is CommunityImage with url field
+                                    val imageUrl = try {
+                                        val urlField = image?.javaClass?.getDeclaredField("url")
+                                        urlField?.isAccessible = true
+                                        val url = urlField?.get(image) as? String
+                                        // Replace /original=true/ with /width=400/
+                                        url?.replace("/original=true/", "/width=400/")
+                                    } catch (e: Exception) {
+                                        null
+                                    }
+                                    
+                                    if (imageUrl != null) {
+                                        AsyncImage(
+                                            model = ImageRequest.Builder(context)
+                                                .data(imageUrl)
+                                                .crossfade(true)
+                                                .build(),
+                                            contentDescription = null,
+                                            modifier = Modifier.height(250.dp),
+                                            contentScale = ContentScale.Fit
+                                        )
+                                    }
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(16.dp))
+                        }
+                    } catch (e: Exception) {
+                        // Field doesn't exist yet, skip silently
+                    }
+                }
+
+                // Model name
+                Text(
+                    text = model.name,
+                    style = MaterialTheme.typography.titleLarge
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Creator and base model
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    model.creator?.let { creator ->
+                        Text(
+                            text = "by $creator",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    model.baseModel?.let { baseModel ->
+                        Text(
+                            text = baseModel,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Download/favorite stats
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    model.downloadCount?.let {
+                        Text(
+                            text = "⬇ ${formatNumber(it)}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    model.favoriteCount?.let {
+                        Text(
+                            text = "❤ ${formatNumber(it)}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Version selector
+                Text(
+                    text = "Version",
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    lazyItems(model.versions) { version ->
+                        FilterChip(
+                            selected = uiState.selectedVersion == version,
+                            onClick = { viewModel.selectVersion(version) },
+                            label = { Text(version.name) }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Trained words (if available)
+                uiState.selectedVersion?.let { version ->
+                    try {
+                        val trainedWords = version.javaClass.getDeclaredField("trainedWords").get(version) as? List<*>
+                        if (trainedWords != null && trainedWords.isNotEmpty()) {
+                            Text(
+                                text = "Trained Words",
+                                style = MaterialTheme.typography.titleSmall
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            FlowRow(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                trainedWords.forEach { word ->
+                                    AssistChip(
+                                        onClick = { },
+                                        label = { Text(word.toString()) }
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(16.dp))
+                        }
+                    } catch (e: Exception) {
+                        // Field doesn't exist yet, skip
+                    }
+                }
+
+                // Version notes
+                uiState.selectedVersion?.let { version ->
+                    try {
+                        val description = version.javaClass.getDeclaredField("description").get(version) as? String
+                        if (!description.isNullOrBlank()) {
+                            Text(
+                                text = "Version Notes",
+                                style = MaterialTheme.typography.titleSmall
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            HtmlText(html = description)
+                            Spacer(modifier = Modifier.height(16.dp))
+                        }
+                    } catch (e: Exception) {
+                        // Field doesn't exist yet, skip
+                    }
+                }
+
+                // Model description
+                model.description?.let { desc ->
+                    if (desc.isNotBlank()) {
+                        Text(
+                            text = "Description",
+                            style = MaterialTheme.typography.titleSmall
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        HtmlText(html = desc)
+                    }
+                }
+            }
+
+            // Download FAB (pinned bottom-right)
+            SmallFloatingActionButton(
+                onClick = { showDownloadDialog = true },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(16.dp)
+            ) {
+                Icon(Icons.Default.Download, contentDescription = "Download")
+            }
+        }
+    }
+
+    // Download config dialog
+    if (showDownloadDialog) {
+        DownloadConfigDialog(
+            model = model,
+            viewModel = viewModel,
+            onDismiss = { showDownloadDialog = false }
+        )
+    }
+}
+
+@Composable
+fun HtmlText(html: String) {
+    val context = LocalContext.current
+    AndroidView(
+        factory = { 
+            TextView(it).apply {
+                text = Html.fromHtml(html, Html.FROM_HTML_MODE_COMPACT)
+                textSize = 14f
+            }
+        },
+        modifier = Modifier.fillMaxWidth()
+    )
+}
+
+@Composable
+fun DownloadConfigDialog(
     model: ModelSearchResult,
     viewModel: ModelBrowserViewModel,
     onDismiss: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    var subfolder by remember { mutableStateOf("") }
 
     Dialog(onDismissRequest = onDismiss) {
         Card(modifier = Modifier.fillMaxWidth()) {
@@ -359,25 +654,48 @@ fun ModelDetailDialog(
                     .padding(16.dp)
             ) {
                 Text(
-                    text = model.name,
+                    text = "Download Configuration",
                     style = MaterialTheme.typography.titleLarge
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Version selection
-                Text("Select Version:", style = MaterialTheme.typography.labelMedium)
+                // Model type selection (auto-detected)
+                Text("Model Type:", style = MaterialTheme.typography.labelMedium)
                 Spacer(modifier = Modifier.height(8.dp))
 
-                model.versions.forEach { version ->
-                    FilterChip(
-                        selected = uiState.selectedVersion == version,
-                        onClick = { viewModel.selectVersion(version) },
-                        label = { Text(version.name) },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    ModelType.values().forEach { type ->
+                        FilterChip(
+                            selected = uiState.selectedModelType == type,
+                            onClick = { viewModel.selectModelType(type) },
+                            label = { Text(type.displayName) }
+                        )
+                    }
                 }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Subfolder input
+                OutlinedTextField(
+                    value = subfolder,
+                    onValueChange = { subfolder = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Subfolder (optional)") },
+                    placeholder = { Text("e.g. illustrious or sdxl/loras") },
+                    singleLine = true
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Leave empty to use default location",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
 
                 // File selection (for HuggingFace)
                 if (model.provider == ModelProvider.HUGGINGFACE && 
@@ -395,22 +713,6 @@ fun ModelDetailDialog(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                     }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Model type selection
-                Text("Select Model Type:", style = MaterialTheme.typography.labelMedium)
-                Spacer(modifier = Modifier.height(8.dp))
-
-                ModelType.values().forEach { type ->
-                    FilterChip(
-                        selected = uiState.selectedModelType == type,
-                        onClick = { viewModel.selectModelType(type) },
-                        label = { Text(type.displayName) },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -439,7 +741,10 @@ fun ModelDetailDialog(
                             Text("Cancel")
                         }
                         Button(
-                            onClick = { viewModel.downloadModel() },
+                            onClick = { 
+                                viewModel.downloadModel(subfolder.trim())
+                                onDismiss()
+                            },
                             modifier = Modifier.weight(1f),
                             enabled = uiState.selectedModelType != null
                         ) {

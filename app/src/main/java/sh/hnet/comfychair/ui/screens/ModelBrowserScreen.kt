@@ -13,12 +13,17 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import sh.hnet.comfychair.model.ModelProvider
@@ -35,6 +40,12 @@ fun ModelBrowserScreen(
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
+
+    // Track whether the current provider has a key configured
+    val isProviderConfigured = when (uiState.selectedProvider) {
+        ModelProvider.CIVITAI -> viewModel.getCivitaiApiKey().isNotBlank()
+        ModelProvider.HUGGINGFACE -> viewModel.getHuggingFaceApiKey().isNotBlank()
+    }
 
     // Event handling
     LaunchedEffect(Unit) {
@@ -88,53 +99,106 @@ fun ModelBrowserScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Search bar
-            OutlinedTextField(
-                value = uiState.searchQuery,
-                onValueChange = { viewModel.updateSearchQuery(it) },
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Search models...") },
-                trailingIcon = {
-                    IconButton(onClick = { viewModel.searchModels() }) {
-                        Icon(Icons.Default.Search, "Search")
+            if (!isProviderConfigured) {
+                // API key setup card
+                ApiKeySetupCard(
+                    provider = uiState.selectedProvider,
+                    onKeySaved = { key ->
+                        when (uiState.selectedProvider) {
+                            ModelProvider.CIVITAI -> viewModel.setCivitaiApiKey(key)
+                            ModelProvider.HUGGINGFACE -> viewModel.setHuggingFaceApiKey(key)
+                        }
                     }
-                },
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = { viewModel.searchModels() }),
-                singleLine = true
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Loading indicator
-            if (uiState.isSearching) {
-                Box(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator()
-                }
-            }
-
-            // Error message
-            uiState.errorMessage?.let { error ->
-                Text(
-                    text = error,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(vertical = 8.dp)
                 )
-            }
+            } else {
+                // Search bar
+                OutlinedTextField(
+                    value = uiState.searchQuery,
+                    onValueChange = { viewModel.updateSearchQuery(it) },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text("Search models...") },
+                    trailingIcon = {
+                        IconButton(onClick = { viewModel.searchModels() }) {
+                            Icon(Icons.Default.Search, "Search")
+                        }
+                    },
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = { viewModel.searchModels() }),
+                    singleLine = true
+                )
 
-            // Search results
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(uiState.searchResults) { model ->
-                    ModelResultCard(
-                        model = model,
-                        onClick = { viewModel.selectModel(model) }
+                // NSFW toggle (Civitai only)
+                if (uiState.selectedProvider == ModelProvider.CIVITAI) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "Include NSFW",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Switch(
+                            checked = viewModel.getShowNsfw(),
+                            onCheckedChange = { viewModel.setShowNsfw(it) }
+                        )
+                    }
+                }
+
+                // Clear API key option
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = {
+                        when (uiState.selectedProvider) {
+                            ModelProvider.CIVITAI -> viewModel.setCivitaiApiKey("")
+                            ModelProvider.HUGGINGFACE -> viewModel.setHuggingFaceApiKey("")
+                        }
+                    }) {
+                        Text(
+                            "Change API Key",
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Loading indicator
+                if (uiState.isSearching) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator()
+                    }
+                }
+
+                // Error message
+                uiState.errorMessage?.let { error ->
+                    Text(
+                        text = error,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(vertical = 8.dp)
                     )
+                }
+
+                // Search results
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(uiState.searchResults) { model ->
+                        ModelResultCard(
+                            model = model,
+                            onClick = { viewModel.selectModel(model) }
+                        )
+                    }
                 }
             }
         }
@@ -147,6 +211,80 @@ fun ModelBrowserScreen(
             viewModel = viewModel,
             onDismiss = { viewModel.clearSelection() }
         )
+    }
+}
+
+@Composable
+fun ApiKeySetupCard(
+    provider: ModelProvider,
+    onKeySaved: (String) -> Unit
+) {
+    var apiKey by remember { mutableStateOf("") }
+    var keyVisible by remember { mutableStateOf(false) }
+
+    val providerName = when (provider) {
+        ModelProvider.CIVITAI -> "Civitai"
+        ModelProvider.HUGGINGFACE -> "HuggingFace"
+    }
+
+    val helpText = when (provider) {
+        ModelProvider.CIVITAI -> "Get your API key from civitai.com → Settings → API Keys"
+        ModelProvider.HUGGINGFACE -> "Get your token from huggingface.co → Settings → Access Tokens"
+    }
+
+    // Reset field when switching providers
+    LaunchedEffect(provider) {
+        apiKey = ""
+        keyVisible = false
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = "$providerName API Key Required",
+                style = MaterialTheme.typography.titleMedium
+            )
+
+            Text(
+                text = helpText,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            OutlinedTextField(
+                value = apiKey,
+                onValueChange = { apiKey = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("API Key") },
+                singleLine = true,
+                visualTransformation = if (keyVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                trailingIcon = {
+                    IconButton(onClick = { keyVisible = !keyVisible }) {
+                        Icon(
+                            if (keyVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                            contentDescription = if (keyVisible) "Hide" else "Show"
+                        )
+                    }
+                }
+            )
+
+            Button(
+                onClick = { onKeySaved(apiKey.trim()) },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = apiKey.isNotBlank()
+            ) {
+                Text("Save & Continue")
+            }
+        }
     }
 }
 

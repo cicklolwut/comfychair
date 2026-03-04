@@ -68,6 +68,10 @@ dependencies {
     // OkHttp for HTTP/HTTPS requests and WebSocket communication
     implementation(libs.okhttp)
 
+    // Coil for image loading
+    implementation(libs.coil.compose)
+    implementation(libs.coil.network.okhttp)
+
     // Jetpack Compose
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)

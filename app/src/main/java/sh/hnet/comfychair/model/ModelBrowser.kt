@@ -6,14 +6,16 @@ package sh.hnet.comfychair.model
 data class ModelSearchResult(
     val id: String,
     val name: String,
-    val description: String?,
-    val thumbnailUrl: String?,
+    val description: String?, // HTML from Civitai
+    val thumbnailUrl: String?, // Cover image URL (width=200 for grid)
     val downloadCount: Long?,
     val favoriteCount: Long?,
     val tags: List<String>,
     val creator: String?,
     val versions: List<ModelVersion>,
-    val provider: ModelProvider
+    val provider: ModelProvider,
+    val civitaiType: String? = null, // "LORA", "Checkpoint", "TextualInversion", etc.
+    val baseModel: String? = null // "Illustrious", "NoobAI", "SDXL", "Pony", etc.
 )
 
 /**
@@ -65,5 +67,69 @@ enum class ModelType(val value: String, val displayName: String) {
     companion object {
         fun fromDisplayName(name: String): ModelType? =
             values().find { it.displayName == name }
+    }
+}
+
+/**
+ * Community image from Civitai.
+ */
+data class CommunityImage(
+    val id: Long,
+    val url: String,
+    val thumbnailUrl: String, // url with width=200
+    val width: Int,
+    val height: Int,
+    val nsfwLevel: Int,
+    val stats: ImageStats?,
+    val meta: GenerationMetadata?
+)
+
+/**
+ * Image statistics.
+ */
+data class ImageStats(
+    val likeCount: Int = 0,
+    val heartCount: Int = 0,
+    val commentCount: Int = 0
+)
+
+/**
+ * Generation metadata for an image.
+ */
+data class GenerationMetadata(
+    val prompt: String?,
+    val negativePrompt: String?,
+    val sampler: String?,
+    val steps: Int?,
+    val cfgScale: Double?,
+    val seed: Long?,
+    val baseModel: String?,
+    val resources: List<GenerationResource>
+)
+
+/**
+ * Resource used in generation (LoRA, checkpoint, etc.).
+ */
+data class GenerationResource(
+    val name: String?,
+    val type: String?, // "lora", "checkpoint"
+    val weight: Double?,
+    val modelVersionId: Long?
+)
+
+/**
+ * Mapper for Civitai model types to ComfyUI Manager types.
+ */
+object CivitaiTypeMapper {
+    /** Map Civitai model type to ComfyUI Manager model type */
+    fun toComfyUIType(civitaiType: String?): ModelType? = when (civitaiType?.uppercase()) {
+        "CHECKPOINT" -> ModelType.CHECKPOINT
+        "LORA", "LOCON" -> ModelType.LORA
+        "TEXTUALINVERSION" -> ModelType.EMBEDDING
+        "VAE" -> ModelType.VAE
+        "CONTROLNET" -> ModelType.CONTROLNET
+        "UPSCALER" -> ModelType.UPSCALE
+        "HYPERNETWORK" -> null // not in our enum
+        else -> null
     }
 }

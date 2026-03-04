@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import sh.hnet.comfychair.model.CommunityImage
 import sh.hnet.comfychair.model.ModelProvider
 import sh.hnet.comfychair.model.ModelSearchResult
 import sh.hnet.comfychair.model.ModelType
@@ -38,7 +39,12 @@ data class ModelBrowserUiState(
     val selectedModelType: ModelType? = null,
     val isDownloading: Boolean = false,
     val downloadProgress: String? = null,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val communityImages: List<CommunityImage> = emptyList(),
+    val isLoadingCommunityImages: Boolean = false,
+    val showCommunityImages: Boolean = false,
+    val communityImagesCursor: String? = null,
+    val hasMoreCommunityImages: Boolean = true
 )
 
 /**
@@ -151,6 +157,8 @@ class ModelBrowserViewModel(context: Context) : ViewModel() {
             selectedFile = null,
             selectedModelType = autoType
         )
+        // Clear community images when selecting a new model
+        clearCommunityImages()
     }
 
     /**
@@ -298,6 +306,99 @@ class ModelBrowserViewModel(context: Context) : ViewModel() {
             selectedVersion = null,
             selectedFile = null,
             selectedModelType = null
+        )
+    }
+
+    /**
+     * Toggle community images view.
+     */
+    fun toggleCommunityImages() {
+        val newShowState = !_uiState.value.showCommunityImages
+        _uiState.value = _uiState.value.copy(showCommunityImages = newShowState)
+        
+        // Load images if showing for the first time
+        if (newShowState && _uiState.value.communityImages.isEmpty()) {
+            loadCommunityImages()
+        }
+    }
+
+    /**
+     * Load community images for the selected model version.
+     */
+    fun loadCommunityImages() {
+        val version = _uiState.value.selectedVersion ?: return
+        
+        // Only Civitai has community images
+        if (_uiState.value.selectedProvider != ModelProvider.CIVITAI) {
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoadingCommunityImages = true)
+            try {
+                val (images, nextCursor) = civitaiService.getModelImages(
+                    modelVersionId = version.id,
+                    limit = 20,
+                    cursor = null
+                )
+
+                _uiState.value = _uiState.value.copy(
+                    communityImages = images,
+                    isLoadingCommunityImages = false,
+                    communityImagesCursor = nextCursor,
+                    hasMoreCommunityImages = nextCursor != null
+                )
+            } catch (e: Exception) {
+                DebugLogger.w(TAG, "Failed to load community images: ${e.message}")
+                _uiState.value = _uiState.value.copy(isLoadingCommunityImages = false)
+                _events.emit(ModelBrowserEvent.ShowError("Failed to load community images: ${e.message}"))
+            }
+        }
+    }
+
+    /**
+     * Load more community images (pagination).
+     */
+    fun loadMoreCommunityImages() {
+        val version = _uiState.value.selectedVersion ?: return
+        val cursor = _uiState.value.communityImagesCursor ?: return
+        
+        if (_uiState.value.isLoadingCommunityImages || !_uiState.value.hasMoreCommunityImages) {
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoadingCommunityImages = true)
+            try {
+                val (newImages, nextCursor) = civitaiService.getModelImages(
+                    modelVersionId = version.id,
+                    limit = 20,
+                    cursor = cursor
+                )
+
+                _uiState.value = _uiState.value.copy(
+                    communityImages = _uiState.value.communityImages + newImages,
+                    isLoadingCommunityImages = false,
+                    communityImagesCursor = nextCursor,
+                    hasMoreCommunityImages = nextCursor != null
+                )
+            } catch (e: Exception) {
+                DebugLogger.w(TAG, "Failed to load more community images: ${e.message}")
+                _uiState.value = _uiState.value.copy(isLoadingCommunityImages = false)
+            }
+        }
+    }
+
+    /**
+     * Clear community images state.
+     */
+    fun clearCommunityImages() {
+        _uiState.value = _uiState.value.copy(
+            communityImages = emptyList(),
+            isLoadingCommunityImages = false,
+            showCommunityImages = false,
+            communityImagesCursor = null,
+            hasMoreCommunityImages = true
         )
     }
 

@@ -416,13 +416,43 @@ fun ModelDetailBottomSheet(
         modifier = Modifier.fillMaxHeight(0.9f)
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(16.dp)
-                    .padding(bottom = 80.dp) // Space for FAB
-            ) {
+            // Show community images or model details
+            if (uiState.showCommunityImages) {
+                CommunityImagesScreen(
+                    images = uiState.communityImages,
+                    isLoading = uiState.isLoadingCommunityImages,
+                    hasMore = uiState.hasMoreCommunityImages,
+                    onLoadMore = { viewModel.loadMoreCommunityImages() },
+                    onBack = { viewModel.toggleCommunityImages() },
+                    onImportWorkflow = { json ->
+                        // Handle workflow import - for now just show toast
+                        Toast.makeText(context, "Workflow imported", Toast.LENGTH_SHORT).show()
+                    }
+                )
+            } else {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    Column(
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        // Community Images button (only for Civitai)
+                        if (uiState.selectedProvider == ModelProvider.CIVITAI) {
+                            Button(
+                                onClick = { viewModel.toggleCommunityImages() },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                            ) {
+                                Text("🖼 Community Images")
+                            }
+                        }
+
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .verticalScroll(rememberScrollState())
+                                .padding(16.dp)
+                                .padding(bottom = 80.dp) // Space for FAB
+                        ) {
                 // Image gallery (if version has images)
                 uiState.selectedVersion?.let { version ->
                     // Note: images field will be added by another agent
@@ -599,16 +629,19 @@ fun ModelDetailBottomSheet(
                         HtmlText(html = desc)
                     }
                 }
-            }
+                        }
+                    }
 
-            // Download FAB (pinned bottom-right)
-            SmallFloatingActionButton(
-                onClick = { showDownloadDialog = true },
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(16.dp)
-            ) {
-                Icon(Icons.Default.Download, contentDescription = "Download")
+                    // Download FAB (pinned bottom-right)
+                    SmallFloatingActionButton(
+                        onClick = { showDownloadDialog = true },
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(16.dp)
+                    ) {
+                        Icon(Icons.Default.Download, contentDescription = "Download")
+                    }
+                }
             }
         }
     }

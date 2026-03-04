@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.AccountTree
+import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Storage
@@ -31,6 +32,7 @@ import sh.hnet.comfychair.R
 import sh.hnet.comfychair.navigation.SettingsRoute
 import sh.hnet.comfychair.ui.screens.AboutSettingsScreen
 import sh.hnet.comfychair.ui.screens.ApplicationSettingsScreen
+import sh.hnet.comfychair.ui.screens.PromptEnhancementSettingsScreen
 import sh.hnet.comfychair.ui.screens.ServerSettingsScreen
 import sh.hnet.comfychair.ui.screens.WorkflowsSettingsScreen
 import sh.hnet.comfychair.viewmodel.SettingsViewModel
@@ -118,6 +120,38 @@ fun SettingsNavHost(
                         }
                     }
 
+                    // Prompt Enhancement Settings
+                    if (currentRoute == SettingsRoute.PromptEnhancement.route) {
+                        FilledIconButton(
+                            onClick = { },
+                            colors = IconButtonDefaults.filledIconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        ) {
+                            Icon(
+                                Icons.Filled.AutoAwesome,
+                                contentDescription = stringResource(R.string.nav_prompt_enhancement_settings)
+                            )
+                        }
+                    } else {
+                        IconButton(onClick = {
+                            navController.navigate(SettingsRoute.PromptEnhancement.route) {
+                                popUpTo(navController.graph.findStartDestination().id) {
+                                    saveState = true
+                                }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        }) {
+                            Icon(
+                                Icons.Filled.AutoAwesome,
+                                contentDescription = stringResource(R.string.nav_prompt_enhancement_settings),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
                     // Server Settings
                     if (currentRoute == SettingsRoute.Server.route) {
                         FilledIconButton(
@@ -145,6 +179,38 @@ fun SettingsNavHost(
                             Icon(
                                 Icons.Filled.Storage,
                                 contentDescription = stringResource(R.string.nav_server_settings),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    // Model Browser
+                    if (currentRoute == SettingsRoute.ModelBrowser.route) {
+                        FilledIconButton(
+                            onClick = { },
+                            colors = IconButtonDefaults.filledIconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        ) {
+                            Icon(
+                                Icons.Filled.CloudDownload,
+                                contentDescription = "Model Browser"
+                            )
+                        }
+                    } else {
+                        IconButton(onClick = {
+                            navController.navigate(SettingsRoute.ModelBrowser.route) {
+                                popUpTo(navController.graph.findStartDestination().id) {
+                                    saveState = true
+                                }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        }) {
+                            Icon(
+                                Icons.Filled.CloudDownload,
+                                contentDescription = "Model Browser",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
@@ -221,12 +287,28 @@ fun SettingsNavHost(
                 )
             }
 
+            composable(SettingsRoute.PromptEnhancement.route) {
+                PromptEnhancementSettingsScreen(
+                    onNavigateToGeneration = onNavigateToGeneration,
+                    onLogout = onLogout
+                )
+            }
+
             composable(SettingsRoute.Server.route) {
                 ServerSettingsScreen(
                     viewModel = settingsViewModel,
                     onNavigateBack = onNavigateToGeneration,
                     onNavigateToGeneration = onNavigateToGeneration,
                     onLogout = onLogout
+                )
+            }
+
+            composable(SettingsRoute.ModelBrowser.route) {
+                sh.hnet.comfychair.ui.screens.ModelBrowserScreen(
+                    viewModel = sh.hnet.comfychair.viewmodel.ModelBrowserViewModel(
+                        context = androidx.compose.ui.platform.LocalContext.current
+                    ),
+                    onNavigateBack = onNavigateToGeneration
                 )
             }
 

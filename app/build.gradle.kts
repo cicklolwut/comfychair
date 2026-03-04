@@ -8,6 +8,15 @@ android {
     namespace = "sh.hnet.comfychair"
     compileSdk = 36
 
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("${rootProject.projectDir}/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     defaultConfig {
         applicationId = "sh.hnet.comfychair"
         minSdk = 33
@@ -67,6 +76,10 @@ dependencies {
 
     // OkHttp for HTTP/HTTPS requests and WebSocket communication
     implementation(libs.okhttp)
+
+    // Coil for image loading
+    implementation(libs.coil.compose)
+    implementation(libs.coil.network.okhttp)
 
     // Jetpack Compose
     implementation(platform(libs.compose.bom))

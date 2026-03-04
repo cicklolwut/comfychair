@@ -1,5 +1,6 @@
 package sh.hnet.comfychair.ui.screens
 
+import androidx.compose.material3.ExperimentalMaterial3Api
 import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -26,6 +27,7 @@ import sh.hnet.comfychair.model.ModelType
 import sh.hnet.comfychair.viewmodel.ModelBrowserEvent
 import sh.hnet.comfychair.viewmodel.ModelBrowserViewModel
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ModelBrowserScreen(
     viewModel: ModelBrowserViewModel,

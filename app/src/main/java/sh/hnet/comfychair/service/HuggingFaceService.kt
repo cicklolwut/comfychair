@@ -51,7 +51,7 @@ class HuggingFaceService(
             }
         }
 
-        DebugLogger.log(TAG, "Searching HuggingFace: $url")
+        DebugLogger.d(TAG, "Searching HuggingFace: $url")
 
         val request = Request.Builder()
             .url(url)
@@ -75,11 +75,11 @@ class HuggingFaceService(
             try {
                 results.add(parseModelResult(item))
             } catch (e: Exception) {
-                DebugLogger.log(TAG, "Failed to parse model result: ${e.message}")
+                DebugLogger.w(TAG, "Failed to parse model result: ${e.message}")
             }
         }
 
-        DebugLogger.log(TAG, "Found ${results.size} models")
+        DebugLogger.d(TAG, "Found ${results.size} models")
         results
     }
 

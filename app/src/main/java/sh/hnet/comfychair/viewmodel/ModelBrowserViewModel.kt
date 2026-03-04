@@ -19,7 +19,7 @@ import sh.hnet.comfychair.model.ModelFile
 import sh.hnet.comfychair.service.CivitaiService
 import sh.hnet.comfychair.service.HuggingFaceService
 import sh.hnet.comfychair.service.ComfyUIManagerService
-import sh.hnet.comfychair.storage.AppSettings
+// AppSettings is an object singleton, not instantiated
 import sh.hnet.comfychair.storage.ModelBrowserSettings
 import sh.hnet.comfychair.util.DebugLogger
 
@@ -57,11 +57,11 @@ class ModelBrowserViewModel(context: Context) : ViewModel() {
         private const val TAG = "ModelBrowserViewModel"
     }
 
-    private val appSettings = AppSettings(context)
+
     private val modelBrowserSettings = ModelBrowserSettings(context)
     private val civitaiService = CivitaiService(modelBrowserSettings)
     private val huggingFaceService = HuggingFaceService(modelBrowserSettings)
-    private val comfyUIManagerService = ComfyUIManagerService(appSettings)
+    private val comfyUIManagerService = ComfyUIManagerService()
 
     private val _uiState = MutableStateFlow(ModelBrowserUiState())
     val uiState: StateFlow<ModelBrowserUiState> = _uiState.asStateFlow()
@@ -130,7 +130,7 @@ class ModelBrowserViewModel(context: Context) : ViewModel() {
                     _events.emit(ModelBrowserEvent.ShowToast("No results found"))
                 }
             } catch (e: Exception) {
-                DebugLogger.log(TAG, "Search failed: ${e.message}")
+                DebugLogger.w(TAG, "Search failed: ${e.message}")
                 _uiState.value = _uiState.value.copy(
                     isSearching = false,
                     errorMessage = e.message ?: "Search failed"
@@ -199,7 +199,7 @@ class ModelBrowserViewModel(context: Context) : ViewModel() {
                     selectedFile = files.firstOrNull()
                 )
             } catch (e: Exception) {
-                DebugLogger.log(TAG, "Failed to load files: ${e.message}")
+                DebugLogger.w(TAG, "Failed to load files: ${e.message}")
                 _events.emit(ModelBrowserEvent.ShowError("Failed to load files: ${e.message}"))
             }
         }
@@ -274,7 +274,7 @@ class ModelBrowserViewModel(context: Context) : ViewModel() {
                 )
 
             } catch (e: Exception) {
-                DebugLogger.log(TAG, "Download failed: ${e.message}")
+                DebugLogger.w(TAG, "Download failed: ${e.message}")
                 _uiState.value = _uiState.value.copy(
                     isDownloading = false,
                     downloadProgress = null,

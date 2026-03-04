@@ -28,7 +28,20 @@ data class ModelVersion(
     val downloadUrl: String,
     val filename: String,
     val sizeKB: Long?,
-    val files: List<ModelFile>
+    val files: List<ModelFile>,
+    val images: List<ModelVersionImage> = emptyList(),
+    val trainedWords: List<String> = emptyList(),
+    val description: String? = null // HTML, version-specific notes
+)
+
+/**
+ * Image associated with a model version (from Civitai).
+ */
+data class ModelVersionImage(
+    val url: String,
+    val nsfwLevel: Int = 1,
+    val width: Int = 0,
+    val height: Int = 0
 )
 
 /**

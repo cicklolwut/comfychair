@@ -44,7 +44,13 @@ data class ModelBrowserUiState(
     val isLoadingCommunityImages: Boolean = false,
     val showCommunityImages: Boolean = false,
     val communityImagesCursor: String? = null,
-    val hasMoreCommunityImages: Boolean = true
+    val hasMoreCommunityImages: Boolean = true,
+    // Search filters
+    val filterModelType: String? = null, // "Checkpoint", "LORA", etc.
+    val filterBaseModel: String? = null, // "Illustrious", "NoobAI", etc.
+    val filterSort: String = "Most Downloaded", // "Highest Rated", "Most Downloaded", "Newest"
+    val filterPeriod: String = "AllTime", // "AllTime", "Year", "Month", "Week", "Day"
+    val showFilters: Boolean = false
 )
 
 /**
@@ -82,6 +88,26 @@ class ModelBrowserViewModel(context: Context) : ViewModel() {
         _uiState.value = _uiState.value.copy(searchQuery = query)
     }
 
+    fun toggleFilters() {
+        _uiState.value = _uiState.value.copy(showFilters = !_uiState.value.showFilters)
+    }
+
+    fun setFilterModelType(type: String?) {
+        _uiState.value = _uiState.value.copy(filterModelType = type)
+    }
+
+    fun setFilterBaseModel(baseModel: String?) {
+        _uiState.value = _uiState.value.copy(filterBaseModel = baseModel)
+    }
+
+    fun setFilterSort(sort: String) {
+        _uiState.value = _uiState.value.copy(filterSort = sort)
+    }
+
+    fun setFilterPeriod(period: String) {
+        _uiState.value = _uiState.value.copy(filterPeriod = period)
+    }
+
     /**
      * Switch between Civitai and HuggingFace providers.
      */
@@ -114,9 +140,14 @@ class ModelBrowserViewModel(context: Context) : ViewModel() {
                         if (!modelBrowserSettings.isCivitaiConfigured) {
                             throw IllegalStateException("Civitai API key not configured")
                         }
+                        val state = _uiState.value
                         civitaiService.searchModels(
                             query = query,
-                            nsfw = modelBrowserSettings.showNsfw
+                            nsfw = modelBrowserSettings.showNsfw,
+                            types = state.filterModelType?.let { listOf(it) },
+                            sort = state.filterSort,
+                            period = state.filterPeriod,
+                            baseModel = state.filterBaseModel
                         )
                     }
                     ModelProvider.HUGGINGFACE -> {

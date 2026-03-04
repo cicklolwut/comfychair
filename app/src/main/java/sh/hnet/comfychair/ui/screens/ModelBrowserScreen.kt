@@ -39,7 +39,9 @@ import androidx.compose.ui.window.Dialog
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
+import androidx.compose.material.icons.filled.FilterList
 import sh.hnet.comfychair.model.CivitaiTypeMapper
+import sh.hnet.comfychair.viewmodel.ModelBrowserUiState
 import sh.hnet.comfychair.model.ModelProvider
 import sh.hnet.comfychair.model.ModelSearchResult
 import sh.hnet.comfychair.model.ModelType
@@ -142,7 +144,7 @@ fun ModelBrowserScreen(
                     singleLine = true
                 )
 
-                // NSFW toggle (Civitai only)
+                // Filter toggle + NSFW + API key row
                 if (uiState.selectedProvider == ModelProvider.CIVITAI) {
                     Row(
                         modifier = Modifier
@@ -151,34 +153,54 @@ fun ModelBrowserScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text(
-                            text = "Include NSFW",
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                        Switch(
-                            checked = viewModel.getShowNsfw(),
-                            onCheckedChange = { viewModel.setShowNsfw(it) }
-                        )
-                    }
-                }
-
-                // Clear API key option
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 4.dp),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    TextButton(onClick = {
-                        when (uiState.selectedProvider) {
-                            ModelProvider.CIVITAI -> viewModel.setCivitaiApiKey("")
-                            ModelProvider.HUGGINGFACE -> viewModel.setHuggingFaceApiKey("")
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            FilterChip(
+                                selected = uiState.showFilters,
+                                onClick = { viewModel.toggleFilters() },
+                                label = { Text("Filters") },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Default.FilterList,
+                                        contentDescription = "Filters",
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text("NSFW", style = MaterialTheme.typography.labelSmall)
+                                Switch(
+                                    checked = viewModel.getShowNsfw(),
+                                    onCheckedChange = { viewModel.setShowNsfw(it) },
+                                    modifier = Modifier.height(24.dp)
+                                )
+                            }
                         }
-                    }) {
-                        Text(
-                            "Change API Key",
-                            style = MaterialTheme.typography.labelSmall
-                        )
+                        TextButton(onClick = { viewModel.setCivitaiApiKey("") }) {
+                            Text("Change Key", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+
+                    // Expandable filter section
+                    if (uiState.showFilters) {
+                        SearchFilters(uiState = uiState, viewModel = viewModel)
+                    }
+                } else {
+                    // HuggingFace — just the API key change
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        TextButton(onClick = { viewModel.setHuggingFaceApiKey("") }) {
+                            Text("Change API Key", style = MaterialTheme.typography.labelSmall)
+                        }
                     }
                 }
 
@@ -455,44 +477,25 @@ fun ModelDetailBottomSheet(
                         ) {
                 // Image gallery (if version has images)
                 uiState.selectedVersion?.let { version ->
-                    // Note: images field will be added by another agent
-                    // For now, use a placeholder that won't crash
-                    try {
-                        val images = version.javaClass.getDeclaredField("images").get(version) as? List<*>
-                        if (images != null && images.isNotEmpty()) {
-                            LazyRow(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                lazyItems(images) { image ->
-                                    // image is CommunityImage with url field
-                                    val imageUrl = try {
-                                        val urlField = image?.javaClass?.getDeclaredField("url")
-                                        urlField?.isAccessible = true
-                                        val url = urlField?.get(image) as? String
-                                        // Replace /original=true/ with /width=400/
-                                        url?.replace("/original=true/", "/width=400/")
-                                    } catch (e: Exception) {
-                                        null
-                                    }
-                                    
-                                    if (imageUrl != null) {
-                                        AsyncImage(
-                                            model = ImageRequest.Builder(context)
-                                                .data(imageUrl)
-                                                .crossfade(true)
-                                                .build(),
-                                            contentDescription = null,
-                                            modifier = Modifier.height(250.dp),
-                                            contentScale = ContentScale.Fit
-                                        )
-                                    }
-                                }
+                    if (version.images.isNotEmpty()) {
+                        LazyRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            lazyItems(version.images) { image ->
+                                val imageUrl = image.url.replace("/original=true/", "/width=400/")
+                                AsyncImage(
+                                    model = ImageRequest.Builder(context)
+                                        .data(imageUrl)
+                                        .crossfade(true)
+                                        .build(),
+                                    contentDescription = null,
+                                    modifier = Modifier.height(250.dp),
+                                    contentScale = ContentScale.Fit
+                                )
                             }
-                            Spacer(modifier = Modifier.height(16.dp))
                         }
-                    } catch (e: Exception) {
-                        // Field doesn't exist yet, skip silently
+                        Spacer(modifier = Modifier.height(16.dp))
                     }
                 }
 
@@ -573,48 +576,38 @@ fun ModelDetailBottomSheet(
 
                 // Trained words (if available)
                 uiState.selectedVersion?.let { version ->
-                    try {
-                        val trainedWords = version.javaClass.getDeclaredField("trainedWords").get(version) as? List<*>
-                        if (trainedWords != null && trainedWords.isNotEmpty()) {
-                            Text(
-                                text = "Trained Words",
-                                style = MaterialTheme.typography.titleSmall
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            FlowRow(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                verticalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                trainedWords.forEach { word ->
-                                    AssistChip(
-                                        onClick = { },
-                                        label = { Text(word.toString()) }
-                                    )
-                                }
+                    if (version.trainedWords.isNotEmpty()) {
+                        Text(
+                            text = "Trained Words",
+                            style = MaterialTheme.typography.titleSmall
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            version.trainedWords.forEach { word ->
+                                AssistChip(
+                                    onClick = { },
+                                    label = { Text(word) }
+                                )
                             }
-                            Spacer(modifier = Modifier.height(16.dp))
                         }
-                    } catch (e: Exception) {
-                        // Field doesn't exist yet, skip
+                        Spacer(modifier = Modifier.height(16.dp))
                     }
                 }
 
                 // Version notes
                 uiState.selectedVersion?.let { version ->
-                    try {
-                        val description = version.javaClass.getDeclaredField("description").get(version) as? String
-                        if (!description.isNullOrBlank()) {
-                            Text(
-                                text = "Version Notes",
-                                style = MaterialTheme.typography.titleSmall
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            HtmlText(html = description)
-                            Spacer(modifier = Modifier.height(16.dp))
-                        }
-                    } catch (e: Exception) {
-                        // Field doesn't exist yet, skip
+                    if (!version.description.isNullOrBlank()) {
+                        Text(
+                            text = "Version Notes",
+                            style = MaterialTheme.typography.titleSmall
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        HtmlText(html = version.description)
+                        Spacer(modifier = Modifier.height(16.dp))
                     }
                 }
 
@@ -653,6 +646,96 @@ fun ModelDetailBottomSheet(
             viewModel = viewModel,
             onDismiss = { showDownloadDialog = false }
         )
+    }
+}
+
+@Composable
+fun SearchFilters(
+    uiState: ModelBrowserUiState,
+    viewModel: ModelBrowserViewModel
+) {
+    val modelTypes = listOf("Checkpoint", "LORA", "LoCon", "TextualInversion", "VAE", "Controlnet", "Upscaler")
+    val baseModels = listOf("Illustrious", "NoobAI", "Pony", "SDXL 1.0", "SD 1.5", "Flux.1 D", "Flux.1 S")
+    val sortOptions = listOf("Most Downloaded", "Highest Rated", "Newest")
+    val periodOptions = listOf("AllTime", "Month", "Week", "Day")
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        // Sort
+        Text("Sort", style = MaterialTheme.typography.labelMedium)
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            sortOptions.forEach { sort ->
+                FilterChip(
+                    selected = uiState.filterSort == sort,
+                    onClick = { viewModel.setFilterSort(sort) },
+                    label = { Text(sort, style = MaterialTheme.typography.labelSmall) }
+                )
+            }
+        }
+
+        // Period
+        Text("Period", style = MaterialTheme.typography.labelMedium)
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            periodOptions.forEach { period ->
+                FilterChip(
+                    selected = uiState.filterPeriod == period,
+                    onClick = { viewModel.setFilterPeriod(period) },
+                    label = { Text(period, style = MaterialTheme.typography.labelSmall) }
+                )
+            }
+        }
+
+        // Model type
+        Text("Type", style = MaterialTheme.typography.labelMedium)
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            FilterChip(
+                selected = uiState.filterModelType == null,
+                onClick = { viewModel.setFilterModelType(null) },
+                label = { Text("All", style = MaterialTheme.typography.labelSmall) }
+            )
+            modelTypes.forEach { type ->
+                FilterChip(
+                    selected = uiState.filterModelType == type,
+                    onClick = { viewModel.setFilterModelType(type) },
+                    label = { Text(type, style = MaterialTheme.typography.labelSmall) }
+                )
+            }
+        }
+
+        // Base model
+        Text("Base Model", style = MaterialTheme.typography.labelMedium)
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            FilterChip(
+                selected = uiState.filterBaseModel == null,
+                onClick = { viewModel.setFilterBaseModel(null) },
+                label = { Text("All", style = MaterialTheme.typography.labelSmall) }
+            )
+            baseModels.forEach { model ->
+                FilterChip(
+                    selected = uiState.filterBaseModel == model,
+                    onClick = { viewModel.setFilterBaseModel(model) },
+                    label = { Text(model, style = MaterialTheme.typography.labelSmall) }
+                )
+            }
+        }
+
+        HorizontalDivider(modifier = Modifier.padding(top = 4.dp))
     }
 }
 

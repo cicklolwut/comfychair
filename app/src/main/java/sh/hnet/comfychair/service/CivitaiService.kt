@@ -12,6 +12,7 @@ import sh.hnet.comfychair.model.ImageStats
 import sh.hnet.comfychair.model.ModelProvider
 import sh.hnet.comfychair.model.ModelSearchResult
 import sh.hnet.comfychair.model.ModelVersion
+import sh.hnet.comfychair.model.ModelVersionImage
 import sh.hnet.comfychair.model.ModelFile
 import sh.hnet.comfychair.storage.ModelBrowserSettings
 import sh.hnet.comfychair.util.DebugLogger
@@ -41,11 +42,24 @@ class CivitaiService(
      * @param limit Number of results to return
      * @param nsfw Whether to include NSFW models
      */
+    /**
+     * Search for models on Civitai.
+     * @param query Search query
+     * @param types Model types to filter (e.g., "Checkpoint", "LORA")
+     * @param limit Number of results to return
+     * @param nsfw Whether to include NSFW models
+     * @param sort Sort order: "Highest Rated", "Most Downloaded", "Newest"
+     * @param period Time period: "AllTime", "Year", "Month", "Week", "Day"
+     * @param baseModel Base model filter: "Illustrious", "NoobAI", "SDXL 1.0", etc.
+     */
     suspend fun searchModels(
         query: String,
         types: List<String>? = null,
         limit: Int = 20,
-        nsfw: Boolean = false
+        nsfw: Boolean = false,
+        sort: String? = null,
+        period: String? = null,
+        baseModel: String? = null
     ): List<ModelSearchResult> = withContext(Dispatchers.IO) {
         val apiKey = settings.civitaiApiKey
         require(apiKey.isNotBlank()) { "Civitai API key not configured" }
@@ -55,6 +69,9 @@ class CivitaiService(
             types?.forEach { type ->
                 append("&types=$type")
             }
+            if (!sort.isNullOrBlank()) append("&sort=${java.net.URLEncoder.encode(sort, "UTF-8")}")
+            if (!period.isNullOrBlank()) append("&period=$period")
+            if (!baseModel.isNullOrBlank()) append("&baseModels=${java.net.URLEncoder.encode(baseModel, "UTF-8")}")
         }
 
         DebugLogger.d(TAG, "Searching Civitai: $url")
@@ -222,6 +239,35 @@ class CivitaiService(
             }
         }
 
+        // Parse images
+        val imagesArray = json.optJSONArray("images")
+        val images = mutableListOf<ModelVersionImage>()
+        if (imagesArray != null) {
+            for (i in 0 until imagesArray.length()) {
+                val imgObj = imagesArray.getJSONObject(i)
+                images.add(
+                    ModelVersionImage(
+                        url = imgObj.optString("url", ""),
+                        nsfwLevel = imgObj.optInt("nsfwLevel", 1),
+                        width = imgObj.optInt("width", 0),
+                        height = imgObj.optInt("height", 0)
+                    )
+                )
+            }
+        }
+
+        // Parse trained words
+        val trainedWordsArray = json.optJSONArray("trainedWords")
+        val trainedWords = mutableListOf<String>()
+        if (trainedWordsArray != null) {
+            for (i in 0 until trainedWordsArray.length()) {
+                trainedWords.add(trainedWordsArray.getString(i))
+            }
+        }
+
+        // Version description
+        val description = json.optString("description", null)
+
         return ModelVersion(
             id = id,
             name = name,
@@ -229,7 +275,10 @@ class CivitaiService(
             downloadUrl = primaryDownloadUrl,
             filename = primaryFilename,
             sizeKB = primarySizeKB,
-            files = files
+            files = files,
+            images = images,
+            trainedWords = trainedWords,
+            description = description
         )
     }
 

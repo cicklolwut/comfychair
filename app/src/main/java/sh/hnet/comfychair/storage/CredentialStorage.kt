@@ -21,6 +21,8 @@ class CredentialStorage(context: Context) {
         private const val KEY_PASSWORD_PREFIX = "password_"
         private const val KEY_TOKEN_PREFIX = "token_"
         private const val KEY_COOKIES_PREFIX = "cookies_"
+        private const val KEY_AUTH_DOMAIN_PREFIX = "auth_domain_"
+        private const val KEY_AUTH_DOMAIN_COOKIES_PREFIX = "auth_domain_cookies_"
     }
 
     private val prefs: SharedPreferences by lazy {
@@ -54,6 +56,8 @@ class CredentialStorage(context: Context) {
             remove("$KEY_USERNAME_PREFIX$serverId")
             remove("$KEY_PASSWORD_PREFIX$serverId")
             remove("$KEY_TOKEN_PREFIX$serverId")
+            remove("$KEY_AUTH_DOMAIN_PREFIX$serverId")
+            remove("$KEY_AUTH_DOMAIN_COOKIES_PREFIX$serverId")
 
             when (credentials) {
                 is AuthCredentials.None -> { /* Nothing to store */ }
@@ -66,6 +70,10 @@ class CredentialStorage(context: Context) {
                 }
                 is AuthCredentials.Cookie -> {
                     putString("$KEY_COOKIES_PREFIX$serverId", credentials.cookies)
+                    if (credentials.authDomain.isNotEmpty()) {
+                        putString("$KEY_AUTH_DOMAIN_PREFIX$serverId", credentials.authDomain)
+                        putString("$KEY_AUTH_DOMAIN_COOKIES_PREFIX$serverId", credentials.authDomainCookies)
+                    }
                 }
             }
             apply()
@@ -102,7 +110,9 @@ class CredentialStorage(context: Context) {
             AuthType.BROWSER -> {
                 val cookies = prefs.getString("$KEY_COOKIES_PREFIX$serverId", null)
                 if (cookies != null) {
-                    AuthCredentials.Cookie(cookies)
+                    val authDomain = prefs.getString("$KEY_AUTH_DOMAIN_PREFIX$serverId", null) ?: ""
+                    val authDomainCookies = prefs.getString("$KEY_AUTH_DOMAIN_COOKIES_PREFIX$serverId", null) ?: ""
+                    AuthCredentials.Cookie(cookies, authDomain, authDomainCookies)
                 } else {
                     AuthCredentials.None
                 }
@@ -120,6 +130,8 @@ class CredentialStorage(context: Context) {
             remove("$KEY_PASSWORD_PREFIX$serverId")
             remove("$KEY_TOKEN_PREFIX$serverId")
             remove("$KEY_COOKIES_PREFIX$serverId")
+            remove("$KEY_AUTH_DOMAIN_PREFIX$serverId")
+            remove("$KEY_AUTH_DOMAIN_COOKIES_PREFIX$serverId")
             apply()
         }
         DebugLogger.d(TAG, "Deleted credentials for server $serverId")

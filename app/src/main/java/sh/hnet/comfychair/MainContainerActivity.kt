@@ -52,15 +52,22 @@ class MainContainerActivity : ComponentActivity() {
     private val imageToImageViewModel: ImageToImageViewModel by viewModels()
     private val imageToVideoViewModel: ImageToVideoViewModel by viewModels()
 
-    /** Whether we already tried silent refresh and it failed — show dialog instead. */
-    private var silentRefreshFailed = false
-
-    /** Handle re-auth result (shared by silent and manual flows). */
-    private fun handleReAuthResult(resultCode: Int, data: Intent?, isSilent: Boolean) {
+    /**
+     * Handle manual re-auth result from WebView.
+     * The silent OkHttp refresh is now handled entirely in ConnectionManager —
+     * this callback is only for the fallback dialog-triggered manual re-auth.
+     */
+    private fun handleReAuthResult(resultCode: Int, data: Intent?) {
         val cookies = data?.getStringExtra(WebViewAuthActivity.EXTRA_COOKIES) ?: ""
+        val authDomain = data?.getStringExtra(WebViewAuthActivity.EXTRA_AUTH_DOMAIN) ?: ""
+        val authDomainCookies = data?.getStringExtra(WebViewAuthActivity.EXTRA_AUTH_DOMAIN_COOKIES) ?: ""
         if (resultCode == Activity.RESULT_OK && cookies.isNotEmpty()) {
-            // Success — update credentials + reconnect
-            val newCreds = sh.hnet.comfychair.model.AuthCredentials.Cookie(cookies)
+            // Success — update credentials (with auth domain for future silent refreshes) + reconnect
+            val newCreds = sh.hnet.comfychair.model.AuthCredentials.Cookie(
+                cookies = cookies,
+                authDomain = authDomain,
+                authDomainCookies = authDomainCookies
+            )
             ConnectionManager.clientOrNull?.setCredentials(newCreds)
             val serverId = ConnectionManager.currentServerId
             if (serverId != null) {
@@ -68,29 +75,19 @@ class MainContainerActivity : ComponentActivity() {
                     .saveCredentials(serverId, newCreds)
             }
             ConnectionManager.clearSessionExpired()
-            silentRefreshFailed = false
             ConnectionManager.attemptSilentReconnect()
-        } else if (isSilent) {
-            // Silent refresh failed — show dialog for manual re-auth
-            silentRefreshFailed = true
         } else {
             // User cancelled manual re-auth — log out
             ConnectionManager.clearSessionExpired()
-            silentRefreshFailed = false
             generationViewModel.logout()
             finish()
         }
     }
 
-    // Silent re-auth — WebView opens, auto-finishes if cookies refresh
-    private val silentReAuthLauncher = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result -> handleReAuthResult(result.resultCode, result.data, isSilent = true) }
-
-    // Manual re-auth — user-initiated from dialog
+    // Manual re-auth — user-initiated from dialog (silent refresh now done via OkHttp in ConnectionManager)
     private val manualReAuthLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
-    ) { result -> handleReAuthResult(result.resultCode, result.data, isSilent = false) }
+    ) { result -> handleReAuthResult(result.resultCode, result.data) }
 
     /** Launch WebView for re-auth. */
     private fun launchReAuth(launcher: androidx.activity.result.ActivityResultLauncher<Intent>) {
@@ -203,23 +200,19 @@ class MainContainerActivity : ComponentActivity() {
                     )
                 }
 
-                // Session expired — try silent refresh first, prompt only if it fails
+                // Session expired — silent OkHttp refresh is attempted automatically by
+                // ConnectionManager. Show the manual re-auth dialog only when silent
+                // refresh has already failed (silentRefreshFailed == true).
                 val sessionExpired by ConnectionManager.sessionExpired.collectAsState()
-                if (sessionExpired && !silentRefreshFailed) {
-                    // Auto-launch silent WebView re-auth
-                    androidx.compose.runtime.LaunchedEffect(Unit) {
-                        launchReAuth(silentReAuthLauncher)
-                    }
-                }
+                val silentRefreshFailed by ConnectionManager.silentRefreshFailed.collectAsState()
                 if (sessionExpired && silentRefreshFailed) {
-                    // Silent refresh failed — show manual re-auth dialog
+                    // Silent OkHttp refresh failed — show manual re-auth dialog
                     AlertDialog(
                         onDismissRequest = { /* don't dismiss by tapping outside */ },
                         title = { Text(stringResource(R.string.title_session_expired)) },
                         text = { Text(stringResource(R.string.message_session_expired)) },
                         confirmButton = {
                             Button(onClick = {
-                                silentRefreshFailed = false
                                 launchReAuth(manualReAuthLauncher)
                             }) {
                                 Text(stringResource(R.string.button_reauthenticate))
@@ -228,7 +221,6 @@ class MainContainerActivity : ComponentActivity() {
                         dismissButton = {
                             TextButton(onClick = {
                                 ConnectionManager.clearSessionExpired()
-                                silentRefreshFailed = false
                                 generationViewModel.logout()
                                 finish()
                             }) {

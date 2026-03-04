@@ -54,7 +54,9 @@ import sh.hnet.comfychair.ui.theme.ComfyChairTheme
  *   EXTRA_HOST — ComfyUI hostname used to detect when auth is complete
  *
  * Result extras:
- *   EXTRA_COOKIES — Raw Cookie header string ready for injection into OkHttp requests
+ *   EXTRA_COOKIES             — Raw Cookie header string for the ComfyUI server
+ *   EXTRA_AUTH_DOMAIN         — Hostname of the SSO/auth domain (e.g. "auth.bun.cafe")
+ *   EXTRA_AUTH_DOMAIN_COOKIES — Raw Cookie header string for the auth domain
  */
 class WebViewAuthActivity : ComponentActivity() {
 
@@ -62,6 +64,8 @@ class WebViewAuthActivity : ComponentActivity() {
         const val EXTRA_URL = "url"
         const val EXTRA_HOST = "host"
         const val EXTRA_COOKIES = "cookies"
+        const val EXTRA_AUTH_DOMAIN = "auth_domain"
+        const val EXTRA_AUTH_DOMAIN_COOKIES = "auth_domain_cookies"
 
         /** Launch this activity and expect a result via ActivityResultLauncher. */
         fun createIntent(context: Context, url: String, host: String): Intent {
@@ -85,6 +89,29 @@ class WebViewAuthActivity : ComponentActivity() {
             // (respects domain/path scoping). This is exactly what OkHttp will need
             // to pass when talking to the ComfyUI server.
             return cookieManager.getCookie(targetUrl)?.trim() ?: ""
+        }
+
+        /**
+         * Find the first non-ComfyUI domain visited during auth and return its cookies.
+         * This is the SSO/auth domain whose session cookie enables silent token refresh.
+         *
+         * @param visitedDomains All hostnames visited during the WebView session
+         * @param comfyHost The ComfyUI hostname to exclude
+         * @return Pair of (authDomain, authDomainCookies), both empty if not found
+         */
+        fun extractAuthDomainCookies(visitedDomains: Collection<String>, comfyHost: String): Pair<String, String> {
+            val cookieManager = CookieManager.getInstance()
+            for (domain in visitedDomains) {
+                if (domain.equals(comfyHost, ignoreCase = true)) continue
+                // Try https first (most auth servers use HTTPS), then http
+                val cookies = (cookieManager.getCookie("https://$domain")?.trim()
+                    ?: cookieManager.getCookie("http://$domain")?.trim())
+                    ?.takeIf { it.isNotEmpty() }
+                if (!cookies.isNullOrEmpty()) {
+                    return Pair(domain, cookies)
+                }
+            }
+            return Pair("", "")
         }
     }
 
@@ -113,9 +140,11 @@ class WebViewAuthActivity : ComponentActivity() {
                 WebViewAuthScreen(
                     url = url,
                     host = host,
-                    onDone = { cookies ->
+                    onDone = { cookies, authDomain, authDomainCookies ->
                         val result = Intent().apply {
                             putExtra(EXTRA_COOKIES, cookies)
+                            putExtra(EXTRA_AUTH_DOMAIN, authDomain)
+                            putExtra(EXTRA_AUTH_DOMAIN_COOKIES, authDomainCookies)
                         }
                         setResult(Activity.RESULT_OK, result)
                         finish()
@@ -136,7 +165,7 @@ class WebViewAuthActivity : ComponentActivity() {
 private fun WebViewAuthScreen(
     url: String,
     host: String,
-    onDone: (cookies: String) -> Unit,
+    onDone: (cookies: String, authDomain: String, authDomainCookies: String) -> Unit,
     onCancel: () -> Unit
 ) {
     var isLoading by remember { mutableStateOf(true) }
@@ -145,9 +174,15 @@ private fun WebViewAuthScreen(
     var authAppearsComplete by remember { mutableStateOf(false) }
     var webViewRef: WebView? by remember { mutableStateOf(null) }
 
+    // Track all non-ComfyUI hostnames visited during the auth redirect chain.
+    // The first one is typically the SSO/auth domain whose session cookie enables
+    // silent OkHttp token refresh without needing to show the WebView again.
+    val visitedAuthDomains = remember { LinkedHashSet<String>() }
+
     fun collectAndReturn() {
         val cookies = WebViewAuthActivity.extractCookies(url)
-        onDone(cookies)
+        val (authDomain, authDomainCookies) = WebViewAuthActivity.extractAuthDomainCookies(visitedAuthDomains, host)
+        onDone(cookies, authDomain, authDomainCookies)
     }
 
     Surface(modifier = Modifier.fillMaxSize()) {
@@ -236,6 +271,14 @@ private fun WebViewAuthScreen(
                                     currentUrl = pageUrl ?: ""
                                     // Check if we're back on the ComfyUI host
                                     authAppearsComplete = isOnTargetHost(pageUrl, host)
+                                    // Record any non-ComfyUI domain we land on — this is
+                                    // the auth/SSO domain whose cookies enable silent refresh.
+                                    val pageHost = try {
+                                        Uri.parse(pageUrl ?: "").host ?: ""
+                                    } catch (e: Exception) { "" }
+                                    if (pageHost.isNotEmpty() && !pageHost.equals(host, ignoreCase = true)) {
+                                        visitedAuthDomains.add(pageHost)
+                                    }
                                 }
 
                                 override fun onPageFinished(view: WebView?, pageUrl: String?) {

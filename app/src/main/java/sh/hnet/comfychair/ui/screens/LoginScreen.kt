@@ -135,8 +135,17 @@ fun LoginScreen() {
         if (result.resultCode == Activity.RESULT_OK) {
             val server = browserReauthServer ?: return@rememberLauncherForActivityResult
             val cookies = result.data?.getStringExtra(WebViewAuthActivity.EXTRA_COOKIES) ?: ""
+            val authDomain = result.data?.getStringExtra(WebViewAuthActivity.EXTRA_AUTH_DOMAIN) ?: ""
+            val authDomainCookies = result.data?.getStringExtra(WebViewAuthActivity.EXTRA_AUTH_DOMAIN_COOKIES) ?: ""
             if (cookies.isNotEmpty()) {
-                credentialStorage.saveCredentials(server.id, sh.hnet.comfychair.model.AuthCredentials.Cookie(cookies))
+                credentialStorage.saveCredentials(
+                    server.id,
+                    sh.hnet.comfychair.model.AuthCredentials.Cookie(
+                        cookies = cookies,
+                        authDomain = authDomain,
+                        authDomainCookies = authDomainCookies
+                    )
+                )
                 showBrowserReauthPrompt = false
                 browserReauthServer = null
                 connectionState = ConnectionState.IDLE

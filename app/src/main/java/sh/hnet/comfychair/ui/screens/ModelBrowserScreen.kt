@@ -173,7 +173,7 @@ fun ModelBrowserScreen(
                             ) {
                                 Text("NSFW", style = MaterialTheme.typography.labelSmall)
                                 Switch(
-                                    checked = viewModel.getShowNsfw(),
+                                    checked = uiState.showNsfw,
                                     onCheckedChange = { viewModel.setShowNsfw(it) },
                                     modifier = Modifier.height(24.dp)
                                 )
@@ -641,10 +641,13 @@ fun SearchFilters(
     uiState: ModelBrowserUiState,
     viewModel: ModelBrowserViewModel
 ) {
-    val modelTypes = listOf("Checkpoint", "LORA", "LoCon", "TextualInversion", "VAE", "Controlnet", "Upscaler")
-    val baseModels = listOf("Illustrious", "NoobAI", "Pony", "SDXL 1.0", "SD 1.5", "Flux.1 D", "Flux.1 S")
-    val sortOptions = listOf("Most Downloaded", "Highest Rated", "Newest")
-    val periodOptions = listOf("AllTime", "Month", "Week", "Day")
+    // Use dynamic facets from Meili, fall back to defaults if empty
+    val modelTypes = if (uiState.availableTypes.isNotEmpty()) uiState.availableTypes 
+        else listOf("Checkpoint", "LORA", "LoCon", "TextualInversion", "VAE", "Controlnet", "Upscaler")
+    val baseModels = if (uiState.availableBaseModels.isNotEmpty()) uiState.availableBaseModels
+        else listOf("Illustrious", "NoobAI", "Pony", "SDXL 1.0", "SD 1.5", "Flux.1 D")
+    val sortOptions = listOf("Most Downloaded", "Highest Rated", "Most Liked", "Most Discussed", "Most Collected", "Most Buzz", "Newest")
+    val periodOptions = listOf("AllTime", "Month", "Week", "Day") // TODO: Period not used by Meili search
 
     Column(
         modifier = Modifier

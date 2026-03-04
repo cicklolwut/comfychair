@@ -20,6 +20,7 @@ import sh.hnet.comfychair.model.ModelType
 import sh.hnet.comfychair.model.ModelVersion
 import sh.hnet.comfychair.model.ModelFile
 import sh.hnet.comfychair.service.CivitaiService
+import sh.hnet.comfychair.service.CivitaiMeiliService
 import sh.hnet.comfychair.service.HuggingFaceService
 import sh.hnet.comfychair.service.ComfyUIManagerService
 // AppSettings is an object singleton, not instantiated
@@ -53,7 +54,10 @@ data class ModelBrowserUiState(
     val filterBaseModel: String? = null, // "Illustrious", "NoobAI", etc.
     val filterSort: String = "Most Downloaded", // "Highest Rated", "Most Downloaded", "Newest"
     val filterPeriod: String = "AllTime", // "AllTime", "Year", "Month", "Week", "Day"
-    val showFilters: Boolean = false
+    val showFilters: Boolean = false,
+    val showNsfw: Boolean = false,
+    val availableTypes: List<String> = emptyList(),      // from Meili facets
+    val availableBaseModels: List<String> = emptyList()  // from Meili facets
 )
 
 /**
@@ -75,11 +79,13 @@ class ModelBrowserViewModel(context: Context) : ViewModel() {
 
     private val modelBrowserSettings = ModelBrowserSettings(context)
     private val civitaiService = CivitaiService(modelBrowserSettings)
+    private val civitaiMeiliService = CivitaiMeiliService()
     private val huggingFaceService = HuggingFaceService(modelBrowserSettings)
     private val comfyUIManagerService = ComfyUIManagerService()
 
     private val _uiState = MutableStateFlow(ModelBrowserUiState(
-        providerConfigured = modelBrowserSettings.isCivitaiConfigured
+        providerConfigured = modelBrowserSettings.isCivitaiConfigured,
+        showNsfw = modelBrowserSettings.showNsfw
     ))
     val uiState: StateFlow<ModelBrowserUiState> = _uiState.asStateFlow()
 
@@ -157,7 +163,9 @@ class ModelBrowserViewModel(context: Context) : ViewModel() {
      */
     fun searchModels() {
         val query = _uiState.value.searchQuery.trim()
-        if (query.isEmpty()) {
+        
+        // HuggingFace still requires non-empty query
+        if (query.isEmpty() && _uiState.value.selectedProvider == ModelProvider.HUGGINGFACE) {
             viewModelScope.launch {
                 _events.emit(ModelBrowserEvent.ShowToast("Enter a search query"))
             }
@@ -167,36 +175,53 @@ class ModelBrowserViewModel(context: Context) : ViewModel() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isSearching = true, errorMessage = null)
             try {
-                val results = when (_uiState.value.selectedProvider) {
+                when (_uiState.value.selectedProvider) {
                     ModelProvider.CIVITAI -> {
                         if (!modelBrowserSettings.isCivitaiConfigured) {
                             throw IllegalStateException("Civitai API key not configured")
                         }
                         val state = _uiState.value
-                        civitaiService.searchModels(
+                        
+                        // Use Meili for search
+                        val meiliResult = civitaiMeiliService.searchModels(
                             query = query,
-                            nsfw = modelBrowserSettings.showNsfw,
-                            types = state.filterModelType?.let { listOf(it) },
+                            type = state.filterModelType,
+                            baseModel = state.filterBaseModel,
                             sort = state.filterSort,
-                            period = state.filterPeriod,
-                            baseModel = state.filterBaseModel
+                            nsfw = state.showNsfw,
+                            limit = 20
                         )
+                        
+                        _uiState.value = _uiState.value.copy(
+                            searchResults = meiliResult.models,
+                            isSearching = false,
+                            availableTypes = meiliResult.facets?.types?.keys?.sortedByDescending { 
+                                meiliResult.facets.types[it] 
+                            } ?: emptyList(),
+                            availableBaseModels = meiliResult.facets?.baseModels?.keys?.sortedByDescending { 
+                                meiliResult.facets.baseModels[it] 
+                            }?.take(20) ?: emptyList()
+                        )
+                        
+                        if (meiliResult.models.isEmpty()) {
+                            _events.emit(ModelBrowserEvent.ShowToast("No results found"))
+                        }
                     }
                     ModelProvider.HUGGINGFACE -> {
                         if (!modelBrowserSettings.isHuggingFaceConfigured) {
                             throw IllegalStateException("HuggingFace API key not configured")
                         }
-                        huggingFaceService.searchModels(query = query)
+                        val results = huggingFaceService.searchModels(query = query)
+                        
+                        _uiState.value = _uiState.value.copy(
+                            searchResults = results,
+                            isSearching = false
+                        )
+                        
+                        if (results.isEmpty()) {
+                            _events.emit(ModelBrowserEvent.ShowToast("No results found"))
+                        }
                     }
-                }
-
-                _uiState.value = _uiState.value.copy(
-                    searchResults = results,
-                    isSearching = false
-                )
-
-                if (results.isEmpty()) {
-                    _events.emit(ModelBrowserEvent.ShowToast("No results found"))
                 }
             } catch (e: Exception) {
                 DebugLogger.w(TAG, "Search failed: ${e.message}")
@@ -214,14 +239,37 @@ class ModelBrowserViewModel(context: Context) : ViewModel() {
      */
     fun selectModel(model: ModelSearchResult) {
         val autoType = sh.hnet.comfychair.model.CivitaiTypeMapper.toComfyUIType(model.civitaiType)
+        
+        // Show immediately with what we have
         _uiState.value = _uiState.value.copy(
             selectedModel = model,
-            selectedVersion = model.versions.firstOrNull(),
+            selectedVersion = null,
             selectedFile = null,
             selectedModelType = autoType
         )
         // Clear community images when selecting a new model
         clearCommunityImages()
+        
+        // Load full details if Civitai (versions, description, etc.)
+        if (model.provider == ModelProvider.CIVITAI) {
+            viewModelScope.launch {
+                try {
+                    val fullModel = civitaiService.getModelDetails(model.id)
+                    _uiState.value = _uiState.value.copy(
+                        selectedModel = fullModel,
+                        selectedVersion = fullModel.versions.firstOrNull()
+                    )
+                } catch (e: Exception) {
+                    DebugLogger.w(TAG, "Failed to load model details: ${e.message}")
+                    // Keep showing the basic model info from Meili
+                }
+            }
+        } else {
+            // HuggingFace already has full data from search
+            _uiState.value = _uiState.value.copy(
+                selectedVersion = model.versions.firstOrNull()
+            )
+        }
     }
 
     /**
@@ -466,22 +514,12 @@ class ModelBrowserViewModel(context: Context) : ViewModel() {
     }
 
     /**
-     * Get Civitai API key.
-     */
-    fun getCivitaiApiKey(): String = modelBrowserSettings.civitaiApiKey
-
-    /**
      * Set Civitai API key.
      */
     fun setCivitaiApiKey(key: String) {
         modelBrowserSettings.civitaiApiKey = key
         _uiState.value = _uiState.value.copy(providerConfigured = key.isNotBlank())
     }
-
-    /**
-     * Get HuggingFace API key.
-     */
-    fun getHuggingFaceApiKey(): String = modelBrowserSettings.huggingfaceApiKey
 
     /**
      * Set HuggingFace API key.
@@ -492,15 +530,11 @@ class ModelBrowserViewModel(context: Context) : ViewModel() {
     }
 
     /**
-     * Get show NSFW setting.
-     */
-    fun getShowNsfw(): Boolean = modelBrowserSettings.showNsfw
-
-    /**
      * Set show NSFW setting.
      */
     fun setShowNsfw(value: Boolean) {
         modelBrowserSettings.showNsfw = value
+        _uiState.value = _uiState.value.copy(showNsfw = value)
         triggerDebouncedSearch()
     }
 }

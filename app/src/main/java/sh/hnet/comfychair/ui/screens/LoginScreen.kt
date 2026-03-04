@@ -9,12 +9,14 @@ import sh.hnet.comfychair.WebViewAuthActivity
 import sh.hnet.comfychair.connection.ConnectionFailure
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
@@ -22,6 +24,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
@@ -207,8 +210,8 @@ fun LoginScreen() {
                 val detectedProtocol = client.getWorkingProtocol() ?: "http"
 
                 // Handle certificate issues
-                if (certIssue != CertificateIssue.NONE) {
-                    // Pause and ask the user
+                if (certIssue != CertificateIssue.NONE && !server.trustCert) {
+                    // Cert issue and user hasn't trusted this server — ask
                     connectionState = ConnectionState.CONNECTED
                     pendingCertIssue = certIssue
                     pendingCertServer = server
@@ -485,6 +488,8 @@ fun LoginScreen() {
 
     // Certificate warning dialog
     if (showCertDialog && pendingCertServer != null) {
+        var rememberChoice by remember { mutableStateOf(false) }
+
         val certTitle = when (pendingCertIssue) {
             CertificateIssue.SELF_SIGNED -> "Self-Signed Certificate"
             CertificateIssue.UNKNOWN_CA -> "Unknown Certificate Authority"
@@ -513,7 +518,26 @@ fun LoginScreen() {
                 pendingCertProtocol = null
             },
             title = { Text(certTitle) },
-            text = { Text(certMessage) },
+            text = {
+                Column {
+                    Text(certMessage)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.clickable { rememberChoice = !rememberChoice }
+                    ) {
+                        Checkbox(
+                            checked = rememberChoice,
+                            onCheckedChange = { rememberChoice = it }
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            "Remember for this server",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                }
+            },
             confirmButton = {
                 Button(
                     onClick = {
@@ -525,6 +549,11 @@ fun LoginScreen() {
                         pendingCertProtocol = null
 
                         scope.launch {
+                            // Save trust preference if checked
+                            if (rememberChoice) {
+                                serverStorage.updateServer(server.copy(trustCert = true))
+                            }
+
                             serverStorage.setSelectedServerId(server.id)
                             ConnectionManager.connect(
                                 context = context.applicationContext,

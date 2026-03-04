@@ -39,7 +39,9 @@ import androidx.compose.ui.window.Dialog
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.runtime.CompositionLocalProvider
 import sh.hnet.comfychair.model.CivitaiTypeMapper
 import sh.hnet.comfychair.viewmodel.ModelBrowserUiState
 import sh.hnet.comfychair.model.ModelProvider
@@ -730,17 +732,24 @@ fun MiniChip(
     containerColor: androidx.compose.ui.graphics.Color,
     contentColor: androidx.compose.ui.graphics.Color
 ) {
-    Surface(
-        shape = MaterialTheme.shapes.small,
-        color = containerColor,
-        contentColor = contentColor
-    ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.labelSmall,
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+    // Reduce M3's 48dp minimum touch target for dense grid layouts
+    CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
+        SuggestionChip(
+            onClick = { },
+            label = {
+                Text(
+                    text = text,
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            },
+            colors = SuggestionChipDefaults.suggestionChipColors(
+                containerColor = containerColor,
+                labelColor = contentColor
+            ),
+            border = null,
+            modifier = Modifier.height(24.dp)
         )
     }
 }

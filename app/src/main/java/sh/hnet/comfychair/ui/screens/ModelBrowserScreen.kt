@@ -46,6 +46,7 @@ import sh.hnet.comfychair.model.CivitaiTypeMapper
 import sh.hnet.comfychair.viewmodel.ModelBrowserUiState
 import sh.hnet.comfychair.model.ModelProvider
 import sh.hnet.comfychair.model.ModelSearchResult
+import ModelFile
 import sh.hnet.comfychair.model.ModelType
 import sh.hnet.comfychair.model.ModelVersion
 import sh.hnet.comfychair.viewmodel.ModelBrowserEvent
@@ -118,12 +119,7 @@ fun ModelBrowserScreen(
                 // API key setup card
                 ApiKeySetupCard(
                     provider = uiState.selectedProvider,
-                    onKeySaved = { key ->
-                        when (uiState.selectedProvider) {
-                            ModelProvider.CIVITAI -> viewModel.setCivitaiApiKey(key)
-                            ModelProvider.HUGGINGFACE -> viewModel.setHuggingFaceApiKey(key)
-                        }
-                    }
+                    onKeySaved = { key -> viewModel.saveApiKey(key) }
                 )
             } else {
                 // Search bar
@@ -179,14 +175,20 @@ fun ModelBrowserScreen(
                                 )
                             }
                         }
-                        TextButton(onClick = { viewModel.setCivitaiApiKey("") }) {
+                        TextButton(onClick = { viewModel.resetProviderApiKey() }) {
                             Text("Change Key", style = MaterialTheme.typography.labelSmall)
                         }
                     }
 
                     // Expandable filter section
                     if (uiState.showFilters) {
-                        SearchFilters(uiState = uiState, viewModel = viewModel)
+                        SearchFilters(
+                            uiState = uiState,
+                            onFilterTypeChanged = viewModel::setFilterModelType,
+                            onFilterBaseModelChanged = viewModel::setFilterBaseModel,
+                            onFilterSortChanged = viewModel::setFilterSort,
+                            onFilterPeriodChanged = viewModel::setFilterPeriod
+                        )
                     }
                 } else {
                     // HuggingFace — just the API key change
@@ -196,7 +198,7 @@ fun ModelBrowserScreen(
                             .padding(top = 4.dp),
                         horizontalArrangement = Arrangement.End
                     ) {
-                        TextButton(onClick = { viewModel.setHuggingFaceApiKey("") }) {
+                        TextButton(onClick = { viewModel.resetProviderApiKey() }) {
                             Text("Change API Key", style = MaterialTheme.typography.labelSmall)
                         }
                     }
@@ -246,8 +248,15 @@ fun ModelBrowserScreen(
     if (uiState.selectedModel != null) {
         ModelDetailBottomSheet(
             model = uiState.selectedModel!!,
-            viewModel = viewModel,
-            onDismiss = { viewModel.clearSelection() }
+            uiState = uiState,
+            onDismiss = { viewModel.clearSelection() },
+            onSelectVersion = viewModel::selectVersion,
+            onToggleCommunityImages = viewModel::toggleCommunityImages,
+            onLoadMoreCommunityImages = viewModel::loadMoreCommunityImages,
+            onSelectModelType = viewModel::selectModelType,
+            onSelectFile = viewModel::selectFile,
+            onDownload = viewModel::downloadModel,
+            onImportWorkflow = viewModel::importWorkflow
         )
     }
 }
@@ -413,11 +422,17 @@ fun ModelGridCard(
 @Composable
 fun ModelDetailBottomSheet(
     model: ModelSearchResult,
-    viewModel: ModelBrowserViewModel,
-    onDismiss: () -> Unit
+    uiState: ModelBrowserUiState,
+    onDismiss: () -> Unit,
+    onSelectVersion: (ModelVersion) -> Unit,
+    onToggleCommunityImages: () -> Unit,
+    onLoadMoreCommunityImages: () -> Unit,
+    onSelectModelType: (ModelType) -> Unit,
+    onSelectFile: (ModelFile) -> Unit,
+    onDownload: (subfolder: String) -> Unit,
+    onImportWorkflow: (String) -> Unit
 ) {
     val context = LocalContext.current
-    val uiState by viewModel.uiState.collectAsState()
     var showDownloadDialog by remember { mutableStateOf(false) }
 
     ModalBottomSheet(
@@ -431,12 +446,9 @@ fun ModelDetailBottomSheet(
                     images = uiState.communityImages,
                     isLoading = uiState.isLoadingCommunityImages,
                     hasMore = uiState.hasMoreCommunityImages,
-                    onLoadMore = { viewModel.loadMoreCommunityImages() },
-                    onBack = { viewModel.toggleCommunityImages() },
-                    onImportWorkflow = { json ->
-                        // Handle workflow import - for now just show toast
-                        Toast.makeText(context, "Workflow imported", Toast.LENGTH_SHORT).show()
-                    }
+                    onLoadMore = onLoadMoreCommunityImages,
+                    onBack = onToggleCommunityImages,
+                    onImportWorkflow = onImportWorkflow
                 )
             } else {
                 Box(modifier = Modifier.fillMaxSize()) {
@@ -446,7 +458,7 @@ fun ModelDetailBottomSheet(
                         // Community Images button (only for Civitai)
                         if (uiState.selectedProvider == ModelProvider.CIVITAI) {
                             Button(
-                                onClick = { viewModel.toggleCommunityImages() },
+                                onClick = onToggleCommunityImages,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(horizontal = 16.dp, vertical = 8.dp)
@@ -553,7 +565,7 @@ fun ModelDetailBottomSheet(
                     lazyItems(model.versions) { version ->
                         FilterChip(
                             selected = uiState.selectedVersion == version,
-                            onClick = { viewModel.selectVersion(version) },
+                            onClick = { onSelectVersion(version) },
                             label = { Text(version.name) }
                         )
                     }
@@ -630,8 +642,11 @@ fun ModelDetailBottomSheet(
     if (showDownloadDialog) {
         DownloadConfigDialog(
             model = model,
-            viewModel = viewModel,
-            onDismiss = { showDownloadDialog = false }
+            uiState = uiState,
+            onDismiss = { showDownloadDialog = false },
+            onSelectModelType = onSelectModelType,
+            onSelectFile = onSelectFile,
+            onDownload = onDownload
         )
     }
 }
@@ -639,7 +654,10 @@ fun ModelDetailBottomSheet(
 @Composable
 fun SearchFilters(
     uiState: ModelBrowserUiState,
-    viewModel: ModelBrowserViewModel
+    onFilterTypeChanged: (String?) -> Unit,
+    onFilterBaseModelChanged: (String?) -> Unit,
+    onFilterSortChanged: (String) -> Unit,
+    onFilterPeriodChanged: (String) -> Unit
 ) {
     // Use dynamic facets from Meili, fall back to defaults if empty
     val modelTypes = if (uiState.availableTypes.isNotEmpty()) uiState.availableTypes 
@@ -664,7 +682,7 @@ fun SearchFilters(
             sortOptions.forEach { sort ->
                 FilterChip(
                     selected = uiState.filterSort == sort,
-                    onClick = { viewModel.setFilterSort(sort) },
+                    onClick = { onFilterSortChanged(sort) },
                     label = { Text(sort, style = MaterialTheme.typography.labelSmall) }
                 )
             }
@@ -679,7 +697,7 @@ fun SearchFilters(
             periodOptions.forEach { period ->
                 FilterChip(
                     selected = uiState.filterPeriod == period,
-                    onClick = { viewModel.setFilterPeriod(period) },
+                    onClick = { onFilterPeriodChanged(period) },
                     label = { Text(period, style = MaterialTheme.typography.labelSmall) }
                 )
             }
@@ -693,13 +711,13 @@ fun SearchFilters(
         ) {
             FilterChip(
                 selected = uiState.filterModelType == null,
-                onClick = { viewModel.setFilterModelType(null) },
+                onClick = { onFilterTypeChanged(null) },
                 label = { Text("All", style = MaterialTheme.typography.labelSmall) }
             )
             modelTypes.forEach { type ->
                 FilterChip(
                     selected = uiState.filterModelType == type,
-                    onClick = { viewModel.setFilterModelType(type) },
+                    onClick = { onFilterTypeChanged(type) },
                     label = { Text(type, style = MaterialTheme.typography.labelSmall) }
                 )
             }
@@ -713,13 +731,13 @@ fun SearchFilters(
         ) {
             FilterChip(
                 selected = uiState.filterBaseModel == null,
-                onClick = { viewModel.setFilterBaseModel(null) },
+                onClick = { onFilterBaseModelChanged(null) },
                 label = { Text("All", style = MaterialTheme.typography.labelSmall) }
             )
             baseModels.forEach { model ->
                 FilterChip(
                     selected = uiState.filterBaseModel == model,
-                    onClick = { viewModel.setFilterBaseModel(model) },
+                    onClick = { onFilterBaseModelChanged(model) },
                     label = { Text(model, style = MaterialTheme.typography.labelSmall) }
                 )
             }
@@ -774,10 +792,12 @@ fun HtmlText(html: String) {
 @Composable
 fun DownloadConfigDialog(
     model: ModelSearchResult,
-    viewModel: ModelBrowserViewModel,
-    onDismiss: () -> Unit
+    uiState: ModelBrowserUiState,
+    onDismiss: () -> Unit,
+    onSelectModelType: (ModelType) -> Unit,
+    onSelectFile: (ModelFile) -> Unit,
+    onDownload: (subfolder: String) -> Unit
 ) {
-    val uiState by viewModel.uiState.collectAsState()
     var subfolder by remember { mutableStateOf("") }
 
     Dialog(onDismissRequest = onDismiss) {
@@ -806,7 +826,7 @@ fun DownloadConfigDialog(
                     ModelType.values().forEach { type ->
                         FilterChip(
                             selected = uiState.selectedModelType == type,
-                            onClick = { viewModel.selectModelType(type) },
+                            onClick = { onSelectModelType(type) },
                             label = { Text(type.displayName) }
                         )
                     }
@@ -841,7 +861,7 @@ fun DownloadConfigDialog(
                     uiState.selectedVersion?.files?.forEach { file ->
                         FilterChip(
                             selected = uiState.selectedFile == file,
-                            onClick = { viewModel.selectFile(file) },
+                            onClick = { onSelectFile(file) },
                             label = { Text(file.filename) },
                             modifier = Modifier.fillMaxWidth()
                         )
@@ -876,7 +896,7 @@ fun DownloadConfigDialog(
                         }
                         Button(
                             onClick = { 
-                                viewModel.downloadModel(subfolder.trim())
+                                onDownload(subfolder.trim())
                                 onDismiss()
                             },
                             modifier = Modifier.weight(1f),

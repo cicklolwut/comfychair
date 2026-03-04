@@ -304,10 +304,9 @@ fun SettingsNavHost(
             }
 
             composable(SettingsRoute.ModelBrowser.route) {
+                val modelBrowserViewModel: sh.hnet.comfychair.viewmodel.ModelBrowserViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
                 sh.hnet.comfychair.ui.screens.ModelBrowserScreen(
-                    viewModel = sh.hnet.comfychair.viewmodel.ModelBrowserViewModel(
-                        context = androidx.compose.ui.platform.LocalContext.current
-                    ),
+                    viewModel = modelBrowserViewModel,
                     onNavigateBack = onNavigateToGeneration
                 )
             }

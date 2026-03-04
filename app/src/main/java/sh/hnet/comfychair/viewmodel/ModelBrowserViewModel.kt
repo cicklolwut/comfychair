@@ -1,8 +1,8 @@
 package sh.hnet.comfychair.viewmodel
 
-import android.content.Context
+import android.app.Application
 import androidx.compose.runtime.Stable
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -71,13 +71,12 @@ sealed class ModelBrowserEvent {
 /**
  * ViewModel for model browser screen.
  */
-class ModelBrowserViewModel(context: Context) : ViewModel() {
+class ModelBrowserViewModel(application: Application) : AndroidViewModel(application) {
     companion object {
         private const val TAG = "ModelBrowserViewModel"
     }
 
-
-    private val modelBrowserSettings = ModelBrowserSettings(context)
+    private val modelBrowserSettings = ModelBrowserSettings(getApplication())
     private val civitaiService = CivitaiService(modelBrowserSettings)
     private val civitaiMeiliService = CivitaiMeiliService()
     private val huggingFaceService = HuggingFaceService(modelBrowserSettings)
@@ -514,19 +513,35 @@ class ModelBrowserViewModel(context: Context) : ViewModel() {
     }
 
     /**
-     * Set Civitai API key.
+     * Save API key for the currently selected provider.
      */
-    fun setCivitaiApiKey(key: String) {
-        modelBrowserSettings.civitaiApiKey = key
+    fun saveApiKey(key: String) {
+        when (_uiState.value.selectedProvider) {
+            ModelProvider.CIVITAI -> modelBrowserSettings.civitaiApiKey = key
+            ModelProvider.HUGGINGFACE -> modelBrowserSettings.huggingfaceApiKey = key
+        }
         _uiState.value = _uiState.value.copy(providerConfigured = key.isNotBlank())
     }
 
     /**
-     * Set HuggingFace API key.
+     * Reset API key for the currently selected provider (shows setup card).
      */
-    fun setHuggingFaceApiKey(key: String) {
-        modelBrowserSettings.huggingfaceApiKey = key
-        _uiState.value = _uiState.value.copy(providerConfigured = key.isNotBlank())
+    fun resetProviderApiKey() {
+        when (_uiState.value.selectedProvider) {
+            ModelProvider.CIVITAI -> modelBrowserSettings.civitaiApiKey = ""
+            ModelProvider.HUGGINGFACE -> modelBrowserSettings.huggingfaceApiKey = ""
+        }
+        _uiState.value = _uiState.value.copy(providerConfigured = false)
+    }
+
+    /**
+     * Import workflow from community image metadata.
+     */
+    fun importWorkflow(json: String) {
+        viewModelScope.launch {
+            // TODO: Implement actual workflow import
+            _events.emit(ModelBrowserEvent.ShowToast("Generation params copied to clipboard"))
+        }
     }
 
     /**

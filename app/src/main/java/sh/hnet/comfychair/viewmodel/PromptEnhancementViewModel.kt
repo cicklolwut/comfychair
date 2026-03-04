@@ -45,8 +45,8 @@ data class PromptEnhancementUiState(
 )
 
 class PromptEnhancementViewModel(application: Application) : AndroidViewModel(application) {
-    val settings = PromptEnhancementSettings(application)
-    val promptStore = EnhancementPromptStore(application)
+    private val settings = PromptEnhancementSettings(application)
+    private val promptStore = EnhancementPromptStore(application)
     private val service = PromptEnhancementService(settings)
 
     private val _uiState = MutableStateFlow(loadState())

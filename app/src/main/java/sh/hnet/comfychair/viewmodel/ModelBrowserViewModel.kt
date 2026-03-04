@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.compose.runtime.Stable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -31,6 +33,7 @@ import sh.hnet.comfychair.util.DebugLogger
 data class ModelBrowserUiState(
     val searchQuery: String = "",
     val selectedProvider: ModelProvider = ModelProvider.CIVITAI,
+    val providerConfigured: Boolean = false, // tracks if current provider has API key
     val searchResults: List<ModelSearchResult> = emptyList(),
     val isSearching: Boolean = false,
     val selectedModel: ModelSearchResult? = null,
@@ -75,17 +78,37 @@ class ModelBrowserViewModel(context: Context) : ViewModel() {
     private val huggingFaceService = HuggingFaceService(modelBrowserSettings)
     private val comfyUIManagerService = ComfyUIManagerService()
 
-    private val _uiState = MutableStateFlow(ModelBrowserUiState())
+    private val _uiState = MutableStateFlow(ModelBrowserUiState(
+        providerConfigured = modelBrowserSettings.isCivitaiConfigured
+    ))
     val uiState: StateFlow<ModelBrowserUiState> = _uiState.asStateFlow()
 
     private val _events = MutableSharedFlow<ModelBrowserEvent>()
     val events: SharedFlow<ModelBrowserEvent> = _events.asSharedFlow()
 
+    private var searchDebounceJob: Job? = null
+
     /**
-     * Update the search query.
+     * Trigger a debounced search. Called automatically on query/filter/NSFW changes.
+     * @param delayMs debounce delay — 0 for immediate (filter changes), 800 for typing
+     */
+    private fun triggerDebouncedSearch(delayMs: Long = 0L) {
+        searchDebounceJob?.cancel()
+        searchDebounceJob = viewModelScope.launch {
+            if (delayMs > 0) delay(delayMs)
+            val query = _uiState.value.searchQuery.trim()
+            if (query.isNotEmpty()) {
+                searchModels()
+            }
+        }
+    }
+
+    /**
+     * Update the search query with debounced auto-search.
      */
     fun updateSearchQuery(query: String) {
         _uiState.value = _uiState.value.copy(searchQuery = query)
+        triggerDebouncedSearch(delayMs = 800L)
     }
 
     fun toggleFilters() {
@@ -94,26 +117,35 @@ class ModelBrowserViewModel(context: Context) : ViewModel() {
 
     fun setFilterModelType(type: String?) {
         _uiState.value = _uiState.value.copy(filterModelType = type)
+        triggerDebouncedSearch()
     }
 
     fun setFilterBaseModel(baseModel: String?) {
         _uiState.value = _uiState.value.copy(filterBaseModel = baseModel)
+        triggerDebouncedSearch()
     }
 
     fun setFilterSort(sort: String) {
         _uiState.value = _uiState.value.copy(filterSort = sort)
+        triggerDebouncedSearch()
     }
 
     fun setFilterPeriod(period: String) {
         _uiState.value = _uiState.value.copy(filterPeriod = period)
+        triggerDebouncedSearch()
     }
 
     /**
      * Switch between Civitai and HuggingFace providers.
      */
     fun selectProvider(provider: ModelProvider) {
+        val configured = when (provider) {
+            ModelProvider.CIVITAI -> modelBrowserSettings.isCivitaiConfigured
+            ModelProvider.HUGGINGFACE -> modelBrowserSettings.isHuggingFaceConfigured
+        }
         _uiState.value = _uiState.value.copy(
             selectedProvider = provider,
+            providerConfigured = configured,
             searchResults = emptyList(),
             selectedModel = null
         )
@@ -443,6 +475,7 @@ class ModelBrowserViewModel(context: Context) : ViewModel() {
      */
     fun setCivitaiApiKey(key: String) {
         modelBrowserSettings.civitaiApiKey = key
+        _uiState.value = _uiState.value.copy(providerConfigured = key.isNotBlank())
     }
 
     /**
@@ -455,6 +488,7 @@ class ModelBrowserViewModel(context: Context) : ViewModel() {
      */
     fun setHuggingFaceApiKey(key: String) {
         modelBrowserSettings.huggingfaceApiKey = key
+        _uiState.value = _uiState.value.copy(providerConfigured = key.isNotBlank())
     }
 
     /**
@@ -467,5 +501,6 @@ class ModelBrowserViewModel(context: Context) : ViewModel() {
      */
     fun setShowNsfw(value: Boolean) {
         modelBrowserSettings.showNsfw = value
+        triggerDebouncedSearch()
     }
 }

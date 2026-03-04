@@ -58,11 +58,7 @@ fun ModelBrowserScreen(
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
 
-    // Track whether the current provider has a key configured
-    val isProviderConfigured = when (uiState.selectedProvider) {
-        ModelProvider.CIVITAI -> viewModel.getCivitaiApiKey().isNotBlank()
-        ModelProvider.HUGGINGFACE -> viewModel.getHuggingFaceApiKey().isNotBlank()
-    }
+    val isProviderConfigured = uiState.providerConfigured
 
     // Event handling
     LaunchedEffect(Unit) {
@@ -385,35 +381,24 @@ fun ModelGridCard(
                     overflow = TextOverflow.Ellipsis
                 )
 
-                // Base model + tags in FlowRow
+                // Base model + tags
                 FlowRow(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
-                    // Base model chip
                     model.baseModel?.let { baseModel ->
-                        SuggestionChip(
-                            onClick = { },
-                            label = { 
-                                Text(
-                                    baseModel,
-                                    style = MaterialTheme.typography.labelSmall
-                                ) 
-                            }
+                        MiniChip(
+                            text = baseModel,
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                     }
-                    
-                    // Up to 3 tags
                     model.tags.take(3).forEach { tag ->
-                        AssistChip(
-                            onClick = { },
-                            label = { 
-                                Text(
-                                    tag,
-                                    style = MaterialTheme.typography.labelSmall
-                                ) 
-                            }
+                        MiniChip(
+                            text = tag,
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -736,6 +721,27 @@ fun SearchFilters(
         }
 
         HorizontalDivider(modifier = Modifier.padding(top = 4.dp))
+    }
+}
+
+@Composable
+fun MiniChip(
+    text: String,
+    containerColor: androidx.compose.ui.graphics.Color,
+    contentColor: androidx.compose.ui.graphics.Color
+) {
+    Surface(
+        shape = MaterialTheme.shapes.small,
+        color = containerColor,
+        contentColor = contentColor
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelSmall,
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 

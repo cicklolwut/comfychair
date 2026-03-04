@@ -8,6 +8,15 @@ android {
     namespace = "sh.hnet.comfychair"
     compileSdk = 36
 
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("${rootProject.projectDir}/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     defaultConfig {
         applicationId = "sh.hnet.comfychair"
         minSdk = 33

@@ -26,6 +26,8 @@ render.experimental.xml
 
 # Keystore files
 *.jks
+# Allow the shared debug keystore (consistent signing across CI builds)
+!debug.keystore
 *.keystore
 
 # Google Services (e.g. APIs or Firebase)

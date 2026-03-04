@@ -46,7 +46,7 @@ import sh.hnet.comfychair.model.CivitaiTypeMapper
 import sh.hnet.comfychair.viewmodel.ModelBrowserUiState
 import sh.hnet.comfychair.model.ModelProvider
 import sh.hnet.comfychair.model.ModelSearchResult
-import ModelFile
+import sh.hnet.comfychair.model.ModelFile
 import sh.hnet.comfychair.model.ModelType
 import sh.hnet.comfychair.model.ModelVersion
 import sh.hnet.comfychair.viewmodel.ModelBrowserEvent

@@ -681,7 +681,8 @@ object ConnectionManager {
                     }
 
                     if (response.isRedirect) {
-                        val location = response.header("Location") ?: run {
+                        val location = response.header("Location")
+                        if (location == null) {
                             response.close()
                             break
                         }

@@ -53,7 +53,7 @@ class CivitaiService(
             }
         }
 
-        DebugLogger.log(TAG, "Searching Civitai: $url")
+        DebugLogger.d(TAG, "Searching Civitai: $url")
 
         val request = Request.Builder()
             .url(url)
@@ -78,11 +78,11 @@ class CivitaiService(
             try {
                 results.add(parseModelResult(item))
             } catch (e: Exception) {
-                DebugLogger.log(TAG, "Failed to parse model result: ${e.message}")
+                DebugLogger.w(TAG, "Failed to parse model result: ${e.message}")
             }
         }
 
-        DebugLogger.log(TAG, "Found ${results.size} models")
+        DebugLogger.d(TAG, "Found ${results.size} models")
         results
     }
 
@@ -146,7 +146,7 @@ class CivitaiService(
                 try {
                     versions.add(parseModelVersion(versionObj))
                 } catch (e: Exception) {
-                    DebugLogger.log(TAG, "Failed to parse version: ${e.message}")
+                    DebugLogger.w(TAG, "Failed to parse version: ${e.message}")
                 }
             }
         }

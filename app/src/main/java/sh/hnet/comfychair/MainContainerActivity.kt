@@ -52,31 +52,53 @@ class MainContainerActivity : ComponentActivity() {
     private val imageToImageViewModel: ImageToImageViewModel by viewModels()
     private val imageToVideoViewModel: ImageToVideoViewModel by viewModels()
 
-    // Re-auth launcher for expired browser sessions
-    private val reAuthLauncher = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            val cookies = result.data?.getStringExtra(WebViewAuthActivity.EXTRA_COOKIES) ?: ""
-            if (cookies.isNotEmpty()) {
-                // Update credentials in the client
-                val newCreds = sh.hnet.comfychair.model.AuthCredentials.Cookie(cookies)
-                ConnectionManager.clientOrNull?.setCredentials(newCreds)
-                // Persist updated cookies
-                val serverId = ConnectionManager.currentServerId
-                if (serverId != null) {
-                    sh.hnet.comfychair.storage.CredentialStorage(this)
-                        .saveCredentials(serverId, newCreds)
-                }
-                ConnectionManager.clearSessionExpired()
-                // Reconnect with fresh cookies
-                ConnectionManager.attemptSilentReconnect()
+    /** Whether we already tried silent refresh and it failed — show dialog instead. */
+    private var silentRefreshFailed = false
+
+    /** Handle re-auth result (shared by silent and manual flows). */
+    private fun handleReAuthResult(resultCode: Int, data: Intent?, isSilent: Boolean) {
+        val cookies = data?.getStringExtra(WebViewAuthActivity.EXTRA_COOKIES) ?: ""
+        if (resultCode == Activity.RESULT_OK && cookies.isNotEmpty()) {
+            // Success — update credentials + reconnect
+            val newCreds = sh.hnet.comfychair.model.AuthCredentials.Cookie(cookies)
+            ConnectionManager.clientOrNull?.setCredentials(newCreds)
+            val serverId = ConnectionManager.currentServerId
+            if (serverId != null) {
+                sh.hnet.comfychair.storage.CredentialStorage(this)
+                    .saveCredentials(serverId, newCreds)
             }
-        } else {
-            // User cancelled re-auth — go back to login
             ConnectionManager.clearSessionExpired()
+            silentRefreshFailed = false
+            ConnectionManager.attemptSilentReconnect()
+        } else if (isSilent) {
+            // Silent refresh failed — show dialog for manual re-auth
+            silentRefreshFailed = true
+        } else {
+            // User cancelled manual re-auth — log out
+            ConnectionManager.clearSessionExpired()
+            silentRefreshFailed = false
             generationViewModel.logout()
             finish()
+        }
+    }
+
+    // Silent re-auth — WebView opens, auto-finishes if cookies refresh
+    private val silentReAuthLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result -> handleReAuthResult(result.resultCode, result.data, isSilent = true) }
+
+    // Manual re-auth — user-initiated from dialog
+    private val manualReAuthLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result -> handleReAuthResult(result.resultCode, result.data, isSilent = false) }
+
+    /** Launch WebView for re-auth. */
+    private fun launchReAuth(launcher: androidx.activity.result.ActivityResultLauncher<Intent>) {
+        val connState = ConnectionManager.connectionState.value
+        if (connState is ConnectionState.Connected) {
+            val serverUrl = buildServerUrl(connState.hostname, connState.port)
+            val intent = WebViewAuthActivity.createIntent(this, serverUrl, connState.hostname)
+            launcher.launch(intent)
         }
     }
 
@@ -181,25 +203,24 @@ class MainContainerActivity : ComponentActivity() {
                     )
                 }
 
-                // Session expired — prompt re-auth for browser/cookie auth
+                // Session expired — try silent refresh first, prompt only if it fails
                 val sessionExpired by ConnectionManager.sessionExpired.collectAsState()
-                if (sessionExpired) {
+                if (sessionExpired && !silentRefreshFailed) {
+                    // Auto-launch silent WebView re-auth
+                    androidx.compose.runtime.LaunchedEffect(Unit) {
+                        launchReAuth(silentReAuthLauncher)
+                    }
+                }
+                if (sessionExpired && silentRefreshFailed) {
+                    // Silent refresh failed — show manual re-auth dialog
                     AlertDialog(
                         onDismissRequest = { /* don't dismiss by tapping outside */ },
                         title = { Text(stringResource(R.string.title_session_expired)) },
                         text = { Text(stringResource(R.string.message_session_expired)) },
                         confirmButton = {
                             Button(onClick = {
-                                val connState = ConnectionManager.connectionState.value
-                                if (connState is ConnectionState.Connected) {
-                                    val serverUrl = buildServerUrl(connState.hostname, connState.port)
-                                    val intent = WebViewAuthActivity.createIntent(
-                                        this@MainContainerActivity,
-                                        serverUrl,
-                                        connState.hostname
-                                    )
-                                    reAuthLauncher.launch(intent)
-                                }
+                                silentRefreshFailed = false
+                                launchReAuth(manualReAuthLauncher)
                             }) {
                                 Text(stringResource(R.string.button_reauthenticate))
                             }
@@ -207,6 +228,7 @@ class MainContainerActivity : ComponentActivity() {
                         dismissButton = {
                             TextButton(onClick = {
                                 ConnectionManager.clearSessionExpired()
+                                silentRefreshFailed = false
                                 generationViewModel.logout()
                                 finish()
                             }) {

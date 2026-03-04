@@ -114,6 +114,11 @@ fun LoginScreen() {
     }
     var connectionState by remember { mutableStateOf(ConnectionState.IDLE) }
     var warningMessage by remember { mutableStateOf<String?>(null) }
+    var showCertDialog by remember { mutableStateOf(false) }
+    var pendingCertIssue by remember { mutableStateOf(CertificateIssue.NONE) }
+    var pendingCertServer by remember { mutableStateOf<Server?>(null) }
+    var pendingCertClient by remember { mutableStateOf<ComfyUIClient?>(null) }
+    var pendingCertProtocol by remember { mutableStateOf<String?>(null) }
     var comfyUIClient by remember { mutableStateOf<ComfyUIClient?>(null) }
     var hasAutoConnected by remember { mutableStateOf(false) }
 
@@ -199,25 +204,22 @@ fun LoginScreen() {
             val (success, errorMessage, certIssue) = result
 
             if (success) {
-                connectionState = ConnectionState.CONNECTED
+                val detectedProtocol = client.getWorkingProtocol() ?: "http"
 
-                // Handle certificate warnings
-                val navigateDelay = when (certIssue) {
-                    CertificateIssue.SELF_SIGNED -> {
-                        warningMessage = warningSelfSigned
-                        1000L
-                    }
-                    CertificateIssue.UNKNOWN_CA -> {
-                        warningMessage = warningUnknownCa
-                        1000L
-                    }
-                    CertificateIssue.NONE -> 500L
+                // Handle certificate issues
+                if (certIssue != CertificateIssue.NONE) {
+                    // Pause and ask the user
+                    connectionState = ConnectionState.CONNECTED
+                    pendingCertIssue = certIssue
+                    pendingCertServer = server
+                    pendingCertClient = client
+                    pendingCertProtocol = detectedProtocol
+                    showCertDialog = true
+                    return@launch
                 }
 
-                delay(navigateDelay)
-
-                // Establish connection via ConnectionManager
-                val detectedProtocol = client.getWorkingProtocol() ?: "http"
+                connectionState = ConnectionState.CONNECTED
+                delay(500L)
 
                 // Save selected server
                 serverStorage.setSelectedServerId(server.id)
@@ -476,6 +478,81 @@ fun LoginScreen() {
             dismissButton = {
                 OutlinedButton(onClick = { showOfflinePrompt = false }) {
                     Text(stringResource(R.string.button_offline_prompt_dismiss))
+                }
+            }
+        )
+    }
+
+    // Certificate warning dialog
+    if (showCertDialog && pendingCertServer != null) {
+        val certTitle = when (pendingCertIssue) {
+            CertificateIssue.SELF_SIGNED -> "Self-Signed Certificate"
+            CertificateIssue.UNKNOWN_CA -> "Unknown Certificate Authority"
+            else -> "Certificate Warning"
+        }
+        val certMessage = when (pendingCertIssue) {
+            CertificateIssue.SELF_SIGNED ->
+                "The server is using a self-signed certificate. " +
+                "This is common for local servers but means the connection " +
+                "cannot be verified by a trusted authority.\n\n" +
+                "Do you want to continue connecting?"
+            CertificateIssue.UNKNOWN_CA ->
+                "The server's certificate was issued by an unrecognized " +
+                "certificate authority. This could mean the CA is not in " +
+                "your device's trust store.\n\n" +
+                "Do you want to continue connecting?"
+            else -> "There is a certificate issue. Continue?"
+        }
+
+        AlertDialog(
+            onDismissRequest = {
+                showCertDialog = false
+                connectionState = ConnectionState.IDLE
+                pendingCertServer = null
+                pendingCertClient = null
+                pendingCertProtocol = null
+            },
+            title = { Text(certTitle) },
+            text = { Text(certMessage) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showCertDialog = false
+                        val server = pendingCertServer!!
+                        val protocol = pendingCertProtocol ?: "http"
+                        pendingCertServer = null
+                        pendingCertClient = null
+                        pendingCertProtocol = null
+
+                        scope.launch {
+                            serverStorage.setSelectedServerId(server.id)
+                            ConnectionManager.connect(
+                                context = context.applicationContext,
+                                serverId = server.id,
+                                hostname = server.hostname,
+                                port = server.port,
+                                protocol = protocol,
+                                authType = server.authType,
+                                credentials = credentialStorage.getCredentials(server.id, server.authType)
+                            )
+                            onConnected()
+                        }
+                    }
+                ) {
+                    Text("Connect Anyway")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = {
+                        showCertDialog = false
+                        connectionState = ConnectionState.IDLE
+                        pendingCertServer = null
+                        pendingCertClient = null
+                        pendingCertProtocol = null
+                    }
+                ) {
+                    Text("Cancel")
                 }
             }
         )

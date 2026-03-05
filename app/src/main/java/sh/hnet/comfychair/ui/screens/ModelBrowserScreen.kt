@@ -579,7 +579,9 @@ fun ModelDetailBottomSheet(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             lazyItems(filteredImages) { image ->
-                                val imageUrl = image.url.replace("/original=true/", "/width=400/")
+                                val imageUrl = image.url
+                                    .replace("/original=true/", "/anim=false,width=450,optimized=true/")
+                                    .replace(Regex("/width=\\d+/"), "/anim=false,width=450,optimized=true/")
                                 AsyncImage(
                                     model = ImageRequest.Builder(context)
                                         .data(imageUrl)

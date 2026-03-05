@@ -172,13 +172,23 @@ class CivitaiService(
             }
         }
 
-        // Get thumbnail from first version's first image (resize to width=200)
+        // Get thumbnail from first version's first image.
+        // Use same CDN params as Civitai's site: anim=false, width=450, optimized=true.
         val thumbnailUrl = if (versionsArray != null && versionsArray.length() > 0) {
             val firstVersion = versionsArray.getJSONObject(0)
             val images = firstVersion.optJSONArray("images")
             if (images != null && images.length() > 0) {
-                val originalUrl = images.getJSONObject(0).optString("url", null)
-                originalUrl?.replace("/original=true/", "/width=200/")
+                val imgObj = images.getJSONObject(0)
+                val originalUrl = imgObj.optString("url", null)
+                val imgType = imgObj.optString("type", "image")
+                val params = if (imgType == "video") {
+                    "anim=false,transcode=true,width=450,original=false,optimized=true"
+                } else {
+                    "anim=false,width=450,optimized=true"
+                }
+                originalUrl
+                    ?.replace("/original=true/", "/$params/")
+                    ?.replace(Regex("/width=\\d+/"), "/$params/")
             } else null
         } else null
 
@@ -347,8 +357,10 @@ class CivitaiService(
         // API returns nsfwLevel as string ("None", "Soft", etc.) — use browsingLevel (int) instead
         val nsfwLevel = json.optInt("browsingLevel", 1)
 
-        // Resize thumbnail to width=200
-        val thumbnailUrl = url.replace("/original=true/", "/width=200/")
+        // Community image thumbnail — match Civitai site params
+        val thumbnailUrl = url
+            .replace("/original=true/", "/anim=false,width=450,optimized=true/")
+            .replace(Regex("/width=\\d+/"), "/anim=false,width=450,optimized=true/")
 
         // Parse stats
         val statsObj = json.optJSONObject("stats")

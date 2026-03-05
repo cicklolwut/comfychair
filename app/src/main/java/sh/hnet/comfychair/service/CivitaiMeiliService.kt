@@ -26,6 +26,8 @@ class CivitaiMeiliService {
         private const val PUBLIC_TOKEN = "8c46eb2508e21db1e9828a97968d91ab1ca1caa5f70a00e88a2ba1e286603b61"
         private const val INDEX_UID = "models_v9"
         private const val TAG = "CivitaiMeiliService"
+        /** Civitai image CDN base path (the key after /). */
+        const val CDN_BASE = "https://image.civitai.com/xG1nkqKTMzGDvpLrqFT7WA"
     }
 
     data class MeiliSearchResult(
@@ -208,10 +210,11 @@ class CivitaiMeiliService {
         val versionObj = json.optJSONObject("version")
         val baseModel = versionObj?.optString("baseModel")
         
-        // Parse thumbnail from Meili image data
-        // Pick the first image matching the user's NSFW levels (like Civitai's site does)
-        // Meili returns image URL as just a UUID — need to construct the full CDN URL
-        // Format: https://image.civitai.com/xG1nkqKTMzfpXDLw6IMLCjbA7Bm7MVHJ/{uuid}/width=200/{filename}
+        // Parse thumbnail from Meili image data.
+        // Pick the first static image matching the user's NSFW levels (like Civitai's site does).
+        // Meili returns image URL as just a UUID — construct the full CDN URL.
+        // CDN params match Civitai's own site: anim=false (no GIF/WebP animation in grid),
+        // width=450 (card size), optimized=true (server-side WebP conversion + quality).
         val imagesArray = json.optJSONArray("images")
         val thumbnailUrl = if (imagesArray != null && imagesArray.length() > 0) {
             // Find first image matching NSFW levels, fall back to first image
@@ -227,11 +230,21 @@ class CivitaiMeiliService {
             
             val urlOrUuid = selectedImg.optString("url", null)
             val imgName = selectedImg.optString("name", "image.jpeg")
+            val imgType = selectedImg.optString("type", "image")
+            // Videos need transcode=true to get a static thumbnail
+            val params = if (imgType == "video") {
+                "anim=false,transcode=true,width=450,original=false,optimized=true"
+            } else {
+                "anim=false,width=450,optimized=true"
+            }
             if (urlOrUuid != null) {
                 if (urlOrUuid.startsWith("http")) {
-                    urlOrUuid.replace("/original=true/", "/width=200/")
+                    // Full URL from REST API — rewrite transform params
+                    urlOrUuid
+                        .replace("/original=true/", "/$params/")
+                        .replace(Regex("/width=\\d+/"), "/$params/")
                 } else {
-                    "https://image.civitai.com/xG1nkqKTMzfpXDLw6IMLCjbA7Bm7MVHJ/$urlOrUuid/width=200/$imgName"
+                    "$CDN_BASE/$urlOrUuid/$params/$imgName"
                 }
             } else null
         } else null

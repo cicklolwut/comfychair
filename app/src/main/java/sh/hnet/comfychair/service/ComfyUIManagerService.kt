@@ -7,8 +7,6 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
-import sh.hnet.comfychair.connection.ConnectionManager
-import sh.hnet.comfychair.connection.ConnectionState
 import sh.hnet.comfychair.util.DebugLogger
 import java.util.concurrent.TimeUnit
 
@@ -20,7 +18,9 @@ import java.util.concurrent.TimeUnit
  * - Requires security_level of 'middle' or lower
  * - Non-safetensors formats require security_level of 'high' or lower + default channel whitelist
  */
-class ComfyUIManagerService {
+class ComfyUIManagerService(
+    private val serverUrlProvider: () -> String
+) {
     companion object {
         private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
         private const val TAG = "ComfyUIManagerService"
@@ -28,14 +28,8 @@ class ComfyUIManagerService {
 
     private val client = HttpModule.client
 
-    /** Build the server base URL from ConnectionManager state. */
-    private fun getServerUrl(): String {
-        val connState = ConnectionManager.connectionState.value
-        if (connState is ConnectionState.Connected) {
-            return "${connState.protocol}://${connState.hostname}:${connState.port}"
-        }
-        throw IllegalStateException("Not connected to ComfyUI server")
-    }
+    /** Get the server base URL from the injected provider. */
+    private fun getServerUrl(): String = serverUrlProvider()
 
     /**
      * Trigger model download on the ComfyUI server.

@@ -19,6 +19,8 @@ import sh.hnet.comfychair.model.ModelSearchResult
 import sh.hnet.comfychair.model.ModelType
 import sh.hnet.comfychair.model.ModelVersion
 import sh.hnet.comfychair.model.ModelFile
+import sh.hnet.comfychair.connection.ConnectionManager
+import sh.hnet.comfychair.connection.ConnectionState
 import sh.hnet.comfychair.service.CivitaiService
 import sh.hnet.comfychair.service.CivitaiMeiliService
 import sh.hnet.comfychair.service.HuggingFaceService
@@ -86,7 +88,14 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
     private val civitaiService = CivitaiService(modelBrowserSettings)
     private val civitaiMeiliService = CivitaiMeiliService()
     private val huggingFaceService = HuggingFaceService(modelBrowserSettings)
-    private val comfyUIManagerService = ComfyUIManagerService()
+    private val comfyUIManagerService = ComfyUIManagerService {
+        val connState = ConnectionManager.connectionState.value
+        if (connState is ConnectionState.Connected) {
+            "${connState.protocol}://${connState.hostname}:${connState.port}"
+        } else {
+            throw IllegalStateException("Not connected to ComfyUI server")
+        }
+    }
 
     private val _uiState = MutableStateFlow(ModelBrowserUiState(
         providerConfigured = modelBrowserSettings.isCivitaiConfigured,

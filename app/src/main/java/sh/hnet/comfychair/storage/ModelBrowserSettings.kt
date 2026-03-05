@@ -20,6 +20,7 @@ class ModelBrowserSettings(context: Context) {
         private const val KEY_PREFERRED_PROVIDER = "preferred_provider"
         private const val KEY_SHOW_NSFW = "show_nsfw"
         private const val KEY_NSFW_LEVELS = "nsfw_levels"
+        private const val KEY_SHOW_ANIMATIONS = "show_animations"
         // Civitai NSFW level mapping:
         // 1=PG, 2=PG-13, 4=R, 8=X, 16=XXX, 32=Blocked
         val DEFAULT_NSFW_LEVELS = setOf(1, 2, 4) // PG, PG-13, R
@@ -72,6 +73,11 @@ class ModelBrowserSettings(context: Context) {
             }
         }
         set(value) = prefs.edit().putString(KEY_NSFW_LEVELS, value.joinToString(",")).apply()
+
+    /** Whether to show animated thumbnails (GIF/WebP) in grids. Off by default (bandwidth). */
+    var showAnimations: Boolean
+        get() = prefs.getBoolean(KEY_SHOW_ANIMATIONS, false)
+        set(value) = prefs.edit().putBoolean(KEY_SHOW_ANIMATIONS, value).apply()
 
     /** Whether Civitai is configured (has API key). */
     val isCivitaiConfigured: Boolean

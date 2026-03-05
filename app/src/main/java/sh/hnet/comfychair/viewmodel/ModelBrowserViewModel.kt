@@ -56,6 +56,7 @@ data class ModelBrowserUiState(
     val filterPeriod: String = "AllTime", // "AllTime", "Year", "Month", "Week", "Day"
     val showFilters: Boolean = false,
     val nsfwLevels: Set<Int> = ModelBrowserSettings.DEFAULT_NSFW_LEVELS,
+    val showAnimations: Boolean = false,
     val availableTypes: List<String> = emptyList(),      // from Meili facets
     val availableBaseModels: List<String> = emptyList(), // from Meili facets
     // Pagination
@@ -88,7 +89,8 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
 
     private val _uiState = MutableStateFlow(ModelBrowserUiState(
         providerConfigured = modelBrowserSettings.isCivitaiConfigured,
-        nsfwLevels = modelBrowserSettings.nsfwLevels
+        nsfwLevels = modelBrowserSettings.nsfwLevels,
+        showAnimations = modelBrowserSettings.showAnimations
     ))
     val uiState: StateFlow<ModelBrowserUiState> = _uiState.asStateFlow()
 
@@ -607,6 +609,14 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
             // TODO: Implement actual workflow import
             _events.emit(ModelBrowserEvent.ShowToast("Generation params copied to clipboard"))
         }
+    }
+
+    /**
+     * Enable or disable animated thumbnails. Called after user confirms the dialog.
+     */
+    fun setShowAnimations(enabled: Boolean) {
+        modelBrowserSettings.showAnimations = enabled
+        _uiState.value = _uiState.value.copy(showAnimations = enabled)
     }
 
     /**

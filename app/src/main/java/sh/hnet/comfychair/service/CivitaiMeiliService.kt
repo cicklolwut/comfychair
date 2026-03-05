@@ -213,10 +213,11 @@ class CivitaiMeiliService {
         // Parse thumbnail from Meili image data.
         // Pick the first static image matching the user's NSFW levels (like Civitai's site does).
         // Meili returns image URL as just a UUID — construct the full CDN URL.
-        // CDN params match Civitai's own site: anim=false (no GIF/WebP animation in grid),
-        // width=450 (card size), optimized=true (server-side WebP conversion + quality).
+        // Build both static (anim=false) and animated (no anim=false) URLs.
         val imagesArray = json.optJSONArray("images")
-        val thumbnailUrl = if (imagesArray != null && imagesArray.length() > 0) {
+        val thumbnailUrl: String?
+        val animatedThumbnailUrl: String?
+        if (imagesArray != null && imagesArray.length() > 0) {
             // Find first image matching NSFW levels, fall back to first image
             var selectedImg: JSONObject? = null
             for (i in 0 until imagesArray.length()) {
@@ -231,29 +232,41 @@ class CivitaiMeiliService {
             val urlOrUuid = selectedImg.optString("url", null)
             val imgName = selectedImg.optString("name", "image.jpeg")
             val imgType = selectedImg.optString("type", "image")
-            // Videos need transcode=true to get a static thumbnail
-            val params = if (imgType == "video") {
+            val isVideo = imgType == "video"
+            val staticParams = if (isVideo) {
                 "anim=false,transcode=true,width=450,original=false,optimized=true"
             } else {
                 "anim=false,width=450,optimized=true"
             }
+            val animatedParams = if (isVideo) staticParams else "width=450,optimized=true"
+            
             if (urlOrUuid != null) {
                 if (urlOrUuid.startsWith("http")) {
-                    // Full URL from REST API — rewrite transform params
-                    urlOrUuid
-                        .replace("/original=true/", "/$params/")
-                        .replace(Regex("/width=\\d+/"), "/$params/")
+                    thumbnailUrl = urlOrUuid
+                        .replace("/original=true/", "/$staticParams/")
+                        .replace(Regex("/width=\\d+[^/]*/"), "/$staticParams/")
+                    animatedThumbnailUrl = urlOrUuid
+                        .replace("/original=true/", "/$animatedParams/")
+                        .replace(Regex("/width=\\d+[^/]*/"), "/$animatedParams/")
                 } else {
-                    "$CDN_BASE/$urlOrUuid/$params/$imgName"
+                    thumbnailUrl = "$CDN_BASE/$urlOrUuid/$staticParams/$imgName"
+                    animatedThumbnailUrl = "$CDN_BASE/$urlOrUuid/$animatedParams/$imgName"
                 }
-            } else null
-        } else null
+            } else {
+                thumbnailUrl = null
+                animatedThumbnailUrl = null
+            }
+        } else {
+            thumbnailUrl = null
+            animatedThumbnailUrl = null
+        }
         
         return ModelSearchResult(
             id = id,
             name = name,
             description = null, // Not in Meili index — load via REST API
             thumbnailUrl = thumbnailUrl,
+            animatedThumbnailUrl = animatedThumbnailUrl,
             downloadCount = downloadCount,
             favoriteCount = favoriteCount,
             tags = tags,

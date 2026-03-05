@@ -56,6 +56,7 @@ fun CommunityImagesScreen(
     isLoading: Boolean,
     hasMore: Boolean,
     nsfwLevels: Set<Int>,
+    showAnimations: Boolean = false,
     onLoadMore: () -> Unit,
     onBack: () -> Unit,
     onImportWorkflow: (String) -> Unit
@@ -93,6 +94,7 @@ fun CommunityImagesScreen(
             items(filteredImages, key = { it.id }) { image ->
                 CommunityImageCard(
                     image = image,
+                    showAnimations = showAnimations,
                     onClick = { selectedImageIndex = filteredImages.indexOf(image) }
                 )
             }
@@ -139,6 +141,7 @@ fun CommunityImagesScreen(
 @Composable
 private fun CommunityImageCard(
     image: CommunityImage,
+    showAnimations: Boolean = false,
     onClick: () -> Unit
 ) {
     val aspectRatio = if (image.height > 0) {
@@ -152,9 +155,10 @@ private fun CommunityImageCard(
             .aspectRatio(aspectRatio)
             .clickable(onClick = onClick)
     ) {
+        val displayUrl = if (showAnimations) image.animatedThumbnailUrl else image.thumbnailUrl
         AsyncImage(
             model = ImageRequest.Builder(LocalContext.current)
-                .data(image.thumbnailUrl)
+                .data(displayUrl)
                 .crossfade(true)
                 .build(),
             contentDescription = null,

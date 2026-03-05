@@ -7,7 +7,8 @@ data class ModelSearchResult(
     val id: String,
     val name: String,
     val description: String?, // HTML from Civitai
-    val thumbnailUrl: String?, // Cover image URL (width=200 for grid)
+    val thumbnailUrl: String?, // Cover image URL (static, anim=false)
+    val animatedThumbnailUrl: String? = null, // Animated cover (no anim=false)
     val downloadCount: Long?,
     val favoriteCount: Long?,
     val tags: List<String>,
@@ -89,10 +90,12 @@ enum class ModelType(val value: String, val displayName: String) {
 data class CommunityImage(
     val id: Long,
     val url: String,
-    val thumbnailUrl: String, // url with width=200
+    val thumbnailUrl: String,         // static thumbnail (anim=false)
+    val animatedThumbnailUrl: String, // animated thumbnail (no anim=false) — only differs for non-video
     val width: Int,
     val height: Int,
     val nsfwLevel: Int,
+    val type: String = "image",       // "image" or "video"
     val stats: ImageStats?,
     val meta: GenerationMetadata?
 )

@@ -174,23 +174,29 @@ class CivitaiService(
 
         // Get thumbnail from first version's first image.
         // Use same CDN params as Civitai's site: anim=false, width=450, optimized=true.
-        val thumbnailUrl = if (versionsArray != null && versionsArray.length() > 0) {
+        val thumbnailUrl: String?
+        val animatedThumbnailUrl: String?
+        if (versionsArray != null && versionsArray.length() > 0) {
             val firstVersion = versionsArray.getJSONObject(0)
             val images = firstVersion.optJSONArray("images")
             if (images != null && images.length() > 0) {
                 val imgObj = images.getJSONObject(0)
                 val originalUrl = imgObj.optString("url", null)
                 val imgType = imgObj.optString("type", "image")
-                val params = if (imgType == "video") {
-                    "anim=false,transcode=true,width=450,original=false,optimized=true"
-                } else {
-                    "anim=false,width=450,optimized=true"
-                }
-                originalUrl
-                    ?.replace("/original=true/", "/$params/")
-                    ?.replace(Regex("/width=\\d+/"), "/$params/")
-            } else null
-        } else null
+                val isVid = imgType == "video"
+                val staticP = if (isVid) "anim=false,transcode=true,width=450,original=false,optimized=true"
+                              else "anim=false,width=450,optimized=true"
+                val animP = if (isVid) staticP else "width=450,optimized=true"
+                thumbnailUrl = originalUrl?.let { rewriteCdnUrl(it, staticP) }
+                animatedThumbnailUrl = originalUrl?.let { rewriteCdnUrl(it, animP) }
+            } else {
+                thumbnailUrl = null
+                animatedThumbnailUrl = null
+            }
+        } else {
+            thumbnailUrl = null
+            animatedThumbnailUrl = null
+        }
 
         // Get baseModel from first version
         val baseModel = if (versionsArray != null && versionsArray.length() > 0) {
@@ -202,6 +208,7 @@ class CivitaiService(
             name = name,
             description = description,
             thumbnailUrl = thumbnailUrl,
+            animatedThumbnailUrl = animatedThumbnailUrl,
             downloadCount = downloadCount,
             favoriteCount = favoriteCount,
             tags = tags,
@@ -357,10 +364,22 @@ class CivitaiService(
         // API returns nsfwLevel as string ("None", "Soft", etc.) — use browsingLevel (int) instead
         val nsfwLevel = json.optInt("browsingLevel", 1)
 
-        // Community image thumbnail — match Civitai site params
-        val thumbnailUrl = url
-            .replace("/original=true/", "/anim=false,width=450,optimized=true/")
-            .replace(Regex("/width=\\d+/"), "/anim=false,width=450,optimized=true/")
+        // Build both static and animated thumbnail URLs.
+        // Videos always need transcode=true; without it the CDN returns nothing (empty placeholder bug).
+        val isVideo = json.optString("type", "image") == "video"
+        val staticParams = if (isVideo) {
+            "anim=false,transcode=true,width=450,original=false,optimized=true"
+        } else {
+            "anim=false,width=450,optimized=true"
+        }
+        val animatedParams = if (isVideo) {
+            // Videos can't play in AsyncImage — always use static frame
+            staticParams
+        } else {
+            "width=450,optimized=true"
+        }
+        val thumbnailUrl = rewriteCdnUrl(url, staticParams)
+        val animatedThumbnailUrl = rewriteCdnUrl(url, animatedParams)
 
         // Parse stats
         val statsObj = json.optJSONObject("stats")
@@ -382,12 +401,25 @@ class CivitaiService(
             id = id,
             url = url,
             thumbnailUrl = thumbnailUrl,
+            animatedThumbnailUrl = animatedThumbnailUrl,
             width = width,
             height = height,
             nsfwLevel = nsfwLevel,
+            type = if (isVideo) "video" else "image",
             stats = stats,
             meta = meta
         )
+    }
+
+    /**
+     * Rewrite a Civitai CDN URL to use specific transform params.
+     * Handles both full URLs (from REST API) and the original=true default.
+     */
+    private fun rewriteCdnUrl(url: String, params: String): String {
+        return url
+            .replace("/original=true/", "/$params/")
+            .replace(Regex("/width=\\d+[^/]*/"), "/$params/")
+            .replace(Regex("/anim=[^/]+/"), "/$params/")
     }
 
     private fun parseGenerationMetadata(json: JSONObject): GenerationMetadata {

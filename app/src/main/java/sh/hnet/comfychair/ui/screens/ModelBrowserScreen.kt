@@ -51,6 +51,7 @@ import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
+import androidx.compose.material.icons.filled.Animation
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.runtime.CompositionLocalProvider
 import sh.hnet.comfychair.ui.components.SettingsScreenScaffold
@@ -182,6 +183,7 @@ fun ModelBrowserScreen(
                                     model = model,
                                     filterType = uiState.filterModelType,
                                     filterBaseModel = uiState.filterBaseModel,
+                                    showAnimations = uiState.showAnimations,
                                     onClick = { viewModel.selectModel(model) }
                                 )
                             }
@@ -247,6 +249,25 @@ fun ModelBrowserScreen(
             }
     }
 
+    // Animation confirmation dialog
+    var showAnimationDialog by remember { mutableStateOf(false) }
+    if (showAnimationDialog) {
+        AlertDialog(
+            onDismissRequest = { showAnimationDialog = false },
+            title = { Text("Enable Animations") },
+            text = { Text("Animated thumbnails (GIFs, animated WebP) will play in the grid. This may significantly increase bandwidth and memory usage.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.setShowAnimations(true)
+                    showAnimationDialog = false
+                }) { Text("Enable") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAnimationDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+
     // Filter bottom sheet
     if (showFilterSheet) {
         ModalBottomSheet(
@@ -291,6 +312,26 @@ fun ModelBrowserScreen(
                     }
                 }
                 
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                // Animation toggle
+                FilterChip(
+                    selected = uiState.showAnimations,
+                    onClick = {
+                        if (uiState.showAnimations) {
+                            // Turning off — no confirmation needed
+                            viewModel.setShowAnimations(false)
+                        } else {
+                            // Turning on — show warning dialog
+                            showAnimationDialog = true
+                        }
+                    },
+                    label = { Text("Animated Thumbnails") },
+                    leadingIcon = {
+                        Icon(Icons.Default.Animation, contentDescription = null, modifier = Modifier.size(18.dp))
+                    }
+                )
+
                 HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
                 
                 // Filters (reuse existing SearchFilters composable)
@@ -420,9 +461,11 @@ fun ModelGridCard(
     model: ModelSearchResult,
     filterType: String?,
     filterBaseModel: String?,
+    showAnimations: Boolean = false,
     onClick: () -> Unit
 ) {
     val context = LocalContext.current
+    val displayUrl = if (showAnimations) model.animatedThumbnailUrl ?: model.thumbnailUrl else model.thumbnailUrl
     
     Card(
         modifier = Modifier
@@ -436,10 +479,10 @@ fun ModelGridCard(
                     .fillMaxWidth()
                     .aspectRatio(0.67f)
             ) {
-                if (model.thumbnailUrl != null) {
+                if (displayUrl != null) {
                     AsyncImage(
                         model = ImageRequest.Builder(context)
-                            .data(model.thumbnailUrl)
+                            .data(displayUrl)
                             .crossfade(true)
                             .build(),
                         contentDescription = model.name,
@@ -555,6 +598,7 @@ fun ModelDetailBottomSheet(
                     isLoading = uiState.isLoadingCommunityImages,
                     hasMore = uiState.hasMoreCommunityImages,
                     nsfwLevels = nsfwLevels,
+                    showAnimations = uiState.showAnimations,
                     onLoadMore = onLoadMoreCommunityImages,
                     onBack = onToggleCommunityImages,
                     onImportWorkflow = onImportWorkflow
@@ -579,9 +623,10 @@ fun ModelDetailBottomSheet(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             lazyItems(filteredImages) { image ->
+                                val params = if (uiState.showAnimations) "width=450,optimized=true" else "anim=false,width=450,optimized=true"
                                 val imageUrl = image.url
-                                    .replace("/original=true/", "/anim=false,width=450,optimized=true/")
-                                    .replace(Regex("/width=\\d+/"), "/anim=false,width=450,optimized=true/")
+                                    .replace("/original=true/", "/$params/")
+                                    .replace(Regex("/width=\\d+[^/]*/"), "/$params/")
                                 AsyncImage(
                                     model = ImageRequest.Builder(context)
                                         .data(imageUrl)

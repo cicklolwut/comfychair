@@ -550,7 +550,7 @@ fun ModelDetailBottomSheet(
                     images = uiState.communityImages,
                     isLoading = uiState.isLoadingCommunityImages,
                     hasMore = uiState.hasMoreCommunityImages,
-                    nsfwLevels = nsfwLevels,
+                    nsfwLevels = emptySet(), // Don't filter community images — user chose to view them
                     onLoadMore = onLoadMoreCommunityImages,
                     onBack = onToggleCommunityImages,
                     onImportWorkflow = onImportWorkflow

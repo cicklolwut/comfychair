@@ -55,7 +55,7 @@ fun CommunityImagesScreen(
     images: List<CommunityImage>,
     isLoading: Boolean,
     hasMore: Boolean,
-    nsfwLevels: Set<Int>,
+    nsfwLevels: Set<Int> = emptySet(), // empty = show all
     onLoadMore: () -> Unit,
     onBack: () -> Unit,
     onImportWorkflow: (String) -> Unit
@@ -64,8 +64,8 @@ fun CommunityImagesScreen(
     var selectedImageIndex by remember { mutableIntStateOf(-1) }
     val gridState = rememberLazyGridState()
 
-    // Filter images based on selected NSFW levels
-    val filteredImages = images.filter { it.nsfwLevel in nsfwLevels }
+    // Filter images based on selected NSFW levels (empty = show all)
+    val filteredImages = if (nsfwLevels.isEmpty()) images else images.filter { it.nsfwLevel in nsfwLevels }
 
     // Detect when scrolled near bottom for pagination
     // Key on filteredImages.size so it re-evaluates when new images arrive

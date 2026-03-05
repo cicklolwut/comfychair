@@ -21,8 +21,7 @@ import sh.hnet.comfychair.model.ModelVersion
 import sh.hnet.comfychair.model.ModelFile
 import sh.hnet.comfychair.connection.ConnectionManager
 import sh.hnet.comfychair.connection.ConnectionState
-import sh.hnet.comfychair.service.CivitaiService
-import sh.hnet.comfychair.service.CivitaiMeiliService
+import sh.hnet.comfychair.service.CivitaiTrpcService
 import sh.hnet.comfychair.service.HuggingFaceService
 import sh.hnet.comfychair.service.ComfyUIManagerService
 // AppSettings is an object singleton, not instantiated
@@ -36,7 +35,7 @@ import sh.hnet.comfychair.util.DebugLogger
 data class ModelBrowserUiState(
     val searchQuery: String = "",
     val selectedProvider: ModelProvider = ModelProvider.CIVITAI,
-    val providerConfigured: Boolean = false, // tracks if current provider has API key
+    val providerConfigured: Boolean = false, // tracks if current provider has API key (HF only — Civitai works without)
     val searchResults: List<ModelSearchResult> = emptyList(),
     val isSearching: Boolean = false,
     val selectedModel: ModelSearchResult? = null,
@@ -60,10 +59,8 @@ data class ModelBrowserUiState(
     val showFilters: Boolean = false,
     val nsfwLevels: Set<Int> = ModelBrowserSettings.DEFAULT_NSFW_LEVELS,
     val showAnimations: Boolean = false,
-    val availableTypes: List<String> = emptyList(),      // from Meili facets
-    val availableBaseModels: List<String> = emptyList(), // from Meili facets
-    // Pagination
-    val searchOffset: Int = 0,
+    // Pagination (cursor-based for trpc)
+    val searchCursor: String? = null,
     val hasMoreResults: Boolean = true,
     val isLoadingMore: Boolean = false
 )
@@ -85,8 +82,7 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
     }
 
     private val modelBrowserSettings = ModelBrowserSettings(getApplication())
-    private val civitaiService = CivitaiService(modelBrowserSettings)
-    private val civitaiMeiliService = CivitaiMeiliService()
+    private val civitaiTrpcService = CivitaiTrpcService(modelBrowserSettings)
     private val huggingFaceService = HuggingFaceService(modelBrowserSettings)
     private val comfyUIManagerService = ComfyUIManagerService {
         val connState = ConnectionManager.connectionState.value
@@ -98,7 +94,9 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
     }
 
     private val _uiState = MutableStateFlow(ModelBrowserUiState(
-        providerConfigured = modelBrowserSettings.isCivitaiConfigured,
+        // Civitai trpc works without API key, so it's always "configured"
+        // Only HuggingFace still requires a key
+        providerConfigured = true,
         nsfwLevels = modelBrowserSettings.nsfwLevels,
         showAnimations = modelBrowserSettings.showAnimations
     ))
@@ -108,6 +106,13 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
     val events: SharedFlow<ModelBrowserEvent> = _events.asSharedFlow()
 
     private var searchDebounceJob: Job? = null
+
+    init {
+        // trpc works without API key — load browse results immediately on screen open
+        if (_uiState.value.selectedProvider == ModelProvider.CIVITAI) {
+            triggerDebouncedSearch()
+        }
+    }
 
     /**
      * Trigger a debounced search. Called automatically on query/filter/NSFW changes.
@@ -164,17 +169,25 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
      * Switch between Civitai and HuggingFace providers.
      */
     fun selectProvider(provider: ModelProvider) {
+        // Civitai trpc works without API key, HuggingFace still requires one
         val configured = when (provider) {
-            ModelProvider.CIVITAI -> modelBrowserSettings.isCivitaiConfigured
+            ModelProvider.CIVITAI -> true  // trpc works without auth
             ModelProvider.HUGGINGFACE -> modelBrowserSettings.isHuggingFaceConfigured
         }
         _uiState.value = _uiState.value.copy(
             selectedProvider = provider,
             providerConfigured = configured,
             searchResults = emptyList(),
-            selectedModel = null
+            selectedModel = null,
+            searchCursor = null,
+            hasMoreResults = true
         )
         modelBrowserSettings.preferredProvider = provider.name.lowercase()
+        
+        // Auto-browse when switching to Civitai
+        if (provider == ModelProvider.CIVITAI) {
+            triggerDebouncedSearch()
+        }
     }
 
     /**
@@ -195,43 +208,42 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
             _uiState.value = _uiState.value.copy(
                 isSearching = true,
                 errorMessage = null,
-                searchResults = emptyList() // Clear stale results immediately
+                searchResults = emptyList(), // Clear stale results immediately
+                searchCursor = null
             )
             try {
                 when (_uiState.value.selectedProvider) {
                     ModelProvider.CIVITAI -> {
-                        if (!modelBrowserSettings.isCivitaiConfigured) {
-                            throw IllegalStateException("Civitai API key not configured")
-                        }
                         val state = _uiState.value
                         
-                        // Use Meili for search
-                        val meiliResult = civitaiMeiliService.searchModels(
+                        // Compute browsingLevel bitmask from selected NSFW levels
+                        val browsingLevel = state.nsfwLevels.fold(0) { acc, level -> acc or level }
+                        
+                        // Use trpc for search
+                        val trpcResult = civitaiTrpcService.searchModels(
                             query = query,
-                            type = state.filterModelType,
-                            baseModel = state.filterBaseModel,
+                            types = state.filterModelType?.let { listOf(it) },
+                            baseModels = state.filterBaseModel?.let { listOf(it) },
                             sort = state.filterSort,
                             period = state.filterPeriod,
-                            nsfwLevels = state.nsfwLevels,
-                            limit = 20
+                            browsingLevel = browsingLevel,
+                            limit = 20,
+                            cursor = null
                         )
                         
                         _uiState.value = _uiState.value.copy(
-                            searchResults = meiliResult.models,
-                            searchOffset = meiliResult.models.size,
-                            hasMoreResults = meiliResult.totalHits > meiliResult.models.size,
-                            isSearching = false,
-                            availableTypes = meiliResult.facets?.types?.keys?.sortedByDescending { 
-                                meiliResult.facets.types[it] 
-                            } ?: emptyList(),
-                            availableBaseModels = meiliResult.facets?.baseModels?.keys?.sortedByDescending { 
-                                meiliResult.facets.baseModels[it] 
-                            }?.take(20) ?: emptyList()
+                            searchResults = trpcResult.models,
+                            searchCursor = trpcResult.nextCursor,
+                            hasMoreResults = trpcResult.nextCursor != null,
+                            isSearching = false
                         )
                         
-                        if (meiliResult.models.isEmpty()) {
+                        if (trpcResult.models.isEmpty()) {
                             _events.emit(ModelBrowserEvent.ShowToast("No results found"))
                         }
+                        
+                        // Background: resolve any uncached tag IDs
+                        resolveTagsInBackground(trpcResult.models)
                     }
                     ModelProvider.HUGGINGFACE -> {
                         if (!modelBrowserSettings.isHuggingFaceConfigured) {
@@ -259,6 +271,24 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
             }
         }
     }
+    
+    /**
+     * Trigger background tag resolution for models with unresolved tags.
+     * Tags are resolved from cache in the service, but if many are missing
+     * we should fetch them once and they'll be available for future searches.
+     */
+    private fun resolveTagsInBackground(models: List<ModelSearchResult>) {
+        // If any model has empty tags but likely had tag IDs, trigger a cache population
+        // This is fire-and-forget — tags will be available on next search
+        viewModelScope.launch {
+            try {
+                // Just fetch top tags to populate cache
+                civitaiTrpcService.resolveTagNames(emptyList())
+            } catch (e: Exception) {
+                DebugLogger.d(TAG, "Background tag fetch failed (non-critical): ${e.message}")
+            }
+        }
+    }
 
     /**
      * Load more search results (pagination).
@@ -267,40 +297,46 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
         val state = _uiState.value
         if (state.isLoadingMore || !state.hasMoreResults) return
         if (state.selectedProvider != ModelProvider.CIVITAI) return
+        
+        val cursor = state.searchCursor ?: return
 
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoadingMore = true)
             try {
-                // Re-read state inside the coroutine so we always use the latest NSFW levels,
-                // filters, and offset — not a stale snapshot captured at call time.
+                // Re-read state inside the coroutine so we always use the latest NSFW levels and filters
                 val currentState = _uiState.value
-                val meiliResult = civitaiMeiliService.searchModels(
+                val currentCursor = currentState.searchCursor
+                
+                // Compute browsingLevel bitmask from selected NSFW levels
+                val browsingLevel = currentState.nsfwLevels.fold(0) { acc, level -> acc or level }
+                
+                val trpcResult = civitaiTrpcService.searchModels(
                     query = currentState.searchQuery.trim(),
-                    type = currentState.filterModelType,
-                    baseModel = currentState.filterBaseModel,
+                    types = currentState.filterModelType?.let { listOf(it) },
+                    baseModels = currentState.filterBaseModel?.let { listOf(it) },
                     sort = currentState.filterSort,
                     period = currentState.filterPeriod,
-                    nsfwLevels = currentState.nsfwLevels,
+                    browsingLevel = browsingLevel,
                     limit = 20,
-                    offset = currentState.searchOffset
+                    cursor = cursor
                 )
-                // Guard against stale append: if a new search started while we were in flight
-                // (offset reset to 0), the results no longer belong here — discard them.
-                if (_uiState.value.searchOffset == currentState.searchOffset) {
+                
+                // Guard against stale append: if cursor changed (new search), discard
+                if (_uiState.value.searchCursor == currentCursor) {
                     val maxResults = 300
-                    val combined = _uiState.value.searchResults + meiliResult.models
+                    val combined = _uiState.value.searchResults + trpcResult.models
                     val capped = if (combined.size > maxResults) combined.takeLast(maxResults) else combined
                     
                     _uiState.value = _uiState.value.copy(
                         searchResults = capped,
-                        searchOffset = _uiState.value.searchOffset + meiliResult.models.size,
-                        hasMoreResults = (_uiState.value.searchOffset + meiliResult.models.size) < meiliResult.totalHits,
+                        searchCursor = trpcResult.nextCursor,
+                        hasMoreResults = trpcResult.nextCursor != null,
                         isLoadingMore = false
                     )
                 } else {
                     // New search started — just clear the loading flag
                     _uiState.value = _uiState.value.copy(isLoadingMore = false)
-                    DebugLogger.d(TAG, "loadMoreResults: offset changed while in-flight, discarding stale page")
+                    DebugLogger.d(TAG, "loadMoreResults: cursor changed while in-flight, discarding stale page")
                 }
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(isLoadingMore = false)
@@ -318,7 +354,7 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
         // Show immediately with what we have
         _uiState.value = _uiState.value.copy(
             selectedModel = model,
-            selectedVersion = null,
+            selectedVersion = model.versions.firstOrNull(),
             selectedFile = null,
             selectedModelType = autoType
         )
@@ -330,17 +366,22 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
             val selectedId = model.id
             viewModelScope.launch {
                 try {
-                    val fullModel = civitaiService.getModelDetails(model.id)
+                    val fullModel = civitaiTrpcService.getModelDetails(model.id.toInt())
                     // Guard against race: user may have selected a different model
                     if (_uiState.value.selectedModel?.id == selectedId) {
+                        // Merge: keep thumbnails from getAll (getById doesn't include them)
+                        val merged = fullModel.copy(
+                            thumbnailUrl = fullModel.thumbnailUrl ?: model.thumbnailUrl,
+                            animatedThumbnailUrl = fullModel.animatedThumbnailUrl ?: model.animatedThumbnailUrl
+                        )
                         _uiState.value = _uiState.value.copy(
-                            selectedModel = fullModel,
-                            selectedVersion = fullModel.versions.firstOrNull()
+                            selectedModel = merged,
+                            selectedVersion = merged.versions.firstOrNull()
                         )
                     }
                 } catch (e: Exception) {
                     DebugLogger.w(TAG, "Failed to load model details: ${e.message}")
-                    // Keep showing the basic model info from Meili
+                    // Keep showing the basic model info from getAll
                 }
             }
         } else {
@@ -545,12 +586,14 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
             _uiState.value = _uiState.value.copy(isLoadingCommunityImages = true)
             try {
                 val modelId = _uiState.value.selectedModel?.id
-                val (images, nextCursor) = civitaiService.getModelImages(
+                val browsingLevel = _uiState.value.nsfwLevels.fold(0) { acc, level -> acc or level }
+                
+                val (images, nextCursor) = civitaiTrpcService.getModelImages(
                     modelVersionId = version.id,
                     modelId = modelId,
                     limit = 20,
                     cursor = null,
-                    browsingLevel = _uiState.value.nsfwLevels.sum(),
+                    browsingLevel = browsingLevel,
                     sort = _uiState.value.communityImagesSort
                 )
 
@@ -583,12 +626,14 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
             _uiState.value = _uiState.value.copy(isLoadingCommunityImages = true)
             try {
                 val modelId = _uiState.value.selectedModel?.id
-                val (newImages, nextCursor) = civitaiService.getModelImages(
+                val browsingLevel = _uiState.value.nsfwLevels.fold(0) { acc, level -> acc or level }
+                
+                val (newImages, nextCursor) = civitaiTrpcService.getModelImages(
                     modelVersionId = version.id,
                     modelId = modelId,
                     limit = 20,
                     cursor = cursor,
-                    browsingLevel = _uiState.value.nsfwLevels.sum(),
+                    browsingLevel = browsingLevel,
                     sort = _uiState.value.communityImagesSort
                 )
 
@@ -676,8 +721,8 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
         _uiState.value = _uiState.value.copy(
             nsfwLevels = current,
             searchResults = emptyList(),
-            searchOffset = 0,
-            hasMoreResults = false
+            searchCursor = null,
+            hasMoreResults = true
         )
         triggerDebouncedSearch()
 

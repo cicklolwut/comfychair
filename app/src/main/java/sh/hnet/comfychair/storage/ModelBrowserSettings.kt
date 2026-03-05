@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKeys
+import org.json.JSONObject
 
 /**
  * Persists model browser configuration: API keys for Civitai and HuggingFace.
@@ -21,6 +22,7 @@ class ModelBrowserSettings(context: Context) {
         private const val KEY_SHOW_NSFW = "show_nsfw"
         private const val KEY_NSFW_LEVELS = "nsfw_levels"
         private const val KEY_SHOW_ANIMATIONS = "show_animations"
+        private const val KEY_TAG_CACHE = "tag_cache"
         // Civitai NSFW level mapping:
         // 1=PG, 2=PG-13, 4=R, 8=X, 16=XXX, 32=Blocked
         val DEFAULT_NSFW_LEVELS = setOf(1, 2, 4) // PG, PG-13, R
@@ -44,6 +46,7 @@ class ModelBrowserSettings(context: Context) {
     // In-memory cache for frequently accessed values
     private var _nsfwLevels: Set<Int>? = null
     private var _showAnimations: Boolean? = null
+    private var _tagCache: MutableMap<Int, String>? = null
 
     /** Civitai API key. */
     var civitaiApiKey: String
@@ -98,4 +101,46 @@ class ModelBrowserSettings(context: Context) {
     /** Whether HuggingFace is configured (has API key). */
     val isHuggingFaceConfigured: Boolean
         get() = huggingfaceApiKey.isNotBlank()
+
+    /**
+     * Tag ID → name cache. Loaded from SharedPrefs on first access.
+     * Tag mappings are immutable on Civitai, so this is append-only.
+     */
+    val tagCache: Map<Int, String>
+        get() {
+            if (_tagCache == null) {
+                _tagCache = loadTagCache()
+            }
+            return _tagCache!!
+        }
+
+    /**
+     * Add new tag mappings to the cache. Merges with existing.
+     */
+    fun updateTagCache(newTags: Map<Int, String>) {
+        if (newTags.isEmpty()) return
+        
+        val current = _tagCache ?: loadTagCache()
+        current.putAll(newTags)
+        _tagCache = current
+        
+        // Persist to SharedPrefs
+        val json = JSONObject()
+        current.forEach { (id, name) -> json.put(id.toString(), name) }
+        prefs.edit().putString(KEY_TAG_CACHE, json.toString()).apply()
+    }
+
+    private fun loadTagCache(): MutableMap<Int, String> {
+        val stored = prefs.getString(KEY_TAG_CACHE, null) ?: return mutableMapOf()
+        return try {
+            val json = JSONObject(stored)
+            val result = mutableMapOf<Int, String>()
+            json.keys().forEach { key ->
+                result[key.toInt()] = json.getString(key)
+            }
+            result
+        } catch (e: Exception) {
+            mutableMapOf()
+        }
+    }
 }

@@ -839,18 +839,20 @@ fun SearchFilters(
     onFilterSortChanged: (String) -> Unit,
     onFilterPeriodChanged: (String) -> Unit
 ) {
-    // Use dynamic facets from Meili, fall back to defaults if empty
-    val modelTypes = if (uiState.availableTypes.isNotEmpty()) uiState.availableTypes 
-        else listOf("LORA", "Checkpoint", "LoCon", "TextualInversion", "Workflows", "Wildcards",
-            "DoRA", "Poses", "Hypernetwork", "VAE", "Controlnet", "AestheticGradient",
-            "Detection", "MotionModule", "Upscaler", "Other")
-    val baseModels = if (uiState.availableBaseModels.isNotEmpty()) uiState.availableBaseModels
-        else listOf("Illustrious", "SD 1.5", "Pony", "Flux.1 D", "SDXL 1.0", "NoobAI",
-            "ZImageTurbo", "Qwen", "Hunyuan Video", "Wan Video 2.2 I2V-A14B",
-            "Wan Video 2.2 T2V-A14B", "Wan Video 14B I2v", "Flux.1 S", "SD 2.1 768",
-            "Chroma", "ZImageBase", "Flux.1 Kontext", "Other")
+    // Static filter lists (trpc doesn't provide dynamic facets like Meili did)
+    val modelTypes = listOf(
+        "LORA", "Checkpoint", "LoCon", "TextualInversion", "Workflows", "Wildcards",
+        "DoRA", "Poses", "Hypernetwork", "VAE", "Controlnet", "AestheticGradient",
+        "Detection", "MotionModule", "Upscaler", "Other"
+    )
+    val baseModels = listOf(
+        "Illustrious", "SD 1.5", "Pony", "Flux.1 D", "SDXL 1.0", "NoobAI",
+        "ZImageTurbo", "Qwen", "Hunyuan Video", "Wan Video 2.2 I2V-A14B",
+        "Wan Video 2.2 T2V-A14B", "Wan Video 14B I2v", "Flux.1 S", "SD 2.1 768",
+        "Chroma", "ZImageBase", "Flux.1 Kontext", "Other"
+    )
     val sortOptions = listOf("Most Downloaded", "Highest Rated", "Most Liked", "Most Discussed", "Most Collected", "Most Buzz", "Newest")
-    val periodOptions = listOf("AllTime", "Month", "Week", "Day") // TODO: Period not used by Meili search
+    val periodOptions = listOf("AllTime", "Year", "Month", "Week", "Day")
 
     Column(
         modifier = Modifier

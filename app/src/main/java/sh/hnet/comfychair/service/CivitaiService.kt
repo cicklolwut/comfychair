@@ -30,10 +30,7 @@ class CivitaiService(
         private const val TAG = "CivitaiService"
     }
 
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .build()
+    private val client = HttpModule.client
 
     /**
      * Search for models on Civitai.

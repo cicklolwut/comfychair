@@ -41,10 +41,7 @@ class CivitaiMeiliService {
         val baseModels: Map<String, Int>    // e.g. "Illustrious" -> 242976
     )
 
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .build()
+    private val client = HttpModule.client
 
     /**
      * Search models via Civitai's Meilisearch endpoint.

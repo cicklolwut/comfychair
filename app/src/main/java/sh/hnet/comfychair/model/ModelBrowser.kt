@@ -1,8 +1,11 @@
 package sh.hnet.comfychair.model
 
+import androidx.compose.runtime.Immutable
+
 /**
  * Model search result from Civitai or HuggingFace.
  */
+@Immutable
 data class ModelSearchResult(
     val id: String,
     val name: String,
@@ -23,6 +26,7 @@ data class ModelSearchResult(
 /**
  * A specific version of a model.
  */
+@Immutable
 data class ModelVersion(
     val id: String,
     val name: String,
@@ -39,6 +43,7 @@ data class ModelVersion(
 /**
  * Image associated with a model version (from Civitai).
  */
+@Immutable
 data class ModelVersionImage(
     val url: String,
     val nsfwLevel: Int = 1,
@@ -49,6 +54,7 @@ data class ModelVersionImage(
 /**
  * A specific file in a model version (for HuggingFace repos with multiple files).
  */
+@Immutable
 data class ModelFile(
     val filename: String,
     val downloadUrl: String,
@@ -88,6 +94,7 @@ enum class ModelType(val value: String, val displayName: String) {
 /**
  * Community image from Civitai.
  */
+@Immutable
 data class CommunityImage(
     val id: Long,
     val url: String,
@@ -104,6 +111,7 @@ data class CommunityImage(
 /**
  * Image statistics.
  */
+@Immutable
 data class ImageStats(
     val likeCount: Int = 0,
     val heartCount: Int = 0,
@@ -113,6 +121,7 @@ data class ImageStats(
 /**
  * Generation metadata for an image.
  */
+@Immutable
 data class GenerationMetadata(
     val prompt: String?,
     val negativePrompt: String?,
@@ -127,6 +136,7 @@ data class GenerationMetadata(
 /**
  * Resource used in generation (LoRA, checkpoint, etc.).
  */
+@Immutable
 data class GenerationResource(
     val name: String?,
     val type: String?, // "lora", "checkpoint"

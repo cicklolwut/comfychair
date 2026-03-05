@@ -25,10 +25,7 @@ class HuggingFaceService(
         private const val TAG = "HuggingFaceService"
     }
 
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .build()
+    private val client = HttpModule.client
 
     /**
      * Search for models on HuggingFace.

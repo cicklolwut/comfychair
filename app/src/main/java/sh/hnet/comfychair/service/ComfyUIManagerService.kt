@@ -26,11 +26,7 @@ class ComfyUIManagerService {
         private const val TAG = "ComfyUIManagerService"
     }
 
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(60, TimeUnit.SECONDS)
-        .writeTimeout(15, TimeUnit.SECONDS)
-        .build()
+    private val client = HttpModule.client
 
     /** Build the server base URL from ConnectionManager state. */
     private fun getServerUrl(): String {

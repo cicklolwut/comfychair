@@ -501,7 +501,8 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
                 val (images, nextCursor) = civitaiService.getModelImages(
                     modelVersionId = version.id,
                     limit = 20,
-                    cursor = null
+                    cursor = null,
+                    browsingLevel = _uiState.value.nsfwLevels.sum()
                 )
 
                 _uiState.value = _uiState.value.copy(
@@ -535,7 +536,8 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
                 val (newImages, nextCursor) = civitaiService.getModelImages(
                     modelVersionId = version.id,
                     limit = 20,
-                    cursor = cursor
+                    cursor = cursor,
+                    browsingLevel = _uiState.value.nsfwLevels.sum()
                 )
 
                 _uiState.value = _uiState.value.copy(

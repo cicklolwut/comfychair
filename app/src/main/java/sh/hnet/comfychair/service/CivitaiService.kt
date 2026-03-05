@@ -292,7 +292,8 @@ class CivitaiService(
     suspend fun getModelImages(
         modelVersionId: String,
         limit: Int = 20,
-        cursor: String? = null
+        cursor: String? = null,
+        browsingLevel: Int? = null
     ): Pair<List<CommunityImage>, String?> = withContext(Dispatchers.IO) {
         val apiKey = settings.civitaiApiKey
         require(apiKey.isNotBlank()) { "Civitai API key not configured" }
@@ -300,6 +301,7 @@ class CivitaiService(
         val url = buildString {
             append("$BASE_URL/images?modelVersionId=$modelVersionId&limit=$limit")
             if (cursor != null) append("&cursor=$cursor")
+            if (browsingLevel != null) append("&browsingLevel=$browsingLevel")
         }
 
         DebugLogger.d(TAG, "Fetching images for version $modelVersionId")

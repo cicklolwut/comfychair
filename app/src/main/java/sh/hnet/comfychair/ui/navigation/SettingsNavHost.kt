@@ -307,7 +307,8 @@ fun SettingsNavHost(
                 val modelBrowserViewModel: sh.hnet.comfychair.viewmodel.ModelBrowserViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
                 sh.hnet.comfychair.ui.screens.ModelBrowserScreen(
                     viewModel = modelBrowserViewModel,
-                    onNavigateBack = onNavigateToGeneration
+                    onNavigateToGeneration = onNavigateToGeneration,
+                    onLogout = onLogout
                 )
             }
 

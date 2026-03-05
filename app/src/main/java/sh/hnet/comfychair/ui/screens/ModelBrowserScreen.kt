@@ -17,7 +17,6 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Visibility
@@ -42,6 +41,7 @@ import coil3.request.crossfade
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.runtime.CompositionLocalProvider
+import sh.hnet.comfychair.ui.components.SettingsScreenScaffold
 import sh.hnet.comfychair.model.CivitaiTypeMapper
 import sh.hnet.comfychair.viewmodel.ModelBrowserUiState
 import sh.hnet.comfychair.model.ModelProvider
@@ -56,7 +56,8 @@ import sh.hnet.comfychair.viewmodel.ModelBrowserViewModel
 @Composable
 fun ModelBrowserScreen(
     viewModel: ModelBrowserViewModel,
-    onNavigateBack: () -> Unit
+    onNavigateToGeneration: () -> Unit,
+    onLogout: () -> Unit
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
@@ -78,24 +79,13 @@ fun ModelBrowserScreen(
     }
 
     // UI
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Model Browser") },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.Close, "Close")
-                    }
-                }
-            )
-        }
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(16.dp)
-        ) {
+    SettingsScreenScaffold(
+        title = "Model Browser",
+        onNavigateToGeneration = onNavigateToGeneration,
+        onLogout = onLogout,
+        scrollable = false,
+        horizontalPadding = 16.dp
+    ) {
             // Provider selection
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -241,7 +231,6 @@ fun ModelBrowserScreen(
                     }
                 }
             }
-        }
     }
 
     // Model detail bottom sheet

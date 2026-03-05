@@ -305,6 +305,7 @@ fun ModelBrowserScreen(
         ModelDetailBottomSheet(
             model = uiState.selectedModel!!,
             uiState = uiState,
+            showNsfw = uiState.showNsfw,
             onDismiss = { viewModel.clearSelection() },
             onSelectVersion = viewModel::selectVersion,
             onToggleCommunityImages = viewModel::toggleCommunityImages,

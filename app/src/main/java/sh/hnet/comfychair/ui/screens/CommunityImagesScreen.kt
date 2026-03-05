@@ -41,6 +41,7 @@ fun CommunityImagesScreen(
     images: List<CommunityImage>,
     isLoading: Boolean,
     hasMore: Boolean,
+    showNsfw: Boolean,
     onLoadMore: () -> Unit,
     onBack: () -> Unit,
     onImportWorkflow: (String) -> Unit
@@ -49,11 +50,14 @@ fun CommunityImagesScreen(
     var selectedImage by remember { mutableStateOf<CommunityImage?>(null) }
     val gridState = rememberLazyGridState()
 
+    // Filter images based on NSFW setting
+    val filteredImages = if (showNsfw) images else images.filter { it.nsfwLevel <= 4 }
+
     // Detect when scrolled near bottom for pagination
     LaunchedEffect(gridState) {
         snapshotFlow { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
             .collect { lastIndex ->
-                if (lastIndex != null && lastIndex >= images.size - 4 && hasMore && !isLoading) {
+                if (lastIndex != null && lastIndex >= filteredImages.size - 4 && hasMore && !isLoading) {
                     onLoadMore()
                 }
             }
@@ -69,7 +73,7 @@ fun CommunityImagesScreen(
             verticalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.fillMaxSize()
         ) {
-            items(images, key = { it.id }) { image ->
+            items(filteredImages, key = { it.id }) { image ->
                 CommunityImageCard(
                     image = image,
                     onClick = { selectedImage = image }

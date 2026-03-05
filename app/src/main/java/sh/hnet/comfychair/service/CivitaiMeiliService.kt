@@ -51,7 +51,7 @@ class CivitaiMeiliService {
      * @param type Model type filter ("Checkpoint", "LORA", etc.)
      * @param baseModel Base model filter ("Illustrious", "NoobAI", etc.)
      * @param sort Sort order (see sortMapping below)
-     * @param nsfw Whether to include NSFW models (nsfwLevel > 4)
+     * @param nsfwLevels Set of allowed NSFW levels (1=PG, 2=PG-13, 4=R, 8=X, 16=XXX)
      * @param limit Number of results
      * @param offset Pagination offset
      */
@@ -60,7 +60,7 @@ class CivitaiMeiliService {
         type: String? = null,
         baseModel: String? = null,
         sort: String = "Most Downloaded",
-        nsfw: Boolean = false,
+        nsfwLevels: Set<Int> = setOf(1, 2, 4),
         limit: Int = 20,
         offset: Int = 0
     ): MeiliSearchResult = withContext(Dispatchers.IO) {
@@ -77,9 +77,9 @@ class CivitaiMeiliService {
             filters.add(listOf("\"version.baseModel\"=\"$baseModel\""))
         }
         
-        // NSFW filter (top-level AND)
-        if (!nsfw) {
-            filters.add("nsfwLevel IN [1, 2, 4]")
+        // NSFW level filter (top-level AND)
+        if (nsfwLevels.isNotEmpty()) {
+            filters.add("nsfwLevel IN [${nsfwLevels.sorted().joinToString(", ")}]")
         }
         
         // Always require public availability
@@ -115,7 +115,7 @@ class CivitaiMeiliService {
             })
         }
         
-        DebugLogger.d(TAG, "Searching Meili: query='$query', type=$type, baseModel=$baseModel, nsfw=$nsfw")
+        DebugLogger.d(TAG, "Searching Meili: query='$query', type=$type, baseModel=$baseModel, nsfwLevels=$nsfwLevels")
         
         val requestBody = requestJson.toString()
             .toRequestBody("application/json".toMediaType())

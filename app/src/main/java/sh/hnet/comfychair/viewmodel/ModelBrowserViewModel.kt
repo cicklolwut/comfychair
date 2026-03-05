@@ -55,7 +55,7 @@ data class ModelBrowserUiState(
     val filterSort: String = "Most Downloaded", // "Highest Rated", "Most Downloaded", "Newest"
     val filterPeriod: String = "AllTime", // "AllTime", "Year", "Month", "Week", "Day"
     val showFilters: Boolean = false,
-    val showNsfw: Boolean = false,
+    val nsfwLevels: Set<Int> = ModelBrowserSettings.DEFAULT_NSFW_LEVELS,
     val availableTypes: List<String> = emptyList(),      // from Meili facets
     val availableBaseModels: List<String> = emptyList(), // from Meili facets
     // Pagination
@@ -88,7 +88,7 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
 
     private val _uiState = MutableStateFlow(ModelBrowserUiState(
         providerConfigured = modelBrowserSettings.isCivitaiConfigured,
-        showNsfw = modelBrowserSettings.showNsfw
+        nsfwLevels = modelBrowserSettings.nsfwLevels
     ))
     val uiState: StateFlow<ModelBrowserUiState> = _uiState.asStateFlow()
 
@@ -195,7 +195,7 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
                             type = state.filterModelType,
                             baseModel = state.filterBaseModel,
                             sort = state.filterSort,
-                            nsfw = state.showNsfw,
+                            nsfwLevels = state.nsfwLevels,
                             limit = 20
                         )
                         
@@ -259,7 +259,7 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
                     type = state.filterModelType,
                     baseModel = state.filterBaseModel,
                     sort = state.filterSort,
-                    nsfw = state.showNsfw,
+                    nsfwLevels = state.nsfwLevels,
                     limit = 20,
                     offset = state.searchOffset
                 )
@@ -595,9 +595,17 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
     /**
      * Set show NSFW setting.
      */
-    fun setShowNsfw(value: Boolean) {
-        modelBrowserSettings.showNsfw = value
-        _uiState.value = _uiState.value.copy(showNsfw = value)
+    fun toggleNsfwLevel(level: Int) {
+        val current = _uiState.value.nsfwLevels.toMutableSet()
+        if (level in current) {
+            current.remove(level)
+            // Don't allow empty — keep at least PG
+            if (current.isEmpty()) current.add(1)
+        } else {
+            current.add(level)
+        }
+        modelBrowserSettings.nsfwLevels = current
+        _uiState.value = _uiState.value.copy(nsfwLevels = current)
         triggerDebouncedSearch()
     }
 }

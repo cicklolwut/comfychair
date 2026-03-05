@@ -18,6 +18,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import sh.hnet.comfychair.ui.components.shared.NoOverscrollContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
@@ -53,7 +54,7 @@ fun CommunityImagesScreen(
     images: List<CommunityImage>,
     isLoading: Boolean,
     hasMore: Boolean,
-    showNsfw: Boolean,
+    nsfwLevels: Set<Int>,
     onLoadMore: () -> Unit,
     onBack: () -> Unit,
     onImportWorkflow: (String) -> Unit
@@ -62,8 +63,8 @@ fun CommunityImagesScreen(
     var selectedImageIndex by remember { mutableIntStateOf(-1) }
     val gridState = rememberLazyGridState()
 
-    // Filter images based on NSFW setting
-    val filteredImages = if (showNsfw) images else images.filter { it.nsfwLevel <= 4 }
+    // Filter images based on selected NSFW levels
+    val filteredImages = images.filter { it.nsfwLevel in nsfwLevels }
 
     // Detect when scrolled near bottom for pagination
     // Key on filteredImages.size so it re-evaluates when new images arrive
@@ -79,6 +80,7 @@ fun CommunityImagesScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
         // Grid of images (now takes full height — no header)
+        NoOverscrollContainer(modifier = Modifier.fillMaxSize()) {
         LazyVerticalGrid(
             columns = GridCells.Fixed(2),
             state = gridState,
@@ -108,6 +110,7 @@ fun CommunityImagesScreen(
                 }
             }
         }
+        } // NoOverscrollContainer
 
         // Floating back button (bottom-right)
         SmallFloatingActionButton(

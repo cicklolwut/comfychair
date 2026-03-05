@@ -5,6 +5,7 @@ import android.text.Html
 import android.widget.Toast
 import android.widget.TextView
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -20,6 +21,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import sh.hnet.comfychair.ui.components.shared.NoOverscrollContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Photo
@@ -165,6 +167,7 @@ fun ModelBrowserScreen(
                         // Search results - 2-column grid
                         val gridState = rememberLazyGridState()
                         
+                        NoOverscrollContainer(modifier = Modifier.fillMaxSize()) {
                         LazyVerticalGrid(
                             columns = GridCells.Fixed(2),
                             state = gridState,
@@ -176,6 +179,8 @@ fun ModelBrowserScreen(
                             items(uiState.searchResults, key = { it.id }) { model ->
                                 ModelGridCard(
                                     model = model,
+                                    filterType = uiState.filterModelType,
+                                    filterBaseModel = uiState.filterBaseModel,
                                     onClick = { viewModel.selectModel(model) }
                                 )
                             }
@@ -221,6 +226,7 @@ fun ModelBrowserScreen(
                                     }
                                 }
                         }
+                        } // NoOverscrollContainer
                     }
 
                     // Filter FAB (bottom-right)
@@ -255,17 +261,30 @@ fun ModelBrowserScreen(
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
                 
-                // NSFW Toggle
+                // NSFW Level Toggles
+                Text("Content Levels", style = MaterialTheme.typography.bodyMedium)
+                Spacer(modifier = Modifier.height(4.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Text("Show NSFW", style = MaterialTheme.typography.bodyMedium)
-                    Switch(
-                        checked = uiState.showNsfw,
-                        onCheckedChange = { viewModel.setShowNsfw(it) }
+                    data class NsfwOption(val level: Int, val label: String)
+                    val options = listOf(
+                        NsfwOption(1, "PG"),
+                        NsfwOption(2, "PG-13"),
+                        NsfwOption(4, "R"),
+                        NsfwOption(8, "X"),
+                        NsfwOption(16, "XXX"),
+                        NsfwOption(32, "—")
                     )
+                    options.forEach { option ->
+                        FilterChip(
+                            selected = option.level in uiState.nsfwLevels,
+                            onClick = { viewModel.toggleNsfwLevel(option.level) },
+                            label = { Text(option.label, style = MaterialTheme.typography.labelSmall) },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
                 }
                 
                 HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
@@ -305,7 +324,7 @@ fun ModelBrowserScreen(
         ModelDetailBottomSheet(
             model = uiState.selectedModel!!,
             uiState = uiState,
-            showNsfw = uiState.showNsfw,
+            nsfwLevels = uiState.nsfwLevels,
             onDismiss = { viewModel.clearSelection() },
             onSelectVersion = viewModel::selectVersion,
             onToggleCommunityImages = viewModel::toggleCommunityImages,
@@ -395,6 +414,8 @@ fun ApiKeySetupCard(
 @Composable
 fun ModelGridCard(
     model: ModelSearchResult,
+    filterType: String?,
+    filterBaseModel: String?,
     onClick: () -> Unit
 ) {
     val context = LocalContext.current
@@ -405,7 +426,7 @@ fun ModelGridCard(
             .clickable(onClick = onClick)
     ) {
         Column {
-            // Cover image with 2:3 aspect ratio
+            // Cover image with 2:3 aspect ratio + overlaid badges
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -435,9 +456,37 @@ fun ModelGridCard(
                         )
                     }
                 }
+
+                // Type + base model badges overlaid on image (top-left)
+                // Hide badge if its filter is active (redundant info)
+                val showType = model.civitaiType != null && filterType == null && model.civitaiType != "Other"
+                val showBase = model.baseModel != null && filterBaseModel == null && model.baseModel != "Other"
+                if (showType || showBase) {
+                    Column(
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        if (showType) {
+                            MiniChip(
+                                text = model.civitaiType!!,
+                                containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f),
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            )
+                        }
+                        if (showBase) {
+                            MiniChip(
+                                text = model.baseModel!!,
+                                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.85f),
+                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                    }
+                }
             }
 
-            // Model info
+            // Model info — name + horizontal scrolling tags
             Column(
                 modifier = Modifier.padding(8.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -449,25 +498,21 @@ fun ModelGridCard(
                     overflow = TextOverflow.Ellipsis
                 )
 
-                // Base model + tags
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalArrangement = Arrangement.spacedBy(2.dp)
-                ) {
-                    model.baseModel?.let { baseModel ->
-                        MiniChip(
-                            text = baseModel,
-                            containerColor = MaterialTheme.colorScheme.primaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    }
-                    model.tags.take(3).forEach { tag ->
-                        MiniChip(
-                            text = tag,
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                // Tags as horizontal scroll row
+                if (model.tags.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        model.tags.forEach { tag ->
+                            MiniChip(
+                                text = tag,
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             }
@@ -480,7 +525,7 @@ fun ModelGridCard(
 fun ModelDetailBottomSheet(
     model: ModelSearchResult,
     uiState: ModelBrowserUiState,
-    showNsfw: Boolean,
+    nsfwLevels: Set<Int>,
     onDismiss: () -> Unit,
     onSelectVersion: (ModelVersion) -> Unit,
     onToggleCommunityImages: () -> Unit,
@@ -505,7 +550,7 @@ fun ModelDetailBottomSheet(
                     images = uiState.communityImages,
                     isLoading = uiState.isLoadingCommunityImages,
                     hasMore = uiState.hasMoreCommunityImages,
-                    showNsfw = showNsfw,
+                    nsfwLevels = nsfwLevels,
                     onLoadMore = onLoadMoreCommunityImages,
                     onBack = onToggleCommunityImages,
                     onImportWorkflow = onImportWorkflow
@@ -522,7 +567,7 @@ fun ModelDetailBottomSheet(
                 // Image gallery (if version has images)
                 uiState.selectedVersion?.let { version ->
                     // Filter images based on NSFW setting
-                    val filteredImages = if (showNsfw) version.images else version.images.filter { it.nsfwLevel <= 4 }
+                    val filteredImages = version.images.filter { it.nsfwLevel in nsfwLevels }
                     
                     if (filteredImages.isNotEmpty()) {
                         LazyRow(
@@ -722,9 +767,14 @@ fun SearchFilters(
 ) {
     // Use dynamic facets from Meili, fall back to defaults if empty
     val modelTypes = if (uiState.availableTypes.isNotEmpty()) uiState.availableTypes 
-        else listOf("Checkpoint", "LORA", "LoCon", "TextualInversion", "VAE", "Controlnet", "Upscaler")
+        else listOf("LORA", "Checkpoint", "LoCon", "TextualInversion", "Workflows", "Wildcards",
+            "DoRA", "Poses", "Hypernetwork", "VAE", "Controlnet", "AestheticGradient",
+            "Detection", "MotionModule", "Upscaler", "Other")
     val baseModels = if (uiState.availableBaseModels.isNotEmpty()) uiState.availableBaseModels
-        else listOf("Illustrious", "NoobAI", "Pony", "SDXL 1.0", "SD 1.5", "Flux.1 D")
+        else listOf("Illustrious", "SD 1.5", "Pony", "Flux.1 D", "SDXL 1.0", "NoobAI",
+            "ZImageTurbo", "Qwen", "Hunyuan Video", "Wan Video 2.2 I2V-A14B",
+            "Wan Video 2.2 T2V-A14B", "Wan Video 14B I2v", "Flux.1 S", "SD 2.1 768",
+            "Chroma", "ZImageBase", "Flux.1 Kontext", "Other")
     val sortOptions = listOf("Most Downloaded", "Highest Rated", "Most Liked", "Most Discussed", "Most Collected", "Most Buzz", "Newest")
     val periodOptions = listOf("AllTime", "Month", "Week", "Day") // TODO: Period not used by Meili search
 

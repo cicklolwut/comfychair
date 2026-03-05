@@ -192,7 +192,11 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
         }
 
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isSearching = true, errorMessage = null)
+            _uiState.value = _uiState.value.copy(
+                isSearching = true,
+                errorMessage = null,
+                searchResults = emptyList() // Clear stale results immediately
+            )
             try {
                 when (_uiState.value.selectedProvider) {
                     ModelProvider.CIVITAI -> {
@@ -207,6 +211,7 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
                             type = state.filterModelType,
                             baseModel = state.filterBaseModel,
                             sort = state.filterSort,
+                            period = state.filterPeriod,
                             nsfwLevels = state.nsfwLevels,
                             limit = 20
                         )
@@ -274,6 +279,7 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
                     type = currentState.filterModelType,
                     baseModel = currentState.filterBaseModel,
                     sort = currentState.filterSort,
+                    period = currentState.filterPeriod,
                     nsfwLevels = currentState.nsfwLevels,
                     limit = 20,
                     offset = currentState.searchOffset

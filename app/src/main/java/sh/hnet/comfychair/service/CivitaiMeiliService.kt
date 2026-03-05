@@ -59,6 +59,7 @@ class CivitaiMeiliService {
         type: String? = null,
         baseModel: String? = null,
         sort: String = "Most Downloaded",
+        period: String = "AllTime",
         nsfwLevels: Set<Int> = setOf(1, 2, 4),
         limit: Int = 20,
         offset: Int = 0
@@ -81,6 +82,21 @@ class CivitaiMeiliService {
             filters.add("nsfwLevel IN [${nsfwLevels.sorted().joinToString(", ")}]")
         }
         
+        // Time period filter using lastVersionAtUnix (epoch millis)
+        if (period != "AllTime") {
+            val now = System.currentTimeMillis()
+            val cutoff = when (period) {
+                "Day" -> now - 86_400_000L
+                "Week" -> now - 604_800_000L
+                "Month" -> now - 2_592_000_000L
+                "Year" -> now - 31_536_000_000L
+                else -> 0L
+            }
+            if (cutoff > 0) {
+                filters.add("lastVersionAtUnix > $cutoff")
+            }
+        }
+
         // Always require public availability
         filters.add("availability = Public")
         

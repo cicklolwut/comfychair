@@ -6,6 +6,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
 
     <application
+        android:name=".ComfyChairApplication"
         android:allowBackup="true"
         android:hasFragileUserData="true"
         android:dataExtractionRules="@xml/data_extraction_rules"

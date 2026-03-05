@@ -9,9 +9,13 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items as lazyItems
+import kotlinx.coroutines.flow.snapshotFlow
+import coil3.imageLoader
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -25,6 +29,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
@@ -63,6 +70,7 @@ fun ModelBrowserScreen(
     val uiState by viewModel.uiState.collectAsState()
 
     val isProviderConfigured = uiState.providerConfigured
+    var showFilterSheet by remember { mutableStateOf(false) }
 
     // Event handling
     LaunchedEffect(Unit) {
@@ -128,109 +136,166 @@ fun ModelBrowserScreen(
                     singleLine = true
                 )
 
-                // Filter toggle + NSFW + API key row
-                if (uiState.selectedProvider == ModelProvider.CIVITAI) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            FilterChip(
-                                selected = uiState.showFilters,
-                                onClick = { viewModel.toggleFilters() },
-                                label = { Text("Filters") },
-                                leadingIcon = {
-                                    Icon(
-                                        Icons.Default.FilterList,
-                                        contentDescription = "Filters",
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            )
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Text("NSFW", style = MaterialTheme.typography.labelSmall)
-                                Switch(
-                                    checked = uiState.showNsfw,
-                                    onCheckedChange = { viewModel.setShowNsfw(it) },
-                                    modifier = Modifier.height(24.dp)
-                                )
-                            }
-                        }
-                        TextButton(onClick = { viewModel.resetProviderApiKey() }) {
-                            Text("Change Key", style = MaterialTheme.typography.labelSmall)
-                        }
-                    }
-
-                    // Expandable filter section
-                    if (uiState.showFilters) {
-                        SearchFilters(
-                            uiState = uiState,
-                            onFilterTypeChanged = viewModel::setFilterModelType,
-                            onFilterBaseModelChanged = viewModel::setFilterBaseModel,
-                            onFilterSortChanged = viewModel::setFilterSort,
-                            onFilterPeriodChanged = viewModel::setFilterPeriod
-                        )
-                    }
-                } else {
-                    // HuggingFace — just the API key change
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 4.dp),
-                        horizontalArrangement = Arrangement.End
-                    ) {
-                        TextButton(onClick = { viewModel.resetProviderApiKey() }) {
-                            Text("Change API Key", style = MaterialTheme.typography.labelSmall)
-                        }
-                    }
-                }
-
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Loading indicator
-                if (uiState.isSearching) {
-                    Box(
-                        modifier = Modifier.fillMaxWidth(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator()
+                // Wrap search results in Box for FAB overlay
+                Box(modifier = Modifier.fillMaxSize()) {
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        // Loading indicator
+                        if (uiState.isSearching) {
+                            Box(
+                                modifier = Modifier.fillMaxWidth(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator()
+                            }
+                        }
+
+                        // Error message
+                        uiState.errorMessage?.let { error ->
+                            Text(
+                                text = error,
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.padding(vertical = 8.dp)
+                            )
+                        }
+
+                        // Search results - 2-column grid
+                        val gridState = rememberLazyGridState()
+                        
+                        LazyVerticalGrid(
+                            columns = GridCells.Fixed(2),
+                            state = gridState,
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(uiState.searchResults, key = { it.id }) { model ->
+                                ModelGridCard(
+                                    model = model,
+                                    onClick = { viewModel.selectModel(model) }
+                                )
+                            }
+                            
+                            // Loading indicator at bottom
+                            if (uiState.isLoadingMore) {
+                                item(span = { GridItemSpan(2) }) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(16.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // Scroll detection for infinite scroll
+                        LaunchedEffect(gridState) {
+                            snapshotFlow { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
+                                .collect { lastIndex ->
+                                    if (lastIndex != null && lastIndex >= uiState.searchResults.size - 6
+                                        && uiState.hasMoreResults && !uiState.isLoadingMore) {
+                                        viewModel.loadMoreResults()
+                                    }
+                                }
+                        }
+                        
+                        // Image prefetching for smooth scrolling
+                        val imageLoader = context.imageLoader
+                        LaunchedEffect(gridState, uiState.searchResults) {
+                            snapshotFlow { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0 }
+                                .collect { lastVisible ->
+                                    val prefetchEnd = minOf(lastVisible + 8, uiState.searchResults.size)
+                                    for (i in (lastVisible + 1) until prefetchEnd) {
+                                        uiState.searchResults.getOrNull(i)?.thumbnailUrl?.let { url ->
+                                            imageLoader.enqueue(
+                                                ImageRequest.Builder(context).data(url).build()
+                                            )
+                                        }
+                                    }
+                                }
+                        }
                     }
-                }
 
-                // Error message
-                uiState.errorMessage?.let { error ->
-                    Text(
-                        text = error,
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(vertical = 8.dp)
-                    )
-                }
-
-                // Search results - 2-column grid
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(2),
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(uiState.searchResults, key = { it.id }) { model ->
-                        ModelGridCard(
-                            model = model,
-                            onClick = { viewModel.selectModel(model) }
-                        )
+                    // Filter FAB (bottom-right)
+                    SmallFloatingActionButton(
+                        onClick = { showFilterSheet = true },
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(16.dp),
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer
+                    ) {
+                        Icon(Icons.Default.FilterList, contentDescription = "Filters")
                     }
                 }
             }
+    }
+
+    // Filter bottom sheet
+    if (showFilterSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showFilterSheet = false }
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+                    .padding(bottom = 32.dp) // Bottom padding for nav gesture area
+            ) {
+                // Title
+                Text(
+                    "Search Settings",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+                
+                // NSFW Toggle
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Show NSFW", style = MaterialTheme.typography.bodyMedium)
+                    Switch(
+                        checked = uiState.showNsfw,
+                        onCheckedChange = { viewModel.setShowNsfw(it) }
+                    )
+                }
+                
+                HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+                
+                // Filters (reuse existing SearchFilters composable)
+                SearchFilters(
+                    uiState = uiState,
+                    onFilterTypeChanged = viewModel::setFilterModelType,
+                    onFilterBaseModelChanged = viewModel::setFilterBaseModel,
+                    onFilterSortChanged = viewModel::setFilterSort,
+                    onFilterPeriodChanged = viewModel::setFilterPeriod
+                )
+                
+                HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+                
+                // API Key management
+                TextButton(
+                    onClick = {
+                        viewModel.resetProviderApiKey()
+                        showFilterSheet = false
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        when (uiState.selectedProvider) {
+                            ModelProvider.CIVITAI -> "Change Civitai API Key"
+                            ModelProvider.HUGGINGFACE -> "Change HuggingFace API Key"
+                        }
+                    )
+                }
+            }
+        }
     }
 
     // Model detail bottom sheet

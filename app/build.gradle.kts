@@ -78,6 +78,7 @@ dependencies {
     implementation(libs.okhttp)
 
     // Coil for image loading
+    implementation(libs.coil)
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
 

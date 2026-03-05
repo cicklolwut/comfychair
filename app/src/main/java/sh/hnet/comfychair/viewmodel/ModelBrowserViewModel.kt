@@ -57,7 +57,11 @@ data class ModelBrowserUiState(
     val showFilters: Boolean = false,
     val showNsfw: Boolean = false,
     val availableTypes: List<String> = emptyList(),      // from Meili facets
-    val availableBaseModels: List<String> = emptyList()  // from Meili facets
+    val availableBaseModels: List<String> = emptyList(), // from Meili facets
+    // Pagination
+    val searchOffset: Int = 0,
+    val hasMoreResults: Boolean = true,
+    val isLoadingMore: Boolean = false
 )
 
 /**
@@ -197,6 +201,8 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
                         
                         _uiState.value = _uiState.value.copy(
                             searchResults = meiliResult.models,
+                            searchOffset = meiliResult.models.size,
+                            hasMoreResults = meiliResult.totalHits > meiliResult.models.size,
                             isSearching = false,
                             availableTypes = meiliResult.facets?.types?.keys?.sortedByDescending { 
                                 meiliResult.facets.types[it] 
@@ -233,6 +239,39 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
                     errorMessage = e.message ?: "Search failed"
                 )
                 _events.emit(ModelBrowserEvent.ShowError(e.message ?: "Search failed"))
+            }
+        }
+    }
+
+    /**
+     * Load more search results (pagination).
+     */
+    fun loadMoreResults() {
+        val state = _uiState.value
+        if (state.isLoadingMore || !state.hasMoreResults) return
+        if (state.selectedProvider != ModelProvider.CIVITAI) return
+        
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoadingMore = true)
+            try {
+                val meiliResult = civitaiMeiliService.searchModels(
+                    query = state.searchQuery.trim(),
+                    type = state.filterModelType,
+                    baseModel = state.filterBaseModel,
+                    sort = state.filterSort,
+                    nsfw = state.showNsfw,
+                    limit = 20,
+                    offset = state.searchOffset
+                )
+                _uiState.value = _uiState.value.copy(
+                    searchResults = state.searchResults + meiliResult.models,
+                    searchOffset = state.searchOffset + meiliResult.models.size,
+                    hasMoreResults = (state.searchOffset + meiliResult.models.size) < meiliResult.totalHits,
+                    isLoadingMore = false
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(isLoadingMore = false)
+                DebugLogger.w(TAG, "Failed to load more results: ${e.message}")
             }
         }
     }

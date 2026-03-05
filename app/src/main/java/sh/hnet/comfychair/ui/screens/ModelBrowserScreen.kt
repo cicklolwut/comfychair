@@ -67,6 +67,23 @@ import sh.hnet.comfychair.model.ModelVersion
 import sh.hnet.comfychair.viewmodel.ModelBrowserEvent
 import sh.hnet.comfychair.viewmodel.ModelBrowserViewModel
 
+private val NSFW_LEVELS = listOf(
+    "PG" to 1,
+    "PG-13" to 2,
+    "R" to 4,
+    "X" to 8,
+    "XXX" to 16
+)
+
+private val BLUR_LEVELS = listOf(
+    1 to "PG",
+    2 to "PG-13",
+    4 to "R",
+    8 to "X",
+    16 to "XXX",
+    31 to "None"
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ModelBrowserScreen(
@@ -79,6 +96,7 @@ fun ModelBrowserScreen(
 
     val isProviderConfigured = uiState.providerConfigured
     var showFilterSheet by remember { mutableStateOf(false) }
+    var settingsMenuExpanded by remember { mutableStateOf(false) }
 
     // Event handling
     LaunchedEffect(Unit) {
@@ -102,21 +120,148 @@ fun ModelBrowserScreen(
         scrollable = false,
         horizontalPadding = 16.dp
     ) {
-            // Provider selection
+            // Provider selection row (left: chips, right: settings menu)
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                FilterChip(
-                    selected = uiState.selectedProvider == ModelProvider.CIVITAI,
-                    onClick = { viewModel.selectProvider(ModelProvider.CIVITAI) },
-                    label = { Text("Civitai") }
-                )
-                FilterChip(
-                    selected = uiState.selectedProvider == ModelProvider.HUGGINGFACE,
-                    onClick = { viewModel.selectProvider(ModelProvider.HUGGINGFACE) },
-                    label = { Text("HuggingFace") }
-                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    FilterChip(
+                        selected = uiState.selectedProvider == ModelProvider.CIVITAI,
+                        onClick = { viewModel.selectProvider(ModelProvider.CIVITAI) },
+                        label = { Text("Civitai") }
+                    )
+                    FilterChip(
+                        selected = uiState.selectedProvider == ModelProvider.HUGGINGFACE,
+                        onClick = { viewModel.selectProvider(ModelProvider.HUGGINGFACE) },
+                        label = { Text("HuggingFace") }
+                    )
+                }
+
+                // Settings menu button
+                Box {
+                    IconButton(onClick = { settingsMenuExpanded = true }) {
+                        Icon(Icons.Default.Settings, "Settings")
+                    }
+
+                    DropdownMenu(
+                        expanded = settingsMenuExpanded,
+                        onDismissRequest = { settingsMenuExpanded = false }
+                    ) {
+                        when (uiState.selectedProvider) {
+                            ModelProvider.CIVITAI -> {
+                                // NSFW level settings
+                                DropdownMenuItem(
+                                    text = {
+                                        Column {
+                                            Text("NSFW Level (Fetch):")
+                                            Spacer(Modifier.height(8.dp))
+                                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                NSFW_LEVELS.forEach { (label, level) ->
+                                                    val selected = level in uiState.nsfwLevels
+                                                    FilterChip(
+                                                        selected = selected,
+                                                        onClick = { viewModel.toggleNsfwLevel(level) },
+                                                        label = { Text(label) },
+                                                        modifier = Modifier.height(32.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    },
+                                    onClick = { }
+                                )
+
+                                // Blur threshold dropdown
+                                var blurExpanded by remember { mutableStateOf(false) }
+                                Box {
+                                    DropdownMenuItem(
+                                        text = { Text("Blur images above: ${BLUR_LEVELS.firstOrNull { it.first == uiState.blurThreshold }?.second ?: "PG-13"}") },
+                                        onClick = { blurExpanded = true },
+                                        trailingIcon = { Icon(Icons.Default.ArrowDropDown, null) }
+                                    )
+                                    DropdownMenu(
+                                        expanded = blurExpanded,
+                                        onDismissRequest = { blurExpanded = false }
+                                    ) {
+                                        BLUR_LEVELS.forEach { (level, label) ->
+                                            DropdownMenuItem(
+                                                text = { Text(label) },
+                                                onClick = { viewModel.setBlurThreshold(level); blurExpanded = false },
+                                                trailingIcon = if (level == uiState.blurThreshold) Icon(Icons.Default.Check, null) else null
+                                            )
+                                        }
+                                    }
+                                }
+
+                                HorizontalDivider()
+
+                                // API key
+                                DropdownMenuItem(
+                                    text = {
+                                        Column {
+                                            Text("API Key:")
+                                            Spacer(Modifier.height(4.dp))
+                                            OutlinedTextField(
+                                                value = uiState.apiKey,
+                                                onValueChange = { viewModel.updateApiKey(it) },
+                                                placeholder = { Text("Enter key...") },
+                                                singleLine = true,
+                                                modifier = Modifier.fillMaxWidth()
+                                            )
+                                            Spacer(Modifier.height(8.dp))
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.End
+                                            ) {
+                                                Button(
+                                                    onClick = { viewModel.saveApiKey(uiState.apiKey); settingsMenuExpanded = false },
+                                                    enabled = uiState.apiKey.isNotBlank()
+                                                ) {
+                                                    Text("Save")
+                                                }
+                                            }
+                                        }
+                                    },
+                                    onClick = { }
+                                )
+                            }
+                            ModelProvider.HUGGINGFACE -> {
+                                DropdownMenuItem(
+                                    text = {
+                                        Column {
+                                            Text("API Token:")
+                                            Spacer(Modifier.height(4.dp))
+                                            OutlinedTextField(
+                                                value = uiState.apiKey,
+                                                onValueChange = { viewModel.updateApiKey(it) },
+                                                placeholder = { Text("Enter token...") },
+                                                singleLine = true,
+                                                modifier = Modifier.fillMaxWidth()
+                                            )
+                                            Spacer(Modifier.height(8.dp))
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.End
+                                            ) {
+                                                Button(
+                                                    onClick = { viewModel.saveApiKey(uiState.apiKey); settingsMenuExpanded = false },
+                                                    enabled = uiState.apiKey.isNotBlank()
+                                                ) {
+                                                    Text("Save")
+                                                }
+                                            }
+                                        }
+                                    },
+                                    onClick = { }
+                                )
+                            }
+                        }
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))

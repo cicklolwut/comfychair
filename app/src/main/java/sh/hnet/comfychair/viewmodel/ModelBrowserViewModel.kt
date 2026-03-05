@@ -59,6 +59,8 @@ data class ModelBrowserUiState(
     val showFilters: Boolean = false,
     val nsfwLevels: Set<Int> = ModelBrowserSettings.DEFAULT_NSFW_LEVELS,
     val showAnimations: Boolean = false,
+    val blurThreshold: Int = 2, // Default: blur images above PG-13
+    val apiKey: String = "", // API key for current provider
     // Pagination (cursor-based for trpc)
     val searchCursor: String? = null,
     val hasMoreResults: Boolean = true,
@@ -98,7 +100,9 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
         // Only HuggingFace still requires a key
         providerConfigured = true,
         nsfwLevels = modelBrowserSettings.nsfwLevels,
-        showAnimations = modelBrowserSettings.showAnimations
+        showAnimations = modelBrowserSettings.showAnimations,
+        blurThreshold = modelBrowserSettings.blurThreshold,
+        apiKey = modelBrowserSettings.civitaiApiKey // Initial load, updated on provider switch
     ))
     val uiState: StateFlow<ModelBrowserUiState> = _uiState.asStateFlow()
 
@@ -174,16 +178,21 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
             ModelProvider.CIVITAI -> true  // trpc works without auth
             ModelProvider.HUGGINGFACE -> modelBrowserSettings.isHuggingFaceConfigured
         }
+        val apiKey = when (provider) {
+            ModelProvider.CIVITAI -> modelBrowserSettings.civitaiApiKey
+            ModelProvider.HUGGINGFACE -> modelBrowserSettings.huggingfaceApiKey
+        }
         _uiState.value = _uiState.value.copy(
             selectedProvider = provider,
             providerConfigured = configured,
+            apiKey = apiKey,
             searchResults = emptyList(),
             selectedModel = null,
             searchCursor = null,
             hasMoreResults = true
         )
         modelBrowserSettings.preferredProvider = provider.name.lowercase()
-        
+
         // Auto-browse when switching to Civitai
         if (provider == ModelProvider.CIVITAI) {
             triggerDebouncedSearch()
@@ -737,5 +746,20 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
             )
             loadCommunityImages()
         }
+    }
+
+    /**
+     * Set blur threshold for NSFW images.
+     */
+    fun setBlurThreshold(threshold: Int) {
+        modelBrowserSettings.blurThreshold = threshold
+        _uiState.value = _uiState.value.copy(blurThreshold = threshold)
+    }
+
+    /**
+     * Update API key for current provider (without saving yet).
+     */
+    fun updateApiKey(key: String) {
+        _uiState.value = _uiState.value.copy(apiKey = key)
     }
 }

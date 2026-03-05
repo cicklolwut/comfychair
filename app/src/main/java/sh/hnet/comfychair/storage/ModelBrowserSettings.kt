@@ -41,6 +41,10 @@ class ModelBrowserSettings(context: Context) {
         )
     }
 
+    // In-memory cache for frequently accessed values
+    private var _nsfwLevels: Set<Int>? = null
+    private var _showAnimations: Boolean? = null
+
     /** Civitai API key. */
     var civitaiApiKey: String
         get() = securePrefs.getString(KEY_CIVITAI_API_KEY, "") ?: ""
@@ -64,20 +68,28 @@ class ModelBrowserSettings(context: Context) {
 
     /** Selected NSFW content levels (Civitai only). Set of level ints: 1=PG, 2=PG-13, 4=R, 8=X, 16=XXX. */
     var nsfwLevels: Set<Int>
-        get() {
+        get() = _nsfwLevels ?: run {
             val stored = prefs.getString(KEY_NSFW_LEVELS, null)
-            return if (stored != null) {
+            val parsed = if (stored != null) {
                 stored.split(",").mapNotNull { it.trim().toIntOrNull() }.toSet()
             } else {
                 DEFAULT_NSFW_LEVELS
             }
+            _nsfwLevels = parsed
+            parsed
         }
-        set(value) = prefs.edit().putString(KEY_NSFW_LEVELS, value.joinToString(",")).apply()
+        set(value) {
+            _nsfwLevels = value
+            prefs.edit().putString(KEY_NSFW_LEVELS, value.joinToString(",")).apply()
+        }
 
     /** Whether to show animated thumbnails (GIF/WebP) in grids. Off by default (bandwidth). */
     var showAnimations: Boolean
-        get() = prefs.getBoolean(KEY_SHOW_ANIMATIONS, false)
-        set(value) = prefs.edit().putBoolean(KEY_SHOW_ANIMATIONS, value).apply()
+        get() = _showAnimations ?: prefs.getBoolean(KEY_SHOW_ANIMATIONS, false).also { _showAnimations = it }
+        set(value) {
+            _showAnimations = value
+            prefs.edit().putBoolean(KEY_SHOW_ANIMATIONS, value).apply()
+        }
 
     /** Whether Civitai is configured (has API key). */
     val isCivitaiConfigured: Boolean

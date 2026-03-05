@@ -184,8 +184,7 @@ private fun ImageDetailSheet(
     var negativePromptExpanded by remember { mutableStateOf(false) }
 
     ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        modifier = Modifier.fillMaxHeight(0.9f)
+        onDismissRequest = onDismiss
     ) {
         Column(
             modifier = Modifier

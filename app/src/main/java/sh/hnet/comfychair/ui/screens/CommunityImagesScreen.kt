@@ -284,7 +284,7 @@ private fun CommunityImageViewer(
         HorizontalPager(
             state = pagerState,
             modifier = Modifier.fillMaxSize(),
-            beyondBoundsPageCount = 0,
+            beyondViewportPageCount = 0,
             key = { images[it].id }
         ) { page ->
             val image = images[page]

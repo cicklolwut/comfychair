@@ -205,6 +205,7 @@ class CivitaiMeiliService {
         // Parse creator
         val userObj = json.optJSONObject("user")
         val creator = userObj?.optString("username")
+        val creatorId = userObj?.optInt("id", 0)?.takeIf { it > 0 }
         
         // Parse version info
         val versionObj = json.optJSONObject("version")
@@ -271,6 +272,7 @@ class CivitaiMeiliService {
             favoriteCount = favoriteCount,
             tags = tags,
             creator = creator,
+            creatorId = creatorId,
             versions = emptyList(), // Full versions loaded via REST API on selectModel()
             provider = ModelProvider.CIVITAI,
             civitaiType = type,

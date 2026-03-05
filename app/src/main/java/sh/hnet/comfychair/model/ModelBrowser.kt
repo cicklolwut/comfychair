@@ -13,6 +13,7 @@ data class ModelSearchResult(
     val favoriteCount: Long?,
     val tags: List<String>,
     val creator: String?,
+    val creatorId: Int? = null, // Civitai user ID (for prioritizedUserIds in community images)
     val versions: List<ModelVersion>,
     val provider: ModelProvider,
     val civitaiType: String? = null, // "LORA", "Checkpoint", "TextualInversion", etc.

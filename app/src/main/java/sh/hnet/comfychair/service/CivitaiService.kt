@@ -336,7 +336,7 @@ class CivitaiService(
             append("\"limit\":$limit,")
             append("\"pending\":true,")
             append("\"include\":[],")
-            append("\"withMeta\":false,")
+            append("\"withMeta\":true,")
             append("\"excludedTagIds\":[],")
             append("\"disablePoi\":true,")
             append("\"disableMinor\":true,")

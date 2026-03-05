@@ -88,7 +88,9 @@ class CivitaiTrpcService(
         val apiKey = settings.civitaiApiKey.takeIf { it.isNotBlank() }
         
         // Build JSON input
-        val periodMode = if (sort == "Newest") "published" else "stats"
+        // Civitai always uses "published" — filters models by lastVersionAt within period,
+        // then sorts by the chosen metric. "stats" periodMode is dead code on their backend.
+        val periodMode = "published"
         
         val jsonBuilder = StringBuilder().apply {
             append("{\"json\":{")

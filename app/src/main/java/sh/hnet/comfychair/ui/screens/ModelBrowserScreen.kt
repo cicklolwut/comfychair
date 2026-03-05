@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.*
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
@@ -224,16 +225,27 @@ fun ModelBrowserScreen(
                         // distinctUntilChanged() ensures we only fire when the last visible
                         // *row index* changes, not on every sub-pixel scroll frame.
                         val imageLoader = context.imageLoader
-                        LaunchedEffect(gridState, uiState.searchResults) {
+                        val searchResults by rememberUpdatedState(uiState.searchResults)
+
+                        LaunchedEffect(gridState) {
+                            val prefetched = mutableSetOf<String>()
+                            
                             snapshotFlow { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0 }
                                 .distinctUntilChanged()
                                 .collect { lastVisible ->
-                                    val prefetchEnd = minOf(lastVisible + 8, uiState.searchResults.size)
+                                    val currentResults = searchResults
+                                    val prefetchEnd = minOf(lastVisible + 6, currentResults.size)
                                     for (i in (lastVisible + 1) until prefetchEnd) {
-                                        uiState.searchResults.getOrNull(i)?.thumbnailUrl?.let { url ->
-                                            imageLoader.enqueue(
-                                                ImageRequest.Builder(context).data(url).build()
-                                            )
+                                        currentResults.getOrNull(i)?.thumbnailUrl?.let { url ->
+                                            if (url !in prefetched) {
+                                                prefetched.add(url)
+                                                imageLoader.enqueue(
+                                                    ImageRequest.Builder(context)
+                                                        .data(url)
+                                                        .size(450, 675)
+                                                        .build()
+                                                )
+                                            }
                                         }
                                     }
                                 }

@@ -250,25 +250,36 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
         val state = _uiState.value
         if (state.isLoadingMore || !state.hasMoreResults) return
         if (state.selectedProvider != ModelProvider.CIVITAI) return
-        
+
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoadingMore = true)
             try {
+                // Re-read state inside the coroutine so we always use the latest NSFW levels,
+                // filters, and offset — not a stale snapshot captured at call time.
+                val currentState = _uiState.value
                 val meiliResult = civitaiMeiliService.searchModels(
-                    query = state.searchQuery.trim(),
-                    type = state.filterModelType,
-                    baseModel = state.filterBaseModel,
-                    sort = state.filterSort,
-                    nsfwLevels = state.nsfwLevels,
+                    query = currentState.searchQuery.trim(),
+                    type = currentState.filterModelType,
+                    baseModel = currentState.filterBaseModel,
+                    sort = currentState.filterSort,
+                    nsfwLevels = currentState.nsfwLevels,
                     limit = 20,
-                    offset = state.searchOffset
+                    offset = currentState.searchOffset
                 )
-                _uiState.value = _uiState.value.copy(
-                    searchResults = state.searchResults + meiliResult.models,
-                    searchOffset = state.searchOffset + meiliResult.models.size,
-                    hasMoreResults = (state.searchOffset + meiliResult.models.size) < meiliResult.totalHits,
-                    isLoadingMore = false
-                )
+                // Guard against stale append: if a new search started while we were in flight
+                // (offset reset to 0), the results no longer belong here — discard them.
+                if (_uiState.value.searchOffset == currentState.searchOffset) {
+                    _uiState.value = _uiState.value.copy(
+                        searchResults = _uiState.value.searchResults + meiliResult.models,
+                        searchOffset = _uiState.value.searchOffset + meiliResult.models.size,
+                        hasMoreResults = (_uiState.value.searchOffset + meiliResult.models.size) < meiliResult.totalHits,
+                        isLoadingMore = false
+                    )
+                } else {
+                    // New search started — just clear the loading flag
+                    _uiState.value = _uiState.value.copy(isLoadingMore = false)
+                    DebugLogger.d(TAG, "loadMoreResults: offset changed while in-flight, discarding stale page")
+                }
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(isLoadingMore = false)
                 DebugLogger.w(TAG, "Failed to load more results: ${e.message}")
@@ -613,5 +624,17 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
         modelBrowserSettings.nsfwLevels = current
         _uiState.value = _uiState.value.copy(nsfwLevels = current)
         triggerDebouncedSearch()
+
+        // If community images are currently visible, clear and reload with new browsingLevel.
+        // Without this, already-loaded pages used the old level and new pages use the new one,
+        // giving an inconsistent mixed feed.
+        if (_uiState.value.showCommunityImages) {
+            _uiState.value = _uiState.value.copy(
+                communityImages = emptyList(),
+                communityImagesCursor = null,
+                hasMoreCommunityImages = true
+            )
+            loadCommunityImages()
+        }
     }
 }

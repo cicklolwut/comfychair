@@ -322,11 +322,15 @@ private fun CommunityImagePage(
     var bitmap by remember(image.id) { mutableStateOf<Bitmap?>(null) }
     var isLoading by remember(image.id) { mutableStateOf(true) }
     
-    // Load image via Coil
+    // Load image via Coil, constrained to screen dimensions to prevent OOM.
+    // Full-res Civitai images can be 3-4K+ (48MB+ as bitmap). Without a size cap,
+    // multiple pages in the pager will exhaust available memory.
     LaunchedEffect(image.id) {
         isLoading = true
+        val dm = context.resources.displayMetrics
         val request = ImageRequest.Builder(context)
-            .data(image.url)  // Full resolution
+            .data(image.url)
+            .size(dm.widthPixels, dm.heightPixels)
             .build()
         val result = context.imageLoader.execute(request)
         bitmap = if (result is SuccessResult) {

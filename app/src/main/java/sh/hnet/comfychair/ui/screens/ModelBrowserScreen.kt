@@ -6,6 +6,7 @@ import android.widget.Toast
 import android.widget.TextView
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import kotlinx.coroutines.flow.distinctUntilChanged
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -211,10 +212,13 @@ fun ModelBrowserScreen(
                                 }
                         }
                         
-                        // Image prefetching for smooth scrolling
+                        // Image prefetching for smooth scrolling.
+                        // distinctUntilChanged() ensures we only fire when the last visible
+                        // *row index* changes, not on every sub-pixel scroll frame.
                         val imageLoader = context.imageLoader
                         LaunchedEffect(gridState, uiState.searchResults) {
                             snapshotFlow { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0 }
+                                .distinctUntilChanged()
                                 .collect { lastVisible ->
                                     val prefetchEnd = minOf(lastVisible + 8, uiState.searchResults.size)
                                     for (i in (lastVisible + 1) until prefetchEnd) {
@@ -498,7 +502,8 @@ fun ModelGridCard(
                     overflow = TextOverflow.Ellipsis
                 )
 
-                // Tags as horizontal scroll row
+                // Tags as horizontal scroll row — cap at 3 to avoid measuring
+                // potentially dozens of chips per card (regular Row measures all children eagerly).
                 if (model.tags.isNotEmpty()) {
                     Row(
                         modifier = Modifier
@@ -506,7 +511,7 @@ fun ModelGridCard(
                             .horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        model.tags.forEach { tag ->
+                        model.tags.take(3).forEach { tag ->
                             MiniChip(
                                 text = tag,
                                 containerColor = MaterialTheme.colorScheme.surfaceVariant,

@@ -646,8 +646,8 @@ class CivitaiTrpcService(
             }
         }
         
-        // Fall back to first image if none match
-        return images.getJSONObject(0)
+        // No image matches the user's NSFW level — return null (no thumbnail)
+        return null
     }
 
     /**

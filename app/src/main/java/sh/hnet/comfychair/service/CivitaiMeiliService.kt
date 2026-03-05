@@ -186,12 +186,17 @@ class CivitaiMeiliService {
         val downloadCount = statsObj?.optLong("downloadCount")
         val favoriteCount = statsObj?.optLong("favoriteCount")
         
-        // Parse tags
+        // Parse tags (Meili returns [{id, name}] objects, not plain strings)
         val tagsArray = json.optJSONArray("tags")
         val tags = mutableListOf<String>()
         if (tagsArray != null) {
             for (i in 0 until tagsArray.length()) {
-                tags.add(tagsArray.getString(i))
+                val tag = tagsArray.get(i)
+                when (tag) {
+                    is JSONObject -> tag.optString("name", null)?.let { tags.add(it) }
+                    is String -> tags.add(tag)
+                    else -> {} // skip numeric tag IDs
+                }
             }
         }
         
@@ -203,11 +208,23 @@ class CivitaiMeiliService {
         val versionObj = json.optJSONObject("version")
         val baseModel = versionObj?.optString("baseModel")
         
-        // Parse thumbnail (resize to width=200)
+        // Parse thumbnail from Meili image data
+        // Meili returns image URL as just a UUID — need to construct the full CDN URL
+        // Format: https://image.civitai.com/xG1nkqKTMzfpXDLw6IMLCjbA7Bm7MVHJ/{uuid}/width=200/{filename}
         val imagesArray = json.optJSONArray("images")
         val thumbnailUrl = if (imagesArray != null && imagesArray.length() > 0) {
-            val originalUrl = imagesArray.getJSONObject(0).optString("url", null)
-            originalUrl?.replace("/original=true/", "/width=200/")
+            val imgObj = imagesArray.getJSONObject(0)
+            val urlOrUuid = imgObj.optString("url", null)
+            val imgName = imgObj.optString("name", "image.jpeg")
+            if (urlOrUuid != null) {
+                if (urlOrUuid.startsWith("http")) {
+                    // Full URL (REST API format) — resize
+                    urlOrUuid.replace("/original=true/", "/width=200/")
+                } else {
+                    // UUID (Meili format) — construct CDN URL
+                    "https://image.civitai.com/xG1nkqKTMzfpXDLw6IMLCjbA7Bm7MVHJ/$urlOrUuid/width=200/$imgName"
+                }
+            } else null
         } else null
         
         return ModelSearchResult(

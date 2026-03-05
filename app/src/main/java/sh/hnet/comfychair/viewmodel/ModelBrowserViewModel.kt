@@ -272,8 +272,12 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
                 // Guard against stale append: if a new search started while we were in flight
                 // (offset reset to 0), the results no longer belong here — discard them.
                 if (_uiState.value.searchOffset == currentState.searchOffset) {
+                    val maxResults = 300
+                    val combined = _uiState.value.searchResults + meiliResult.models
+                    val capped = if (combined.size > maxResults) combined.takeLast(maxResults) else combined
+                    
                     _uiState.value = _uiState.value.copy(
-                        searchResults = _uiState.value.searchResults + meiliResult.models,
+                        searchResults = capped,
                         searchOffset = _uiState.value.searchOffset + meiliResult.models.size,
                         hasMoreResults = (_uiState.value.searchOffset + meiliResult.models.size) < meiliResult.totalHits,
                         isLoadingMore = false

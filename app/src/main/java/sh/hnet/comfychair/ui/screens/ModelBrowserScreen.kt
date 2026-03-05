@@ -179,13 +179,18 @@ fun ModelBrowserScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            items(uiState.searchResults, key = { it.id }) { model ->
+                            items(
+                                items = uiState.searchResults,
+                                key = { it.id },
+                                contentType = { "model_card" }
+                            ) { model ->
+                                val onClick = remember(model.id) { { viewModel.selectModel(model) } }
                                 ModelGridCard(
                                     model = model,
                                     filterType = uiState.filterModelType,
                                     filterBaseModel = uiState.filterBaseModel,
                                     showAnimations = uiState.showAnimations,
-                                    onClick = { viewModel.selectModel(model) }
+                                    onClick = onClick
                                 )
                             }
                             

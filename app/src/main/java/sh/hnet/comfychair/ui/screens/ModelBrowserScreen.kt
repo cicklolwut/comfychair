@@ -34,6 +34,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SmallFloatingActionButton
@@ -937,13 +938,16 @@ fun MiniChip(
 
 @Composable
 fun HtmlText(html: String) {
-    val context = LocalContext.current
+    val textColor = MaterialTheme.colorScheme.onSurface.toArgb()
     AndroidView(
-        factory = { 
-            TextView(it).apply {
-                text = Html.fromHtml(html, Html.FROM_HTML_MODE_COMPACT)
+        factory = { ctx ->
+            TextView(ctx).apply {
                 textSize = 14f
+                setTextColor(textColor)
             }
+        },
+        update = { textView ->
+            textView.text = Html.fromHtml(html, Html.FROM_HTML_MODE_COMPACT)
         },
         modifier = Modifier.fillMaxWidth()
     )

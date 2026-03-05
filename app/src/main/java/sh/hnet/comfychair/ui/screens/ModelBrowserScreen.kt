@@ -223,7 +223,7 @@ fun ModelBrowserScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(uiState.searchResults) { model ->
+                    items(uiState.searchResults, key = { it.id }) { model ->
                         ModelGridCard(
                             model = model,
                             onClick = { viewModel.selectModel(model) }

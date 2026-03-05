@@ -86,7 +86,7 @@ fun CommunityImagesScreen(
             verticalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.weight(1f)
         ) {
-            items(images) { image ->
+            items(images, key = { it.id }) { image ->
                 CommunityImageCard(
                     image = image,
                     onClick = { selectedImage = image }

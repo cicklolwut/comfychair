@@ -281,7 +281,12 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
     fun selectVersion(version: ModelVersion) {
         _uiState.value = _uiState.value.copy(
             selectedVersion = version,
-            selectedFile = version.files.firstOrNull()
+            selectedFile = version.files.firstOrNull(),
+            // Clear stale community images when switching versions
+            communityImages = emptyList(),
+            communityImagesCursor = null,
+            hasMoreCommunityImages = true,
+            showCommunityImages = false
         )
 
         // Load files for HuggingFace models if not already loaded

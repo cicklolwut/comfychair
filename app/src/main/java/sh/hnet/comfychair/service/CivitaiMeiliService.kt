@@ -165,7 +165,7 @@ class CivitaiMeiliService {
         for (i in 0 until hits.length()) {
             val hit = hits.getJSONObject(i)
             try {
-                models.add(parseHit(hit))
+                models.add(parseHit(hit, nsfwLevels))
             } catch (e: Exception) {
                 DebugLogger.w(TAG, "Failed to parse hit: ${e.message}")
             }
@@ -176,7 +176,7 @@ class CivitaiMeiliService {
         MeiliSearchResult(models, totalHits, facets)
     }
     
-    private fun parseHit(json: JSONObject): ModelSearchResult {
+    private fun parseHit(json: JSONObject, nsfwLevels: Set<Int>): ModelSearchResult {
         val id = json.optLong("id", 0).toString()
         val name = json.optString("name", "Unknown")
         val type = json.optString("type", "")
@@ -209,19 +209,28 @@ class CivitaiMeiliService {
         val baseModel = versionObj?.optString("baseModel")
         
         // Parse thumbnail from Meili image data
+        // Pick the first image matching the user's NSFW levels (like Civitai's site does)
         // Meili returns image URL as just a UUID — need to construct the full CDN URL
         // Format: https://image.civitai.com/xG1nkqKTMzfpXDLw6IMLCjbA7Bm7MVHJ/{uuid}/width=200/{filename}
         val imagesArray = json.optJSONArray("images")
         val thumbnailUrl = if (imagesArray != null && imagesArray.length() > 0) {
-            val imgObj = imagesArray.getJSONObject(0)
-            val urlOrUuid = imgObj.optString("url", null)
-            val imgName = imgObj.optString("name", "image.jpeg")
+            // Find first image matching NSFW levels, fall back to first image
+            var selectedImg: JSONObject? = null
+            for (i in 0 until imagesArray.length()) {
+                val img = imagesArray.getJSONObject(i)
+                if (img.optInt("nsfwLevel", 1) in nsfwLevels) {
+                    selectedImg = img
+                    break
+                }
+            }
+            if (selectedImg == null) selectedImg = imagesArray.getJSONObject(0)
+            
+            val urlOrUuid = selectedImg.optString("url", null)
+            val imgName = selectedImg.optString("name", "image.jpeg")
             if (urlOrUuid != null) {
                 if (urlOrUuid.startsWith("http")) {
-                    // Full URL (REST API format) — resize
                     urlOrUuid.replace("/original=true/", "/width=200/")
                 } else {
-                    // UUID (Meili format) — construct CDN URL
                     "https://image.civitai.com/xG1nkqKTMzfpXDLw6IMLCjbA7Bm7MVHJ/$urlOrUuid/width=200/$imgName"
                 }
             } else null

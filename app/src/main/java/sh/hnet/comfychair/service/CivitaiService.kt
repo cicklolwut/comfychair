@@ -300,32 +300,71 @@ class CivitaiService(
     }
 
     /**
-     * Get community images for a specific model version.
+     * Get community images for a specific model version via Civitai trpc endpoint.
+     * Uses image.getInfinite which provides richer stats (AllTime counts) and integer cursors.
+     *
      * @param modelVersionId The model version ID
      * @param limit Number of images to return
-     * @param cursor Pagination cursor
-     * @return Pair of images list and next cursor
+     * @param cursor Pagination cursor (integer serialized as String, null for first page)
+     * @param browsingLevel Kept for API compatibility but unused — trpc uses tag-based filtering
+     * @param prioritizedUserIds Optional list of user IDs whose images appear first (e.g. model creator)
+     * @return Pair of images list and next cursor (integer serialized as String, or null)
      */
     suspend fun getModelImages(
         modelVersionId: String,
         limit: Int = 20,
         cursor: String? = null,
-        browsingLevel: Int? = null
+        browsingLevel: Int? = null,
+        prioritizedUserIds: List<Int> = emptyList()
     ): Pair<List<CommunityImage>, String?> = withContext(Dispatchers.IO) {
         val apiKey = settings.civitaiApiKey
         require(apiKey.isNotBlank()) { "Civitai API key not configured" }
 
-        val url = buildString {
-            append("$BASE_URL/images?modelVersionId=$modelVersionId&limit=$limit")
-            if (cursor != null) append("&cursor=$cursor")
-            if (browsingLevel != null) append("&browsingLevel=$browsingLevel")
+        // Build the trpc input JSON.
+        // When cursor is null, include meta.values.cursor=["undefined"] as required by trpc.
+        // When cursor is an integer, omit meta.values so the server treats it as a real cursor.
+        val inputJson = buildString {
+            append("{\"json\":{")
+            append("\"modelVersionId\":$modelVersionId,")
+            if (prioritizedUserIds.isNotEmpty()) {
+                append("\"prioritizedUserIds\":[${prioritizedUserIds.joinToString(",")}],")
+            } else {
+                append("\"prioritizedUserIds\":[],")
+            }
+            append("\"period\":\"AllTime\",")
+            append("\"sort\":\"Most Reactions\",")
+            append("\"limit\":$limit,")
+            append("\"pending\":true,")
+            append("\"include\":[],")
+            append("\"withMeta\":false,")
+            append("\"excludedTagIds\":[],")
+            append("\"disablePoi\":true,")
+            append("\"disableMinor\":true,")
+            if (cursor != null) {
+                // Pass as integer (no quotes)
+                append("\"cursor\":$cursor,")
+            } else {
+                append("\"cursor\":null,")
+            }
+            append("\"authed\":true")
+            append("}")
+            if (cursor == null) {
+                // Required by trpc when cursor is undefined/null
+                append(",\"meta\":{\"values\":{\"cursor\":[\"undefined\"]}}")
+            }
+            append("}")
         }
 
-        DebugLogger.d(TAG, "Fetching images for version $modelVersionId")
+        val encodedInput = java.net.URLEncoder.encode(inputJson, "UTF-8")
+        val url = "https://civitai.com/api/trpc/image.getInfinite?input=$encodedInput"
+
+        DebugLogger.d(TAG, "Fetching trpc images for version $modelVersionId (cursor=$cursor)")
 
         val request = Request.Builder()
             .url(url)
             .header("Authorization", "Bearer $apiKey")
+            // trpc endpoints may also require cookie-based auth
+            .header("Cookie", "__Secure-civitai-token=$apiKey")
             .get()
             .build()
 
@@ -333,14 +372,19 @@ class CivitaiService(
 
         if (!response.isSuccessful) {
             val errorBody = response.body?.string() ?: "Unknown error"
-            throw RuntimeException("Civitai API returned ${response.code}: $errorBody")
+            throw RuntimeException("Civitai trpc returned ${response.code}: $errorBody")
         }
 
         val body = response.body?.string() ?: throw RuntimeException("Empty response")
-        val json = JSONObject(body)
-        val items = json.optJSONArray("items") ?: return@withContext Pair(emptyList(), null)
-        val metadata = json.optJSONObject("metadata")
-        val nextCursor = metadata?.optString("nextCursor")
+        val root = JSONObject(body)
+        val resultData = root
+            .getJSONObject("result")
+            .getJSONObject("data")
+            .getJSONObject("json")
+
+        val items = resultData.optJSONArray("items") ?: return@withContext Pair(emptyList(), null)
+        val nextCursor = if (resultData.isNull("nextCursor")) null
+                         else resultData.optString("nextCursor", null)
 
         val images = mutableListOf<CommunityImage>()
         for (i in 0 until items.length()) {
@@ -352,19 +396,21 @@ class CivitaiService(
             }
         }
 
-        DebugLogger.d(TAG, "Found ${images.size} images")
+        DebugLogger.d(TAG, "Found ${images.size} images (nextCursor=$nextCursor)")
         Pair(images, nextCursor)
     }
 
     private fun parseCommunityImage(json: JSONObject): CommunityImage {
         val id = json.optLong("id", 0)
-        val url = json.optString("url", "")
+        // trpc returns `url` as a UUID only — not a full CDN URL.
+        val uuid = json.optString("url", "")
+        val name = json.optString("name", "$id.jpg")
         val width = json.optInt("width", 0)
         val height = json.optInt("height", 0)
-        // API returns nsfwLevel as string ("None", "Soft", etc.) — use browsingLevel (int) instead
-        val nsfwLevel = json.optInt("browsingLevel", 1)
+        // trpc returns nsfwLevel as an integer directly (e.g. 1, 4, 8)
+        val nsfwLevel = json.optInt("nsfwLevel", 1)
 
-        // Build both static and animated thumbnail URLs.
+        // Build CDN URLs from UUID.
         // Videos always need transcode=true; without it the CDN returns nothing (empty placeholder bug).
         val isVideo = json.optString("type", "image") == "video"
         val staticParams = if (isVideo) {
@@ -373,33 +419,35 @@ class CivitaiService(
             "anim=false,width=450,optimized=true"
         }
         val animatedParams = if (isVideo) {
-            // Videos can't play in AsyncImage — always use static frame
+            // Videos can't animate in AsyncImage — always use static frame
             staticParams
         } else {
             "width=450,optimized=true"
         }
-        val thumbnailUrl = rewriteCdnUrl(url, staticParams)
-        val animatedThumbnailUrl = rewriteCdnUrl(url, animatedParams)
 
-        // Parse stats
+        val cdnBase = CivitaiMeiliService.CDN_BASE
+        val thumbnailUrl = "$cdnBase/$uuid/$staticParams/$name"
+        val animatedThumbnailUrl = "$cdnBase/$uuid/$animatedParams/$name"
+        // Full-resolution URL for the image viewer
+        val fullUrl = "$cdnBase/$uuid/original=true/$name"
+
+        // Parse stats — trpc uses AllTime-suffixed fields for reliable counts.
         val statsObj = json.optJSONObject("stats")
         val stats = if (statsObj != null) {
             ImageStats(
-                likeCount = statsObj.optInt("likeCount", 0),
-                heartCount = statsObj.optInt("heartCount", 0),
-                commentCount = statsObj.optInt("commentCount", 0)
+                likeCount = statsObj.optInt("likeCountAllTime", 0),
+                heartCount = statsObj.optInt("heartCountAllTime", 0),
+                commentCount = statsObj.optInt("commentCountAllTime", 0)
             )
         } else null
 
-        // Parse metadata
-        val metaObj = json.optJSONObject("meta")
-        val meta = if (metaObj != null) {
-            parseGenerationMetadata(metaObj)
-        } else null
+        // Parse generation metadata — null when withMeta=false (current default)
+        val metaObj = if (!json.isNull("meta")) json.optJSONObject("meta") else null
+        val meta = if (metaObj != null) parseGenerationMetadata(metaObj) else null
 
         return CommunityImage(
             id = id,
-            url = url,
+            url = fullUrl,
             thumbnailUrl = thumbnailUrl,
             animatedThumbnailUrl = animatedThumbnailUrl,
             width = width,

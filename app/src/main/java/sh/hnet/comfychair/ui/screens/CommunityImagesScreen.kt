@@ -66,10 +66,12 @@ fun CommunityImagesScreen(
     val filteredImages = if (showNsfw) images else images.filter { it.nsfwLevel <= 4 }
 
     // Detect when scrolled near bottom for pagination
-    LaunchedEffect(gridState) {
+    // Key on filteredImages.size so it re-evaluates when new images arrive
+    LaunchedEffect(gridState, filteredImages.size, hasMore, isLoading) {
+        if (!hasMore || isLoading) return@LaunchedEffect
         snapshotFlow { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
             .collect { lastIndex ->
-                if (lastIndex != null && lastIndex >= filteredImages.size - 4 && hasMore && !isLoading) {
+                if (lastIndex != null && lastIndex >= filteredImages.size - 4) {
                     onLoadMore()
                 }
             }

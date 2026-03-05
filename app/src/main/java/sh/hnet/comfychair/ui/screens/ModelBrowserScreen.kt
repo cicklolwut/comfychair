@@ -502,8 +502,7 @@ fun ModelGridCard(
                     overflow = TextOverflow.Ellipsis
                 )
 
-                // Tags as horizontal scroll row — cap at 3 to avoid measuring
-                // potentially dozens of chips per card (regular Row measures all children eagerly).
+                // Tags as horizontal scroll row
                 if (model.tags.isNotEmpty()) {
                     Row(
                         modifier = Modifier
@@ -511,7 +510,7 @@ fun ModelGridCard(
                             .horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        model.tags.take(3).forEach { tag ->
+                        model.tags.forEach { tag ->
                             MiniChip(
                                 text = tag,
                                 containerColor = MaterialTheme.colorScheme.surfaceVariant,

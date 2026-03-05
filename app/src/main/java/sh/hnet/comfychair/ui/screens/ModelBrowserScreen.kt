@@ -864,24 +864,18 @@ fun MiniChip(
     containerColor: androidx.compose.ui.graphics.Color,
     contentColor: androidx.compose.ui.graphics.Color
 ) {
-    // Reduce M3's 48dp minimum touch target for dense grid layouts
-    CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
-        SuggestionChip(
-            onClick = { },
-            label = {
-                Text(
-                    text = text,
-                    style = MaterialTheme.typography.labelSmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            },
-            colors = SuggestionChipDefaults.suggestionChipColors(
-                containerColor = containerColor,
-                labelColor = contentColor
-            ),
-            border = null,
-            modifier = Modifier.height(24.dp)
+    Surface(
+        color = containerColor,
+        shape = MaterialTheme.shapes.small,
+        modifier = Modifier.height(24.dp)
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelSmall,
+            color = contentColor,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
         )
     }
 }
@@ -934,7 +928,7 @@ fun DownloadConfigDialog(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    ModelType.values().forEach { type ->
+                    ModelType.entries.forEach { type ->
                         FilterChip(
                             selected = uiState.selectedModelType == type,
                             onClick = { onSelectModelType(type) },

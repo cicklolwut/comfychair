@@ -43,6 +43,7 @@ import coil3.request.ImageRequest
 import coil3.request.SuccessResult
 import coil3.request.crossfade
 import coil3.toBitmap
+import org.json.JSONArray
 import org.json.JSONObject
 import sh.hnet.comfychair.model.CommunityImage
 import sh.hnet.comfychair.model.GenerationMetadata
@@ -592,5 +593,18 @@ private fun metadataToJson(meta: GenerationMetadata): String {
     meta.steps?.let { json.put("steps", it) }
     meta.cfgScale?.let { json.put("cfgScale", it) }
     meta.seed?.let { json.put("seed", it) }
+    meta.baseModel?.let { json.put("baseModel", it) }
+    if (meta.resources.isNotEmpty()) {
+        val resourcesArray = JSONArray()
+        meta.resources.forEach { res ->
+            val obj = JSONObject()
+            res.name?.let { obj.put("name", it) }
+            res.type?.let { obj.put("type", it) }
+            res.weight?.let { obj.put("weight", it) }
+            res.modelVersionId?.let { obj.put("modelVersionId", it) }
+            resourcesArray.put(obj)
+        }
+        json.put("resources", resourcesArray)
+    }
     return json.toString(2) // Pretty print with indent
 }

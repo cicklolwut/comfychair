@@ -294,13 +294,17 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
         
         // Load full details if Civitai (versions, description, etc.)
         if (model.provider == ModelProvider.CIVITAI) {
+            val selectedId = model.id
             viewModelScope.launch {
                 try {
                     val fullModel = civitaiService.getModelDetails(model.id)
-                    _uiState.value = _uiState.value.copy(
-                        selectedModel = fullModel,
-                        selectedVersion = fullModel.versions.firstOrNull()
-                    )
+                    // Guard against race: user may have selected a different model
+                    if (_uiState.value.selectedModel?.id == selectedId) {
+                        _uiState.value = _uiState.value.copy(
+                            selectedModel = fullModel,
+                            selectedVersion = fullModel.versions.firstOrNull()
+                        )
+                    }
                 } catch (e: Exception) {
                     DebugLogger.w(TAG, "Failed to load model details: ${e.message}")
                     // Keep showing the basic model info from Meili

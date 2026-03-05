@@ -101,8 +101,12 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
         searchDebounceJob?.cancel()
         searchDebounceJob = viewModelScope.launch {
             if (delayMs > 0) delay(delayMs)
+            // Civitai (Meili) supports empty query for browsing by filters
+            // HuggingFace still requires a query
             val query = _uiState.value.searchQuery.trim()
-            if (query.isNotEmpty()) {
+            val canSearch = query.isNotEmpty() ||
+                _uiState.value.selectedProvider == ModelProvider.CIVITAI
+            if (canSearch) {
                 searchModels()
             }
         }

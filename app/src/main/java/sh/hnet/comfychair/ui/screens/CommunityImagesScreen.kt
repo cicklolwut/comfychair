@@ -284,6 +284,7 @@ private fun CommunityImageViewer(
         HorizontalPager(
             state = pagerState,
             modifier = Modifier.fillMaxSize(),
+            beyondBoundsPageCount = 0,
             key = { images[it].id }
         ) { page ->
             val image = images[page]
@@ -392,6 +393,14 @@ private fun CommunityImagePage(
             result.image.toBitmap()
         } else null
         isLoading = false
+    }
+    
+    // Clean up bitmap when page is disposed (scrolled away)
+    DisposableEffect(image.id) {
+        onDispose {
+            bitmap?.recycle()
+            bitmap = null
+        }
     }
     
     Box(

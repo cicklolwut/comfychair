@@ -156,7 +156,11 @@ class CivitaiTrpcService(
         val models = mutableListOf<ModelSearchResult>()
         for (i in 0 until items.length()) {
             try {
-                models.add(parseModelFromGetAll(items.getJSONObject(i), browsingLevel))
+                val parsed = parseModelFromGetAll(items.getJSONObject(i), browsingLevel)
+                // Skip models with no images matching the user's browsingLevel
+                if (parsed.thumbnailUrl != null) {
+                    models.add(parsed)
+                }
             } catch (e: Exception) {
                 DebugLogger.w(TAG, "Failed to parse model item: ${e.message}")
             }

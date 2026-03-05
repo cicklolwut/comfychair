@@ -342,7 +342,8 @@ class CivitaiService(
         val url = json.optString("url", "")
         val width = json.optInt("width", 0)
         val height = json.optInt("height", 0)
-        val nsfwLevel = json.optInt("nsfwLevel", 0)
+        // API returns nsfwLevel as string ("None", "Soft", etc.) — use browsingLevel (int) instead
+        val nsfwLevel = json.optInt("browsingLevel", 1)
 
         // Resize thumbnail to width=200
         val thumbnailUrl = url.replace("/original=true/", "/width=200/")

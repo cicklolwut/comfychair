@@ -49,6 +49,7 @@ data class ModelBrowserUiState(
     val showCommunityImages: Boolean = false,
     val communityImagesCursor: String? = null,
     val hasMoreCommunityImages: Boolean = true,
+    val communityImagesSort: String = "Most Reactions",
     // Search filters
     val filterModelType: String? = null, // "Checkpoint", "LORA", etc.
     val filterBaseModel: String? = null, // "Illustrious", "NoobAI", etc.
@@ -500,6 +501,19 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
     /**
      * Load community images for the selected model version.
      */
+    /**
+     * Change community images sort order. Clears and reloads.
+     */
+    fun setCommunityImagesSort(sort: String) {
+        _uiState.value = _uiState.value.copy(
+            communityImagesSort = sort,
+            communityImages = emptyList(),
+            communityImagesCursor = null,
+            hasMoreCommunityImages = true
+        )
+        loadCommunityImages()
+    }
+
     fun loadCommunityImages() {
         val version = _uiState.value.selectedVersion ?: return
         
@@ -517,7 +531,8 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
                     limit = 20,
                     cursor = null,
                     browsingLevel = _uiState.value.nsfwLevels.sum(),
-                    prioritizedUserIds = creatorIds
+                    prioritizedUserIds = creatorIds,
+                    sort = _uiState.value.communityImagesSort
                 )
 
                 _uiState.value = _uiState.value.copy(
@@ -554,7 +569,8 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
                     limit = 20,
                     cursor = cursor,
                     browsingLevel = _uiState.value.nsfwLevels.sum(),
-                    prioritizedUserIds = creatorIds
+                    prioritizedUserIds = creatorIds,
+                    sort = _uiState.value.communityImagesSort
                 )
 
                 _uiState.value = _uiState.value.copy(

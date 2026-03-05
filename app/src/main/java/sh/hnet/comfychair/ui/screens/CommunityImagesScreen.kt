@@ -9,6 +9,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -26,6 +27,7 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -57,6 +59,8 @@ fun CommunityImagesScreen(
     hasMore: Boolean,
     nsfwLevels: Set<Int>,
     showAnimations: Boolean = false,
+    currentSort: String = "Most Reactions",
+    onSortChanged: (String) -> Unit = {},
     onLoadMore: () -> Unit,
     onBack: () -> Unit,
     onImportWorkflow: (String) -> Unit
@@ -115,15 +119,62 @@ fun CommunityImagesScreen(
         }
         } // NoOverscrollContainer
 
-        // Floating back button (bottom-right)
-        SmallFloatingActionButton(
-            onClick = onBack,
+        // FAB column (bottom-right): sort + back
+        var showSortSheet by remember { mutableStateOf(false) }
+        Column(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(16.dp),
-            containerColor = MaterialTheme.colorScheme.secondaryContainer
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Icon(Icons.Default.ArrowBack, contentDescription = "Back to model")
+            SmallFloatingActionButton(
+                onClick = { showSortSheet = true },
+                containerColor = MaterialTheme.colorScheme.secondaryContainer
+            ) {
+                Icon(Icons.Default.FilterList, contentDescription = "Sort")
+            }
+            SmallFloatingActionButton(
+                onClick = onBack,
+                containerColor = MaterialTheme.colorScheme.secondaryContainer
+            ) {
+                Icon(Icons.Default.ArrowBack, contentDescription = "Back to model")
+            }
+        }
+
+        // Sort bottom sheet
+        if (showSortSheet) {
+            ModalBottomSheet(
+                onDismissRequest = { showSortSheet = false }
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                        .padding(bottom = 32.dp)
+                ) {
+                    Text(
+                        "Sort Community Images",
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+                    val sortOptions = listOf("Most Reactions", "Most Comments", "Newest")
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        sortOptions.forEach { sort ->
+                            FilterChip(
+                                selected = currentSort == sort,
+                                onClick = {
+                                    onSortChanged(sort)
+                                    showSortSheet = false
+                                },
+                                label = { Text(sort) }
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 

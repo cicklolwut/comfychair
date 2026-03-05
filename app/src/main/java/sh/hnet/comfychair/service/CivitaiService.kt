@@ -315,7 +315,8 @@ class CivitaiService(
         limit: Int = 20,
         cursor: String? = null,
         browsingLevel: Int? = null,
-        prioritizedUserIds: List<Int> = emptyList()
+        prioritizedUserIds: List<Int> = emptyList(),
+        sort: String = "Most Reactions"
     ): Pair<List<CommunityImage>, String?> = withContext(Dispatchers.IO) {
         val apiKey = settings.civitaiApiKey
         require(apiKey.isNotBlank()) { "Civitai API key not configured" }
@@ -332,7 +333,7 @@ class CivitaiService(
                 append("\"prioritizedUserIds\":[],")
             }
             append("\"period\":\"AllTime\",")
-            append("\"sort\":\"Most Reactions\",")
+            append("\"sort\":\"$sort\",")
             append("\"limit\":$limit,")
             append("\"pending\":true,")
             append("\"include\":[],")

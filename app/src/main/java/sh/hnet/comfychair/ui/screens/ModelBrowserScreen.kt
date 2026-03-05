@@ -22,10 +22,12 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Photo
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -477,6 +479,7 @@ fun ModelGridCard(
 fun ModelDetailBottomSheet(
     model: ModelSearchResult,
     uiState: ModelBrowserUiState,
+    showNsfw: Boolean,
     onDismiss: () -> Unit,
     onSelectVersion: (ModelVersion) -> Unit,
     onToggleCommunityImages: () -> Unit,
@@ -488,10 +491,11 @@ fun ModelDetailBottomSheet(
 ) {
     val context = LocalContext.current
     var showDownloadDialog by remember { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        modifier = Modifier.fillMaxHeight(0.9f)
+        sheetState = sheetState
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             // Show community images or model details
@@ -500,6 +504,7 @@ fun ModelDetailBottomSheet(
                     images = uiState.communityImages,
                     isLoading = uiState.isLoadingCommunityImages,
                     hasMore = uiState.hasMoreCommunityImages,
+                    showNsfw = showNsfw,
                     onLoadMore = onLoadMoreCommunityImages,
                     onBack = onToggleCommunityImages,
                     onImportWorkflow = onImportWorkflow
@@ -507,35 +512,23 @@ fun ModelDetailBottomSheet(
             } else {
                 Box(modifier = Modifier.fillMaxSize()) {
                     Column(
-                        modifier = Modifier.fillMaxSize()
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState())
+                            .padding(16.dp)
+                            .padding(bottom = 80.dp) // Space for FABs
                     ) {
-                        // Community Images button (only for Civitai)
-                        if (uiState.selectedProvider == ModelProvider.CIVITAI) {
-                            Button(
-                                onClick = onToggleCommunityImages,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 8.dp)
-                            ) {
-                                Text("🖼 Community Images")
-                            }
-                        }
-
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .verticalScroll(rememberScrollState())
-                                .padding(16.dp)
-                                .padding(bottom = 80.dp) // Space for FAB
-                        ) {
                 // Image gallery (if version has images)
                 uiState.selectedVersion?.let { version ->
-                    if (version.images.isNotEmpty()) {
+                    // Filter images based on NSFW setting
+                    val filteredImages = if (showNsfw) version.images else version.images.filter { it.nsfwLevel <= 4 }
+                    
+                    if (filteredImages.isNotEmpty()) {
                         LazyRow(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            lazyItems(version.images) { image ->
+                            lazyItems(filteredImages) { image ->
                                 val imageUrl = image.url.replace("/original=true/", "/width=400/")
                                 AsyncImage(
                                     model = ImageRequest.Builder(context)
@@ -678,14 +671,28 @@ fun ModelDetailBottomSheet(
                         }
                     }
 
-                    // Download FAB (pinned bottom-right)
-                    SmallFloatingActionButton(
-                        onClick = { showDownloadDialog = true },
+                    // FAB column at bottom-right
+                    Column(
                         modifier = Modifier
                             .align(Alignment.BottomEnd)
-                            .padding(16.dp)
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Icon(Icons.Default.Download, contentDescription = "Download")
+                        // Community images FAB (only for Civitai)
+                        if (uiState.selectedProvider == ModelProvider.CIVITAI) {
+                            SmallFloatingActionButton(
+                                onClick = onToggleCommunityImages,
+                                containerColor = MaterialTheme.colorScheme.secondaryContainer
+                            ) {
+                                Icon(Icons.Default.Photo, contentDescription = "Community Images")
+                            }
+                        }
+                        // Download FAB
+                        SmallFloatingActionButton(
+                            onClick = { showDownloadDialog = true }
+                        ) {
+                            Icon(Icons.Default.Download, contentDescription = "Download")
+                        }
                     }
                 }
             }

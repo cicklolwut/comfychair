@@ -7,6 +7,7 @@ import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
@@ -58,33 +59,15 @@ fun CommunityImagesScreen(
             }
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        // Top bar
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onBack) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "Back to Model")
-            }
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = "Community Images",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-        }
-
-        // Grid of images
+    Box(modifier = Modifier.fillMaxSize()) {
+        // Grid of images (now takes full height — no header)
         LazyVerticalGrid(
             columns = GridCells.Fixed(2),
             state = gridState,
             contentPadding = PaddingValues(8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.fillMaxSize()
         ) {
             items(images, key = { it.id }) { image ->
                 CommunityImageCard(
@@ -92,18 +75,31 @@ fun CommunityImagesScreen(
                     onClick = { selectedImage = image }
                 )
             }
+
+            // Loading indicator at bottom
+            if (isLoading) {
+                item(span = { GridItemSpan(2) }) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator()
+                    }
+                }
+            }
         }
 
-        // Loading indicator
-        if (isLoading) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator()
-            }
+        // Floating back button (bottom-right)
+        SmallFloatingActionButton(
+            onClick = onBack,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(16.dp),
+            containerColor = MaterialTheme.colorScheme.secondaryContainer
+        ) {
+            Icon(Icons.Default.ArrowBack, contentDescription = "Back to model")
         }
     }
 

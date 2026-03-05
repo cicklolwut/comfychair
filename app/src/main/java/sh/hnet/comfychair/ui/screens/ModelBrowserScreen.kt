@@ -553,7 +553,7 @@ fun ModelGridCard(
                             .horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        model.tags.take(8).forEach { tag ->
+                        model.tags.take(6).forEach { tag ->
                             MiniChip(
                                 text = tag,
                                 containerColor = MaterialTheme.colorScheme.surfaceVariant,

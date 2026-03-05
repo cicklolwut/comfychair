@@ -632,7 +632,14 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
             current.add(level)
         }
         modelBrowserSettings.nsfwLevels = current
-        _uiState.value = _uiState.value.copy(nsfwLevels = current)
+        // Clear results immediately so stale thumbnails (selected with old NSFW levels)
+        // don't stay visible while the new search is in flight.
+        _uiState.value = _uiState.value.copy(
+            nsfwLevels = current,
+            searchResults = emptyList(),
+            searchOffset = 0,
+            hasMoreResults = false
+        )
         triggerDebouncedSearch()
 
         // If community images are currently visible, clear and reload with new browsingLevel.

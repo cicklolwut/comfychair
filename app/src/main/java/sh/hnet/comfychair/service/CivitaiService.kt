@@ -310,8 +310,12 @@ class CivitaiService(
      * @param prioritizedUserIds Optional list of user IDs whose images appear first (e.g. model creator)
      * @return Pair of images list and next cursor (integer serialized as String, or null)
      */
+    /**
+     * @param modelId The model ID (required by getImagesAsPostsInfinite)
+     */
     suspend fun getModelImages(
         modelVersionId: String,
+        modelId: String? = null,
         limit: Int = 20,
         cursor: String? = null,
         browsingLevel: Int? = null,
@@ -321,50 +325,43 @@ class CivitaiService(
         val apiKey = settings.civitaiApiKey
         require(apiKey.isNotBlank()) { "Civitai API key not configured" }
 
-        // Build the trpc input JSON.
-        // When cursor is null, include meta.values.cursor=["undefined"] as required by trpc.
-        // When cursor is an integer, omit meta.values so the server treats it as a real cursor.
+        // Use getImagesAsPostsInfinite — it actually respects sort order.
+        // getInfinite ignores the sort param and always returns newest-first.
         val inputJson = buildString {
             append("{\"json\":{")
-            append("\"modelVersionId\":$modelVersionId,")
-            if (prioritizedUserIds.isNotEmpty()) {
-                append("\"prioritizedUserIds\":[${prioritizedUserIds.joinToString(",")}],")
-            } else {
-                append("\"prioritizedUserIds\":[],")
-            }
             append("\"period\":\"AllTime\",")
+            append("\"periodMode\":\"published\",")
             append("\"sort\":\"$sort\",")
-            append("\"limit\":$limit,")
-            append("\"pending\":true,")
-            append("\"include\":[],")
             append("\"withMeta\":true,")
-            append("\"excludedTagIds\":[],")
-            append("\"disablePoi\":true,")
-            append("\"disableMinor\":true,")
+            append("\"requiringMeta\":false,")
+            append("\"modelVersionId\":$modelVersionId,")
+            if (modelId != null) {
+                append("\"modelId\":$modelId,")
+            }
+            append("\"hidden\":false,")
+            append("\"limit\":$limit,")
+            append("\"browsingLevel\":${browsingLevel ?: 31},")
             if (cursor != null) {
-                // Pass as integer (no quotes)
-                append("\"cursor\":$cursor,")
+                append("\"cursor\":\"$cursor\",")
             } else {
                 append("\"cursor\":null,")
             }
             append("\"authed\":true")
             append("}")
             if (cursor == null) {
-                // Required by trpc when cursor is undefined/null
                 append(",\"meta\":{\"values\":{\"cursor\":[\"undefined\"]}}")
             }
             append("}")
         }
 
         val encodedInput = java.net.URLEncoder.encode(inputJson, "UTF-8")
-        val url = "https://civitai.com/api/trpc/image.getInfinite?input=$encodedInput"
+        val url = "https://civitai.com/api/trpc/image.getImagesAsPostsInfinite?input=$encodedInput"
 
-        DebugLogger.d(TAG, "Fetching trpc images for version $modelVersionId (cursor=$cursor)")
+        DebugLogger.d(TAG, "Fetching trpc images for version $modelVersionId sort=$sort (cursor=$cursor)")
 
         val request = Request.Builder()
             .url(url)
             .header("Authorization", "Bearer $apiKey")
-            // trpc endpoints may also require cookie-based auth
             .header("Cookie", "__Secure-civitai-token=$apiKey")
             .get()
             .build()
@@ -383,21 +380,26 @@ class CivitaiService(
             .getJSONObject("data")
             .getJSONObject("json")
 
-        val items = resultData.optJSONArray("items") ?: return@withContext Pair(emptyList(), null)
+        val posts = resultData.optJSONArray("items") ?: return@withContext Pair(emptyList(), null)
         val nextCursor = if (resultData.isNull("nextCursor")) null
                          else resultData.optString("nextCursor", null)
 
+        // Flatten posts → images (each post can contain multiple images)
         val images = mutableListOf<CommunityImage>()
-        for (i in 0 until items.length()) {
-            val item = items.getJSONObject(i)
-            try {
-                images.add(parseCommunityImage(item))
-            } catch (e: Exception) {
-                DebugLogger.w(TAG, "Failed to parse image: ${e.message}")
+        for (i in 0 until posts.length()) {
+            val post = posts.getJSONObject(i)
+            val postImages = post.optJSONArray("images") ?: continue
+            for (j in 0 until postImages.length()) {
+                val item = postImages.getJSONObject(j)
+                try {
+                    images.add(parseCommunityImage(item))
+                } catch (e: Exception) {
+                    DebugLogger.w(TAG, "Failed to parse image: ${e.message}")
+                }
             }
         }
 
-        DebugLogger.d(TAG, "Found ${images.size} images (nextCursor=$nextCursor)")
+        DebugLogger.d(TAG, "Found ${images.size} images from ${posts.length()} posts (nextCursor=$nextCursor)")
         Pair(images, nextCursor)
     }
 
@@ -405,7 +407,7 @@ class CivitaiService(
         val id = json.optLong("id", 0)
         // trpc returns `url` as a UUID only — not a full CDN URL.
         val uuid = json.optString("url", "")
-        val name = json.optString("name", "$id.jpg")
+        val name = if (json.isNull("name")) "$id.jpg" else json.optString("name", "$id.jpg")
         val width = json.optInt("width", 0)
         val height = json.optInt("height", 0)
         // trpc returns nsfwLevel as an integer directly (e.g. 1, 4, 8)

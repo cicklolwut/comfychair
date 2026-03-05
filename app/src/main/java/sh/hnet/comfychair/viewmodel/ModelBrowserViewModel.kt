@@ -525,13 +525,13 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoadingCommunityImages = true)
             try {
-                val creatorIds = _uiState.value.selectedModel?.creatorId?.let { listOf(it) } ?: emptyList()
+                val modelId = _uiState.value.selectedModel?.id
                 val (images, nextCursor) = civitaiService.getModelImages(
                     modelVersionId = version.id,
+                    modelId = modelId,
                     limit = 20,
                     cursor = null,
                     browsingLevel = _uiState.value.nsfwLevels.sum(),
-                    prioritizedUserIds = creatorIds,
                     sort = _uiState.value.communityImagesSort
                 )
 
@@ -563,13 +563,13 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoadingCommunityImages = true)
             try {
-                val creatorIds = _uiState.value.selectedModel?.creatorId?.let { listOf(it) } ?: emptyList()
+                val modelId = _uiState.value.selectedModel?.id
                 val (newImages, nextCursor) = civitaiService.getModelImages(
                     modelVersionId = version.id,
+                    modelId = modelId,
                     limit = 20,
                     cursor = cursor,
                     browsingLevel = _uiState.value.nsfwLevels.sum(),
-                    prioritizedUserIds = creatorIds,
                     sort = _uiState.value.communityImagesSort
                 )
 

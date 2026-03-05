@@ -14,7 +14,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items as lazyItems
-import kotlinx.coroutines.flow.snapshotFlow
+import androidx.compose.runtime.snapshotFlow
 import coil3.imageLoader
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
@@ -698,7 +698,6 @@ fun ModelDetailBottomSheet(
                 }
             }
         }
-    }
 
     // Download config dialog
     if (showDownloadDialog) {

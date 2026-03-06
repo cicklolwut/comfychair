@@ -24,6 +24,7 @@ class ModelBrowserSettings(context: Context) {
         private const val KEY_SHOW_ANIMATIONS = "show_animations"
         private const val KEY_TAG_CACHE = "tag_cache"
         private const val KEY_BLUR_THRESHOLD = "blur_threshold"
+        private const val KEY_BROWSE_LEVEL = "browse_level"
         // Civitai NSFW level mapping:
         // 1=PG, 2=PG-13, 4=R, 8=X, 16=XXX, 32=Blocked
         val DEFAULT_NSFW_LEVELS = setOf(1, 2, 4) // PG, PG-13, R
@@ -48,6 +49,7 @@ class ModelBrowserSettings(context: Context) {
     private var _nsfwLevels: Set<Int>? = null
     private var _showAnimations: Boolean? = null
     private var _blurThreshold: Int? = null
+    private var _browseLevel: Int? = null
     private var _tagCache: MutableMap<Int, String>? = null
 
     /** Civitai API key. */
@@ -102,6 +104,14 @@ class ModelBrowserSettings(context: Context) {
         set(value) {
             _blurThreshold = value
             prefs.edit().putInt(KEY_BLUR_THRESHOLD, value).apply()
+        }
+
+    /** Browse level for community images. Bitmask: 1=PG, 3=PG-13, 7=R, 15=X, 31=XXX. Default: 31 (all). */
+    var browseLevel: Int
+        get() = _browseLevel ?: prefs.getInt(KEY_BROWSE_LEVEL, 31).also { _browseLevel = it }
+        set(value) {
+            _browseLevel = value
+            prefs.edit().putInt(KEY_BROWSE_LEVEL, value).apply()
         }
 
     /** Whether Civitai is configured (has API key). */

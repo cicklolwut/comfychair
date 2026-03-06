@@ -336,7 +336,7 @@ fun ModelBrowserScreen(
                     .heightIn(min = 300.dp, max = 500.dp)
                     .verticalScroll(rememberScrollState())
                     .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 // Title
                 Text(
@@ -349,9 +349,9 @@ fun ModelBrowserScreen(
 
                 HorizontalDivider()
 
-                // NSFW Max Level (Civitai only)
+                // NSFW Max Level (Civitai only) — controls model search results
                 if (uiState.selectedProvider == ModelProvider.CIVITAI) {
-                    Text("Max Content Level:", style = MaterialTheme.typography.labelMedium)
+                    Text("Model Search Level:", style = MaterialTheme.typography.labelMedium)
                     Spacer(modifier = Modifier.height(4.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -367,9 +367,9 @@ fun ModelBrowserScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        "Select the highest content level to include. Lower levels are always included.",
+                        "Controls which models appear in search results. Image filtering is in the filter menu.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

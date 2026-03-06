@@ -104,6 +104,7 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
         nsfwLevels = modelBrowserSettings.nsfwLevels,
         showAnimations = modelBrowserSettings.showAnimations,
         blurThreshold = modelBrowserSettings.blurThreshold,
+        browseLevel = modelBrowserSettings.browseLevel,
         apiKey = modelBrowserSettings.civitaiApiKey // Initial load, updated on provider switch
     ))
     val uiState: StateFlow<ModelBrowserUiState> = _uiState.asStateFlow()
@@ -770,6 +771,7 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
      * This is different from nsfwLevels which controls model fetching.
      */
     fun setBrowseLevel(level: Int) {
+        modelBrowserSettings.browseLevel = level
         _uiState.value = _uiState.value.copy(browseLevel = level)
     }
 

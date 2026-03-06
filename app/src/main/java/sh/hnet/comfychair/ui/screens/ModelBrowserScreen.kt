@@ -867,15 +867,25 @@ fun ModelDetailBottomSheet(
             if (uiState.showCommunityImages) {
                 CommunityImagesScreen(
                     images = uiState.communityImages,
+                    posts = uiState.communityPosts,
                     isLoading = uiState.isLoadingCommunityImages,
                     hasMore = uiState.hasMoreCommunityImages,
                     browseLevel = uiState.browseLevel,
                     showAnimations = uiState.showAnimations,
                     currentSort = uiState.communityImagesSort,
+                    typeFilter = uiState.communityTypeFilter,
+                    metaOnly = uiState.communityMetaOnly,
+                    featuredFirst = uiState.communityFeaturedFirst,
+                    groupByPost = uiState.communityGroupByPost,
                     onSortChanged = onSortCommunityImages,
+                    onTypeFilterChanged = { viewModel.setCommunityTypeFilter(it) },
+                    onMetaOnlyChanged = { viewModel.setCommunityMetaOnly(it) },
+                    onFeaturedFirstChanged = { viewModel.setCommunityFeaturedFirst(it) },
+                    onGroupByPostChanged = { viewModel.setCommunityGroupByPost(it) },
                     onLoadMore = onLoadMoreCommunityImages,
                     onBack = onToggleCommunityImages,
-                    onImportWorkflow = onImportWorkflow
+                    onImportWorkflow = onImportWorkflow,
+                    onFetchMetadata = { imageId, callback -> viewModel.fetchImageMetadata(imageId, callback) }
                 )
             } else {
                 Box(modifier = Modifier.fillMaxSize()) {

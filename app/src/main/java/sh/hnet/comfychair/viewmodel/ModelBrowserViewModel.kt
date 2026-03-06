@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import sh.hnet.comfychair.model.CommunityImage
+import sh.hnet.comfychair.model.CommunityPost
 import sh.hnet.comfychair.model.ModelProvider
 import sh.hnet.comfychair.model.ModelSearchResult
 import sh.hnet.comfychair.model.ModelType
@@ -49,11 +50,17 @@ data class ModelBrowserUiState(
     val downloadProgress: String? = null,
     val errorMessage: String? = null,
     val communityImages: List<CommunityImage> = emptyList(),
+    val communityPosts: List<CommunityPost> = emptyList(),
     val isLoadingCommunityImages: Boolean = false,
     val showCommunityImages: Boolean = false,
     val communityImagesCursor: String? = null,
     val hasMoreCommunityImages: Boolean = true,
     val communityImagesSort: String = "Most Reactions",
+    // Community image filters
+    val communityTypeFilter: String? = null,          // null=all, "image", "video"
+    val communityMetaOnly: Boolean = false,           // only show entries with generation metadata
+    val communityFeaturedFirst: Boolean = true,        // pinned posts at top
+    val communityGroupByPost: Boolean = false,         // group images by post vs flat grid
     // Search filters
     val filterModelType: String? = null, // "Checkpoint", "LORA", etc.
     val filterBaseModel: String? = null, // "Illustrious", "NoobAI", etc.
@@ -422,6 +429,7 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
             selectedFile = version.files.firstOrNull(),
             // Clear stale community images when switching versions
             communityImages = emptyList(),
+            communityPosts = emptyList(),
             communityImagesCursor = null,
             hasMoreCommunityImages = true,
             showCommunityImages = false
@@ -590,6 +598,7 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
         _uiState.value = _uiState.value.copy(
             communityImagesSort = sort,
             communityImages = emptyList(),
+            communityPosts = emptyList(),
             communityImagesCursor = null,
             hasMoreCommunityImages = true
         )
@@ -616,23 +625,26 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
                 val nsfwBitmask = _uiState.value.nsfwLevels.fold(0) { acc, level -> acc or level }
                 val browsingLevel = nsfwBitmask and _uiState.value.browseLevel
                 
-                val (images, nextCursor) = civitaiTrpcService.getModelImages(
+                val typeFilter = _uiState.value.communityTypeFilter?.let { listOf(it) }
+                val result = civitaiTrpcService.getModelImages(
                     modelVersionId = version.id,
                     modelId = modelId,
                     limit = 20,
                     cursor = null,
                     browsingLevel = browsingLevel,
-                    sort = _uiState.value.communityImagesSort
+                    sort = _uiState.value.communityImagesSort,
+                    types = typeFilter
                 )
 
                 _uiState.value = _uiState.value.copy(
-                    communityImages = images,
+                    communityImages = result.images,
+                    communityPosts = result.posts,
                     isLoadingCommunityImages = false,
-                    communityImagesCursor = nextCursor,
-                    hasMoreCommunityImages = nextCursor != null
+                    communityImagesCursor = result.nextCursor,
+                    hasMoreCommunityImages = result.nextCursor != null
                 )
                 // Cache metadata + trigger prefetch
-                cacheAndPrefetch(images, modelId, version.id)
+                cacheAndPrefetch(result.images, modelId, version.id)
             } catch (e: Exception) {
                 DebugLogger.w(TAG, "Failed to load community images: ${e.message}")
                 _uiState.value = _uiState.value.copy(isLoadingCommunityImages = false)
@@ -659,23 +671,26 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
                 val nsfwBitmask = _uiState.value.nsfwLevels.fold(0) { acc, level -> acc or level }
                 val browsingLevel = nsfwBitmask and _uiState.value.browseLevel
                 
-                val (newImages, nextCursor) = civitaiTrpcService.getModelImages(
+                val typeFilter = _uiState.value.communityTypeFilter?.let { listOf(it) }
+                val result = civitaiTrpcService.getModelImages(
                     modelVersionId = version.id,
                     modelId = modelId,
                     limit = 20,
                     cursor = cursor,
                     browsingLevel = browsingLevel,
-                    sort = _uiState.value.communityImagesSort
+                    sort = _uiState.value.communityImagesSort,
+                    types = typeFilter
                 )
 
                 _uiState.value = _uiState.value.copy(
-                    communityImages = _uiState.value.communityImages + newImages,
+                    communityImages = _uiState.value.communityImages + result.images,
+                    communityPosts = _uiState.value.communityPosts + result.posts,
                     isLoadingCommunityImages = false,
-                    communityImagesCursor = nextCursor,
-                    hasMoreCommunityImages = nextCursor != null
+                    communityImagesCursor = result.nextCursor,
+                    hasMoreCommunityImages = result.nextCursor != null
                 )
                 // Cache metadata + trigger prefetch
-                cacheAndPrefetch(newImages, modelId, version.id)
+                cacheAndPrefetch(result.images, modelId, version.id)
             } catch (e: Exception) {
                 DebugLogger.w(TAG, "Failed to load more community images: ${e.message}")
                 _uiState.value = _uiState.value.copy(isLoadingCommunityImages = false)
@@ -689,11 +704,42 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
     fun clearCommunityImages() {
         _uiState.value = _uiState.value.copy(
             communityImages = emptyList(),
+            communityPosts = emptyList(),
             isLoadingCommunityImages = false,
             showCommunityImages = false,
             communityImagesCursor = null,
             hasMoreCommunityImages = true
         )
+    }
+
+    /**
+     * Set community image type filter (null=all, "image", "video").
+     * Triggers reload since this is a server-side filter.
+     */
+    fun setCommunityTypeFilter(type: String?) {
+        _uiState.value = _uiState.value.copy(
+            communityTypeFilter = type,
+            communityImages = emptyList(),
+            communityPosts = emptyList(),
+            communityImagesCursor = null,
+            hasMoreCommunityImages = true
+        )
+        loadCommunityImages()
+    }
+
+    /** Toggle metadata-only filter (client-side). */
+    fun setCommunityMetaOnly(enabled: Boolean) {
+        _uiState.value = _uiState.value.copy(communityMetaOnly = enabled)
+    }
+
+    /** Toggle featured/pinned posts first (client-side). */
+    fun setCommunityFeaturedFirst(enabled: Boolean) {
+        _uiState.value = _uiState.value.copy(communityFeaturedFirst = enabled)
+    }
+
+    /** Toggle group-by-post view mode (client-side). */
+    fun setCommunityGroupByPost(enabled: Boolean) {
+        _uiState.value = _uiState.value.copy(communityGroupByPost = enabled)
     }
 
     /**
@@ -765,7 +811,8 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
         if (_uiState.value.showCommunityImages) {
             _uiState.value = _uiState.value.copy(
                 communityImages = emptyList(),
-                communityImagesCursor = null,
+                communityPosts = emptyList(),
+            communityImagesCursor = null,
                 hasMoreCommunityImages = true
             )
             loadCommunityImages()
@@ -901,6 +948,25 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
                 )
                 prefetchManager.prefetch(uncached)
             }
+        }
+    }
+
+    /**
+     * Lazy-load generation metadata for a community image.
+     * Called when user opens fullscreen viewer — the trpc list endpoint
+     * doesn't include meta, so we fetch it via REST on demand.
+     */
+    fun fetchImageMetadata(imageId: Long, onResult: (sh.hnet.comfychair.model.GenerationMetadata?) -> Unit) {
+        viewModelScope.launch {
+            val meta = civitaiTrpcService.getImageMetadata(imageId)
+            // Update the image in state with the fetched metadata
+            if (meta != null) {
+                val updated = _uiState.value.communityImages.map { img ->
+                    if (img.id == imageId) img.copy(meta = meta) else img
+                }
+                _uiState.value = _uiState.value.copy(communityImages = updated)
+            }
+            onResult(meta)
         }
     }
 

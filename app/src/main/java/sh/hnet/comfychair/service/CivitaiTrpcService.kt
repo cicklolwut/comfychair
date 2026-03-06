@@ -6,6 +6,7 @@ import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
 import sh.hnet.comfychair.model.CommunityImage
+import sh.hnet.comfychair.model.CommunityPost
 import sh.hnet.comfychair.model.GenerationMetadata
 import sh.hnet.comfychair.model.GenerationResource
 import sh.hnet.comfychair.model.ImageStats
@@ -209,14 +210,25 @@ class CivitaiTrpcService(
      * Get community images for a model version via image.getImagesAsPostsInfinite.
      * Already implemented in old CivitaiService — moved here.
      */
+    /**
+     * Result container for community image queries.
+     * Contains both flat images and structured posts for different view modes.
+     */
+    data class CommunityImageResult(
+        val images: List<CommunityImage>,
+        val posts: List<CommunityPost>,
+        val nextCursor: String?
+    )
+
     suspend fun getModelImages(
         modelVersionId: String,
         modelId: String? = null,
         limit: Int = 20,
         cursor: String? = null,
         browsingLevel: Int? = null,
-        sort: String = "Most Reactions"
-    ): Pair<List<CommunityImage>, String?> = withContext(Dispatchers.IO) {
+        sort: String = "Most Reactions",
+        types: List<String>? = null
+    ): CommunityImageResult = withContext(Dispatchers.IO) {
         val apiKey = settings.civitaiApiKey.takeIf { it.isNotBlank() }
 
         val inputJson = buildString {
@@ -224,11 +236,13 @@ class CivitaiTrpcService(
             append("\"period\":\"AllTime\",")
             append("\"periodMode\":\"published\",")
             append("\"sort\":\"$sort\",")
-            append("\"withMeta\":true,")
-            append("\"requiringMeta\":false,")
+            append("\"withMeta\":false,")
             append("\"modelVersionId\":$modelVersionId,")
             if (modelId != null) {
                 append("\"modelId\":$modelId,")
+            }
+            if (types != null && types.isNotEmpty()) {
+                append("\"types\":[${types.joinToString(",") { "\"$it\"" }}],")
             }
             append("\"hidden\":false,")
             append("\"limit\":$limit,")
@@ -249,7 +263,7 @@ class CivitaiTrpcService(
         val encodedInput = URLEncoder.encode(inputJson, "UTF-8")
         val url = "$TRPC_BASE/image.getImagesAsPostsInfinite?input=$encodedInput"
 
-        DebugLogger.d(TAG, "getModelImages: versionId=$modelVersionId sort=$sort cursor=$cursor")
+        DebugLogger.d(TAG, "getModelImages: versionId=$modelVersionId sort=$sort cursor=$cursor types=$types")
 
         val request = buildRequest(url, apiKey)
         val response = client.newCall(request).execute()
@@ -266,26 +280,47 @@ class CivitaiTrpcService(
             .getJSONObject("data")
             .getJSONObject("json")
 
-        val posts = resultData.optJSONArray("items") ?: return@withContext Pair(emptyList(), null)
+        val postsArray = resultData.optJSONArray("items") ?: return@withContext CommunityImageResult(emptyList(), emptyList(), null)
         val nextCursor = if (resultData.isNull("nextCursor")) null
                          else resultData.optString("nextCursor", null)
 
-        // Flatten posts → images (each post can contain multiple images)
-        val images = mutableListOf<CommunityImage>()
-        for (i in 0 until posts.length()) {
-            val post = posts.getJSONObject(i)
+        // Parse posts with structure preserved
+        val allImages = mutableListOf<CommunityImage>()
+        val communityPosts = mutableListOf<CommunityPost>()
+
+        for (i in 0 until postsArray.length()) {
+            val post = postsArray.getJSONObject(i)
+            val postId = post.optLong("postId", 0)
+            val pinned = post.optBoolean("pinned", false)
+            val postNsfwLevel = post.optInt("nsfwLevel", 1)
+            val username = post.optJSONObject("user")?.optString("username")
+            val publishedAt = post.optString("publishedAt", null)
+
             val postImages = post.optJSONArray("images") ?: continue
+            val parsedImages = mutableListOf<CommunityImage>()
             for (j in 0 until postImages.length()) {
                 try {
-                    images.add(parseCommunityImage(postImages.getJSONObject(j)))
+                    parsedImages.add(parseCommunityImage(postImages.getJSONObject(j), postId))
                 } catch (e: Exception) {
                     DebugLogger.w(TAG, "Failed to parse community image: ${e.message}")
                 }
             }
+
+            if (parsedImages.isNotEmpty()) {
+                communityPosts.add(CommunityPost(
+                    postId = postId,
+                    pinned = pinned,
+                    nsfwLevel = postNsfwLevel,
+                    username = username,
+                    publishedAt = publishedAt,
+                    images = parsedImages
+                ))
+                allImages.addAll(parsedImages)
+            }
         }
 
-        DebugLogger.d(TAG, "getModelImages: found ${images.size} images from ${posts.length()} posts")
-        Pair(images, nextCursor)
+        DebugLogger.d(TAG, "getModelImages: found ${allImages.size} images from ${communityPosts.size} posts")
+        CommunityImageResult(allImages, communityPosts, nextCursor)
     }
 
     /**
@@ -689,7 +724,7 @@ class CivitaiTrpcService(
     /**
      * Parse a community image from getImagesAsPostsInfinite response.
      */
-    private fun parseCommunityImage(json: JSONObject): CommunityImage {
+    private fun parseCommunityImage(json: JSONObject, postId: Long = 0): CommunityImage {
         val id = json.optLong("id", 0)
         val uuid = json.optString("url", "")
         val name = if (json.isNull("name")) "$id.jpg" else json.optString("name", "$id.jpg")
@@ -732,6 +767,8 @@ class CivitaiTrpcService(
             height = height,
             nsfwLevel = nsfwLevel,
             type = if (isVideo) "video" else "image",
+            hasMeta = json.optBoolean("hasMeta", false),
+            postId = postId,
             stats = stats,
             meta = meta
         )
@@ -791,6 +828,30 @@ class CivitaiTrpcService(
             baseModel = baseModel,
             resources = resources
         )
+    }
+
+    /**
+     * Fetch generation metadata for a specific image via REST API.
+     * The trpc endpoint doesn't include meta in list responses —
+     * this is the only way to get prompt/seed/sampler for community images.
+     */
+    suspend fun getImageMetadata(imageId: Long): GenerationMetadata? = withContext(Dispatchers.IO) {
+        val apiKey = settings.civitaiApiKey.takeIf { it.isNotBlank() }
+        val url = "https://civitai.com/api/v1/images?id=$imageId"
+
+        val request = buildRequest(url, apiKey)
+        val response = client.newCall(request).execute()
+
+        if (!response.isSuccessful) return@withContext null
+
+        val body = response.body?.string() ?: return@withContext null
+        val root = JSONObject(body)
+        val items = root.optJSONArray("items")
+        if (items == null || items.length() == 0) return@withContext null
+
+        val imgObj = items.getJSONObject(0)
+        val metaObj = if (!imgObj.isNull("meta")) imgObj.optJSONObject("meta") else null
+        if (metaObj != null) parseGenerationMetadata(metaObj) else null
     }
 
     /**

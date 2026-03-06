@@ -55,6 +55,7 @@ import coil3.toBitmap
 import org.json.JSONArray
 import org.json.JSONObject
 import sh.hnet.comfychair.model.CommunityImage
+import sh.hnet.comfychair.model.CommunityPost
 import sh.hnet.comfychair.model.GenerationMetadata
 import sh.hnet.comfychair.ui.components.ImageViewer
 import sh.hnet.comfychair.ui.components.VideoPlayer
@@ -64,40 +65,79 @@ import sh.hnet.comfychair.ui.components.VideoScaleMode
 @Composable
 fun CommunityImagesScreen(
     images: List<CommunityImage>,
+    posts: List<CommunityPost> = emptyList(),
     isLoading: Boolean,
     hasMore: Boolean,
     browseLevel: Int = 31,
     showAnimations: Boolean = false,
     currentSort: String = "Most Reactions",
+    typeFilter: String? = null,
+    metaOnly: Boolean = false,
+    featuredFirst: Boolean = true,
+    groupByPost: Boolean = false,
     onSortChanged: (String) -> Unit = {},
+    onTypeFilterChanged: (String?) -> Unit = {},
+    onMetaOnlyChanged: (Boolean) -> Unit = {},
+    onFeaturedFirstChanged: (Boolean) -> Unit = {},
+    onGroupByPostChanged: (Boolean) -> Unit = {},
     onLoadMore: () -> Unit,
     onBack: () -> Unit,
-    onImportWorkflow: (String) -> Unit
+    onImportWorkflow: (String) -> Unit,
+    onFetchMetadata: ((Long, (GenerationMetadata?) -> Unit) -> Unit)? = null
 ) {
     val context = LocalContext.current
     var selectedImageIndex by remember { mutableIntStateOf(-1) }
     val gridState = rememberLazyGridState()
 
-    // Filter images based on browse level (bitmask comparison)
-    // Include images with nsfwLevel <= browseLevel
+    // Apply client-side filters
     val filteredImages = images.filter { image ->
-        (image.nsfwLevel and browseLevel) == image.nsfwLevel
+        // Browse level filter
+        val passesNsfw = (image.nsfwLevel and browseLevel) == image.nsfwLevel
+        // Metadata filter
+        val passesMeta = !metaOnly || image.hasMeta
+        passesNsfw && passesMeta
+    }.let { filtered ->
+        if (featuredFirst) {
+            // Pinned posts' images first
+            val pinnedPostIds = posts.filter { it.pinned }.map { it.postId }.toSet()
+            val pinned = filtered.filter { it.postId in pinnedPostIds }
+            val rest = filtered.filter { it.postId !in pinnedPostIds }
+            pinned + rest
+        } else filtered
     }
 
+    // For post-grouped view
+    val filteredPosts = if (groupByPost) {
+        posts.map { post ->
+            post.copy(images = post.images.filter { img ->
+                val passesNsfw = (img.nsfwLevel and browseLevel) == img.nsfwLevel
+                val passesMeta = !metaOnly || img.hasMeta
+                passesNsfw && passesMeta
+            })
+        }.filter { it.images.isNotEmpty() }.let { filtered ->
+            if (featuredFirst) {
+                val pinned = filtered.filter { it.pinned }
+                val rest = filtered.filter { !it.pinned }
+                pinned + rest
+            } else filtered
+        }
+    } else emptyList()
+
+    // Item count for pagination trigger
+    val itemCount = if (groupByPost) filteredPosts.size else filteredImages.size
+
     // Detect when scrolled near bottom for pagination
-    // Key on filteredImages.size so it re-evaluates when new images arrive
-    LaunchedEffect(gridState, filteredImages.size, hasMore, isLoading) {
+    LaunchedEffect(gridState, itemCount, hasMore, isLoading) {
         if (!hasMore || isLoading) return@LaunchedEffect
         snapshotFlow { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
             .collect { lastIndex ->
-                if (lastIndex != null && lastIndex >= filteredImages.size - 4) {
+                if (lastIndex != null && lastIndex >= itemCount - 4) {
                     onLoadMore()
                 }
             }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // Grid of images (now takes full height — no header)
         NoOverscrollContainer(modifier = Modifier.fillMaxSize()) {
         LazyVerticalGrid(
             columns = GridCells.Fixed(2),
@@ -107,12 +147,47 @@ fun CommunityImagesScreen(
             verticalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.fillMaxSize()
         ) {
-            items(filteredImages, key = { it.id }) { image ->
-                CommunityImageCard(
-                    image = image,
-                    showAnimations = showAnimations,
-                    onClick = { selectedImageIndex = filteredImages.indexOf(image) }
-                )
+            if (groupByPost) {
+                // Post-grouped view: each card shows first image with post count badge
+                items(filteredPosts, key = { it.postId }) { post ->
+                    val firstImage = post.images.first()
+                    Box {
+                        CommunityImageCard(
+                            image = firstImage,
+                            showAnimations = showAnimations,
+                            onClick = {
+                                // Open viewer with all images from this post
+                                selectedImageIndex = filteredImages.indexOf(firstImage)
+                            }
+                        )
+                        // Post media count badge
+                        if (post.images.size > 1) {
+                            Surface(
+                                color = Color.Black.copy(alpha = 0.7f),
+                                shape = MaterialTheme.shapes.small,
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(6.dp)
+                            ) {
+                                Text(
+                                    "${post.images.size}",
+                                    color = Color.White,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            } else {
+                // Flat view: one card per image
+                items(filteredImages, key = { it.id }) { image ->
+                    CommunityImageCard(
+                        image = image,
+                        showAnimations = showAnimations,
+                        onClick = { selectedImageIndex = filteredImages.indexOf(image) }
+                    )
+                }
             }
 
             // Loading indicator at bottom
@@ -153,7 +228,7 @@ fun CommunityImagesScreen(
             }
         }
 
-        // Sort bottom sheet
+        // Filter & Sort bottom sheet
         if (showSortSheet) {
             ModalBottomSheet(
                 onDismissRequest = { showSortSheet = false }
@@ -162,28 +237,78 @@ fun CommunityImagesScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(16.dp)
-                        .padding(bottom = 32.dp)
+                        .padding(bottom = 32.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text(
-                        "Sort Community Images",
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(bottom = 12.dp)
-                    )
+                    Text("Sort & Filter", style = MaterialTheme.typography.titleMedium)
+
+                    // Sort
+                    Text("Sort by:", style = MaterialTheme.typography.labelMedium)
                     val sortOptions = listOf("Most Reactions", "Most Comments", "Newest")
                     FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         sortOptions.forEach { sort ->
                             FilterChip(
                                 selected = currentSort == sort,
-                                onClick = {
-                                    onSortChanged(sort)
-                                    showSortSheet = false
-                                },
+                                onClick = { onSortChanged(sort) },
                                 label = { Text(sort) }
                             )
                         }
+                    }
+
+                    HorizontalDivider()
+
+                    // Type filter
+                    Text("Media type:", style = MaterialTheme.typography.labelMedium)
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        FilterChip(
+                            selected = typeFilter == null,
+                            onClick = { onTypeFilterChanged(null) },
+                            label = { Text("All") }
+                        )
+                        FilterChip(
+                            selected = typeFilter == "image",
+                            onClick = { onTypeFilterChanged("image") },
+                            label = { Text("Images") }
+                        )
+                        FilterChip(
+                            selected = typeFilter == "video",
+                            onClick = { onTypeFilterChanged("video") },
+                            label = { Text("Videos") }
+                        )
+                    }
+
+                    HorizontalDivider()
+
+                    // Toggles
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Featured first", style = MaterialTheme.typography.labelMedium)
+                        Switch(checked = featuredFirst, onCheckedChange = { onFeaturedFirstChanged(it) })
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Has metadata only", style = MaterialTheme.typography.labelMedium)
+                        Switch(checked = metaOnly, onCheckedChange = { onMetaOnlyChanged(it) })
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Group by post", style = MaterialTheme.typography.labelMedium)
+                        Switch(checked = groupByPost, onCheckedChange = { onGroupByPostChanged(it) })
                     }
                 }
             }
@@ -196,7 +321,8 @@ fun CommunityImagesScreen(
             images = filteredImages,
             initialIndex = selectedImageIndex,
             onDismiss = { selectedImageIndex = -1 },
-            onImportWorkflow = onImportWorkflow
+            onImportWorkflow = onImportWorkflow,
+            onFetchMetadata = onFetchMetadata
         )
     }
 }
@@ -307,12 +433,14 @@ private fun CommunityImageViewer(
     images: List<CommunityImage>,
     initialIndex: Int,
     onDismiss: () -> Unit,
-    onImportWorkflow: (String) -> Unit
+    onImportWorkflow: (String) -> Unit,
+    onFetchMetadata: ((Long, (GenerationMetadata?) -> Unit) -> Unit)? = null
 ) {
     val context = LocalContext.current
     var showMetadataSheet by remember { mutableStateOf(false) }
     var showPromptOverlay by remember { mutableStateOf(false) }
     var currentIndex by remember { mutableIntStateOf(initialIndex) }
+    var isLoadingMeta by remember { mutableStateOf(false) }
     
     val pagerState = rememberPagerState(
         initialPage = initialIndex,
@@ -323,6 +451,15 @@ private fun CommunityImageViewer(
     LaunchedEffect(pagerState) {
         snapshotFlow { pagerState.currentPage }
             .collect { page -> currentIndex = page }
+    }
+
+    // Lazy-load metadata when viewing an image that has meta but hasn't loaded it yet
+    val currentImage = images.getOrNull(currentIndex)
+    LaunchedEffect(currentImage?.id) {
+        if (currentImage != null && currentImage.hasMeta && currentImage.meta == null && onFetchMetadata != null) {
+            isLoadingMeta = true
+            onFetchMetadata(currentImage.id) { isLoadingMeta = false }
+        }
     }
 
     // Handle back button

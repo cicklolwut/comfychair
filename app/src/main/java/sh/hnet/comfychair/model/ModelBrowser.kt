@@ -106,8 +106,23 @@ data class CommunityImage(
     val height: Int,
     val nsfwLevel: Int,
     val type: String = "image",       // "image" or "video"
+    val hasMeta: Boolean = false,     // whether generation metadata exists (from API)
+    val postId: Long? = null,         // parent post ID for grouping
     val stats: ImageStats?,
     val meta: GenerationMetadata?
+)
+
+/**
+ * A community post containing one or more images/videos.
+ */
+@Immutable
+data class CommunityPost(
+    val postId: Long,
+    val pinned: Boolean = false,
+    val nsfwLevel: Int = 1,
+    val username: String? = null,
+    val publishedAt: String? = null,
+    val images: List<CommunityImage>
 )
 
 /**

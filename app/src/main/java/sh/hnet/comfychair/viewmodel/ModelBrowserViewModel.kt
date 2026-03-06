@@ -61,6 +61,7 @@ data class ModelBrowserUiState(
     val showAnimations: Boolean = false,
     val blurThreshold: Int = 2, // Default: blur images above PG-13
     val apiKey: String = "", // API key for current provider
+    val browseLevel: Int = 31 // Default: show all images (XXX)
     // Pagination (cursor-based for trpc)
     val searchCursor: String? = null,
     val hasMoreResults: Boolean = true,
@@ -754,6 +755,14 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
     fun setBlurThreshold(threshold: Int) {
         modelBrowserSettings.blurThreshold = threshold
         _uiState.value = _uiState.value.copy(blurThreshold = threshold)
+    }
+
+    /**
+     * Set browse level for image filtering (what images to show).
+     * This is different from nsfwLevels which controls model fetching.
+     */
+    fun setBrowseLevel(level: Int) {
+        _uiState.value = _uiState.value.copy(browseLevel = level)
     }
 
     /**

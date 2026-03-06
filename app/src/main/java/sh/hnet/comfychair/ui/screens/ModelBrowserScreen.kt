@@ -482,6 +482,32 @@ fun ModelBrowserScreen(
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
                 
+                // Browse Level (image NSFW filter)
+                Text("Image Content Level:", style = MaterialTheme.typography.labelMedium)
+                Spacer(modifier = Modifier.height(4.dp))
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    val browseLevels = listOf(
+                        1 to "PG",
+                        3 to "PG-13",
+                        7 to "R",
+                        15 to "X",
+                        31 to "XXX"
+                    )
+                    browseLevels.forEach { (level, label) ->
+                        FilterChip(
+                            selected = uiState.browseLevel == level,
+                            onClick = { viewModel.setBrowseLevel(level) },
+                            label = { Text(label, style = MaterialTheme.typography.labelSmall) }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+                HorizontalDivider()
+                Spacer(modifier = Modifier.height(12.dp))
+                
                 // Filters (reuse existing SearchFilters composable)
                 SearchFilters(
                     uiState = uiState,
@@ -729,7 +755,7 @@ fun ModelDetailBottomSheet(
                     images = uiState.communityImages,
                     isLoading = uiState.isLoadingCommunityImages,
                     hasMore = uiState.hasMoreCommunityImages,
-                    nsfwLevels = nsfwLevels,
+                    browseLevel = uiState.browseLevel,
                     showAnimations = uiState.showAnimations,
                     currentSort = uiState.communityImagesSort,
                     onSortChanged = onSortCommunityImages,

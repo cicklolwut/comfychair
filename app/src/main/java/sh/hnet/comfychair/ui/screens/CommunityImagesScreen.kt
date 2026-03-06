@@ -57,7 +57,7 @@ fun CommunityImagesScreen(
     images: List<CommunityImage>,
     isLoading: Boolean,
     hasMore: Boolean,
-    nsfwLevels: Set<Int>,
+    browseLevel: Int = 31,
     showAnimations: Boolean = false,
     currentSort: String = "Most Reactions",
     onSortChanged: (String) -> Unit = {},
@@ -69,8 +69,11 @@ fun CommunityImagesScreen(
     var selectedImageIndex by remember { mutableIntStateOf(-1) }
     val gridState = rememberLazyGridState()
 
-    // Filter images based on selected NSFW levels
-    val filteredImages = images.filter { it.nsfwLevel in nsfwLevels }
+    // Filter images based on browse level (bitmask comparison)
+    // Include images with nsfwLevel <= browseLevel
+    val filteredImages = images.filter { image ->
+        (image.nsfwLevel and browseLevel) == image.nsfwLevel
+    }
 
     // Detect when scrolled near bottom for pagination
     // Key on filteredImages.size so it re-evaluates when new images arrive
@@ -127,13 +130,13 @@ fun CommunityImagesScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            SmallFloatingActionButton(
+            FloatingActionButton(
                 onClick = { showSortSheet = true },
                 containerColor = MaterialTheme.colorScheme.secondaryContainer
             ) {
                 Icon(Icons.Default.FilterList, contentDescription = "Sort")
             }
-            SmallFloatingActionButton(
+            FloatingActionButton(
                 onClick = onBack,
                 containerColor = MaterialTheme.colorScheme.secondaryContainer
             ) {
@@ -334,10 +337,27 @@ private fun CommunityImageViewer(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Metadata/details button
+            // Save/download button
             val currentImage = images.getOrNull(currentIndex)
+            FloatingActionButton(
+                onClick = { 
+                    currentImage?.let { image ->
+                        // Download image to gallery
+                        val request = ImageRequest.Builder(context)
+                            .data(image.url)
+                            .build()
+                        context.imageLoader.enqueue(request)
+                        Toast.makeText(context, "Downloading image...", Toast.LENGTH_SHORT).show()
+                    }
+                },
+                containerColor = MaterialTheme.colorScheme.secondaryContainer
+            ) {
+                Icon(Icons.Default.Download, contentDescription = "Save image")
+            }
+            
+            // Metadata/details button
             if (currentImage?.meta != null) {
-                SmallFloatingActionButton(
+                FloatingActionButton(
                     onClick = { showMetadataSheet = true },
                     containerColor = MaterialTheme.colorScheme.secondaryContainer
                 ) {
@@ -346,7 +366,7 @@ private fun CommunityImageViewer(
             }
             
             // Close button
-            SmallFloatingActionButton(
+            FloatingActionButton(
                 onClick = onDismiss,
                 containerColor = MaterialTheme.colorScheme.secondaryContainer
             ) {

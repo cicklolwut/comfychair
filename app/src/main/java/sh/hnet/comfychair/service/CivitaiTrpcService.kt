@@ -414,9 +414,12 @@ class CivitaiTrpcService(
         val tagCache = settings.tagCache
         val tags = tagIds.mapNotNull { tagCache[it] }
         
-        // Cover image — pick first matching browsingLevel
+        // Cover image — pick first available (browseLevel filtering happens at display time)
         val imagesArray = json.optJSONArray("images")
-        val coverImage = selectCoverImage(imagesArray, browsingLevel)
+        val coverImage = if (imagesArray != null && imagesArray.length() > 0) {
+            imagesArray.getJSONObject(0)
+        } else null
+        val coverImageNsfwLevel = coverImage?.optInt("nsfwLevel", 1) ?: 1
         val (thumbnailUrl, animatedThumbnailUrl) = if (coverImage != null) {
             buildCdnUrls(coverImage)
         } else {
@@ -432,6 +435,7 @@ class CivitaiTrpcService(
             description = null,  // Not in getAll — load via getById
             thumbnailUrl = thumbnailUrl,
             animatedThumbnailUrl = animatedThumbnailUrl,
+            coverImageNsfwLevel = coverImageNsfwLevel,
             downloadCount = downloadCount,
             favoriteCount = favoriteCount,
             tags = tags,

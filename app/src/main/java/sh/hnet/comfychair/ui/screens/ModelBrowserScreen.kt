@@ -4,6 +4,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import android.text.Html
 import android.widget.Toast
 import android.widget.TextView
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -229,6 +230,7 @@ fun ModelBrowserScreen(
                                     filterType = uiState.filterModelType,
                                     filterBaseModel = uiState.filterBaseModel,
                                     showAnimations = uiState.showAnimations,
+                                    browseLevel = uiState.browseLevel,
                                     onClick = onClick
                                 )
                             }
@@ -628,10 +630,12 @@ fun ModelGridCard(
     filterType: String?,
     filterBaseModel: String?,
     showAnimations: Boolean = false,
+    browseLevel: Int = 31,
     onClick: () -> Unit
 ) {
     val context = LocalContext.current
     val displayUrl = if (showAnimations) model.animatedThumbnailUrl ?: model.thumbnailUrl else model.thumbnailUrl
+    val coverAllowed = (model.coverImageNsfwLevel and browseLevel) == model.coverImageNsfwLevel
     
     Card(
         modifier = Modifier
@@ -645,7 +649,7 @@ fun ModelGridCard(
                     .fillMaxWidth()
                     .aspectRatio(0.67f)
             ) {
-                if (displayUrl != null) {
+                if (displayUrl != null && coverAllowed) {
                     AsyncImage(
                         model = ImageRequest.Builder(context)
                             .data(displayUrl)
@@ -655,6 +659,21 @@ fun ModelGridCard(
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop
                     )
+                } else if (displayUrl != null && !coverAllowed) {
+                    // Cover image exists but blocked by browse level — show placeholder
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = model.name,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(8.dp)
+                        )
+                    }
                 } else {
                     Box(
                         modifier = Modifier

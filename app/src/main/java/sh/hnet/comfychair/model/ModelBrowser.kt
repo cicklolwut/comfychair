@@ -12,6 +12,7 @@ data class ModelSearchResult(
     val description: String?, // HTML from Civitai
     val thumbnailUrl: String?, // Cover image URL (static, anim=false)
     val animatedThumbnailUrl: String? = null, // Animated cover (no anim=false)
+    val coverImageNsfwLevel: Int = 1, // NSFW level of the cover image (for browseLevel filtering)
     val downloadCount: Long?,
     val favoriteCount: Long?,
     val tags: List<String>,

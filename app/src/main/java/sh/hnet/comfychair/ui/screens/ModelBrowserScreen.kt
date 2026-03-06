@@ -328,8 +328,7 @@ fun ModelBrowserScreen(
         val sheetState = rememberModalBottomSheetState()
         ModalBottomSheet(
             onDismissRequest = { showSettingsSheet = false },
-            sheetState = sheetState,
-            windowInsets = WindowInsets(0) // Remove insets for half-height
+            sheetState = sheetState
         ) {
             Column(
                 modifier = Modifier

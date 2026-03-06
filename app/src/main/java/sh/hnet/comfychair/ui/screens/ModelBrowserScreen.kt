@@ -110,6 +110,9 @@ fun ModelBrowserScreen(
     var settingsBlurThreshold by remember { mutableStateOf(uiState.blurThreshold) }
     var settingsShowAnimations by remember { mutableStateOf(uiState.showAnimations) }
     var settingsApiKey by remember { mutableStateOf(uiState.apiKey) }
+    var settingsCacheLimitMb by remember { mutableStateOf(viewModel.mediaCache.cacheLimitMb) }
+    var settingsPrefetchEnabled by remember { mutableStateOf(viewModel.mediaCache.prefetchEnabled) }
+    var settingsPrefetchCount by remember { mutableStateOf(viewModel.mediaCache.prefetchCount) }
 
     // Event handling
     LaunchedEffect(Unit) {
@@ -155,7 +158,7 @@ fun ModelBrowserScreen(
                 }
 
                 // Settings button
-                IconButton(onClick = { showSettingsSheet = true; settingsNsfwMax = uiState.nsfwLevels.maxOrNull() ?: 2; settingsBlurThreshold = uiState.blurThreshold; settingsShowAnimations = uiState.showAnimations; settingsApiKey = uiState.apiKey }) {
+                IconButton(onClick = { showSettingsSheet = true; settingsNsfwMax = uiState.nsfwLevels.maxOrNull() ?: 2; settingsBlurThreshold = uiState.blurThreshold; settingsShowAnimations = uiState.showAnimations; settingsApiKey = uiState.apiKey; settingsCacheLimitMb = viewModel.mediaCache.cacheLimitMb; settingsPrefetchEnabled = viewModel.mediaCache.prefetchEnabled; settingsPrefetchCount = viewModel.mediaCache.prefetchCount }) {
                     Icon(Icons.Default.Settings, "Settings")
                 }
             }
@@ -337,7 +340,7 @@ fun ModelBrowserScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 300.dp, max = 500.dp)
+                    .heightIn(min = 300.dp, max = 600.dp)
                     .verticalScroll(rememberScrollState())
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -434,6 +437,83 @@ fun ModelBrowserScreen(
                     modifier = Modifier.fillMaxWidth()
                 )
 
+                // --- Media Cache ---
+                if (uiState.selectedProvider == ModelProvider.CIVITAI) {
+                    HorizontalDivider()
+
+                    Text("Media Cache", style = MaterialTheme.typography.labelMedium)
+
+                    // Cache size limit
+                    Text("Cache limit:", style = MaterialTheme.typography.bodySmall)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        listOf(100L, 250L, 500L, 1024L).forEach { mb ->
+                            FilterChip(
+                                selected = settingsCacheLimitMb == mb,
+                                onClick = { settingsCacheLimitMb = mb },
+                                label = {
+                                    Text(
+                                        if (mb >= 1024) "${mb / 1024}GB" else "${mb}MB",
+                                        style = MaterialTheme.typography.labelSmall
+                                    )
+                                },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+
+                    // Prefetch toggle + count
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Prefetch videos", style = MaterialTheme.typography.labelMedium)
+                        Switch(
+                            checked = settingsPrefetchEnabled,
+                            onCheckedChange = { settingsPrefetchEnabled = it }
+                        )
+                    }
+                    if (settingsPrefetchEnabled) {
+                        Text("Per page:", style = MaterialTheme.typography.bodySmall)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            listOf(3, 5, 10, 20).forEach { count ->
+                                FilterChip(
+                                    selected = settingsPrefetchCount == count,
+                                    onClick = { settingsPrefetchCount = count },
+                                    label = { Text("$count", style = MaterialTheme.typography.labelSmall) },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                    }
+
+                    // Cache usage + clear button
+                    val cachedBytes = remember { viewModel.mediaCache.totalCachedBytes() }
+                    val cachedCount = remember { viewModel.mediaCache.cachedCount() }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "${cachedCount} files · ${cachedBytes / (1024 * 1024)}MB used",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        OutlinedButton(
+                            onClick = { viewModel.clearMediaCache() }
+                        ) {
+                            Text("Clear", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(8.dp))
 
                 // Save/Cancel buttons
@@ -456,6 +536,10 @@ fun ModelBrowserScreen(
                                 showAnimations = settingsShowAnimations,
                                 apiKey = settingsApiKey
                             )
+                            // Save cache settings
+                            viewModel.mediaCache.cacheLimitMb = settingsCacheLimitMb
+                            viewModel.mediaCache.prefetchEnabled = settingsPrefetchEnabled
+                            viewModel.mediaCache.prefetchCount = settingsPrefetchCount
                             showSettingsSheet = false
                         },
                         modifier = Modifier.weight(1f)

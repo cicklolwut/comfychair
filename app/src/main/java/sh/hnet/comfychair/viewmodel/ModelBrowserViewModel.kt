@@ -26,6 +26,9 @@ import sh.hnet.comfychair.service.HuggingFaceService
 import sh.hnet.comfychair.service.ComfyUIManagerService
 // AppSettings is an object singleton, not instantiated
 import sh.hnet.comfychair.storage.ModelBrowserSettings
+import sh.hnet.comfychair.storage.CivitaiMediaCache
+import sh.hnet.comfychair.storage.MediaCacheEntry
+import sh.hnet.comfychair.storage.MediaPrefetchManager
 import sh.hnet.comfychair.util.DebugLogger
 
 /**
@@ -88,6 +91,8 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
     private val modelBrowserSettings = ModelBrowserSettings(getApplication())
     private val civitaiTrpcService = CivitaiTrpcService(modelBrowserSettings)
     private val huggingFaceService = HuggingFaceService(modelBrowserSettings)
+    val mediaCache = CivitaiMediaCache.getInstance(getApplication())
+    private val prefetchManager = MediaPrefetchManager(mediaCache)
     private val comfyUIManagerService = ComfyUIManagerService {
         val connState = ConnectionManager.connectionState.value
         if (connState is ConnectionState.Connected) {
@@ -626,6 +631,8 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
                     communityImagesCursor = nextCursor,
                     hasMoreCommunityImages = nextCursor != null
                 )
+                // Cache metadata + trigger prefetch
+                cacheAndPrefetch(images, modelId, version.id)
             } catch (e: Exception) {
                 DebugLogger.w(TAG, "Failed to load community images: ${e.message}")
                 _uiState.value = _uiState.value.copy(isLoadingCommunityImages = false)
@@ -667,6 +674,8 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
                     communityImagesCursor = nextCursor,
                     hasMoreCommunityImages = nextCursor != null
                 )
+                // Cache metadata + trigger prefetch
+                cacheAndPrefetch(newImages, modelId, version.id)
             } catch (e: Exception) {
                 DebugLogger.w(TAG, "Failed to load more community images: ${e.message}")
                 _uiState.value = _uiState.value.copy(isLoadingCommunityImages = false)
@@ -839,6 +848,68 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
         // Re-search if search query is non-empty
         if (_uiState.value.searchQuery.isNotBlank()) {
             triggerDebouncedSearch()
+        }
+    }
+
+    // --- Media Cache ---
+
+    /**
+     * Store community image metadata in cache DB and trigger prefetch if enabled.
+     * Also fires background HEAD requests to warm CDN transcode cache for videos.
+     */
+    private fun cacheAndPrefetch(
+        images: List<CommunityImage>,
+        modelId: String?,
+        modelVersionId: String
+    ) {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            // Batch upsert metadata
+            val entries = images.map { img ->
+                val transcodeUrl = if (img.type == "video") {
+                    img.url.replace("/original=true/", "/transcode=true,optimized=true/")
+                } else null
+
+                MediaCacheEntry(
+                    id = img.id.toString(),
+                    type = img.type,
+                    urlOriginal = img.url,
+                    urlTranscode = transcodeUrl,
+                    urlThumbnail = img.thumbnailUrl,
+                    width = img.width,
+                    height = img.height,
+                    nsfwLevel = img.nsfwLevel,
+                    modelId = modelId,
+                    modelVersionId = modelVersionId
+                )
+            }
+            mediaCache.upsertBatch(entries)
+
+            // Warm CDN transcode cache for videos (fire-and-forget HEAD requests)
+            val videoTranscodeUrls = entries
+                .filter { it.type == "video" && it.urlTranscode != null }
+                .mapNotNull { it.urlTranscode }
+            if (videoTranscodeUrls.isNotEmpty()) {
+                prefetchManager.warmTranscodeCache(videoTranscodeUrls)
+            }
+
+            // Prefetch files if enabled
+            if (mediaCache.prefetchEnabled) {
+                val uncached = mediaCache.getUncachedItems(
+                    modelVersionId = modelVersionId,
+                    type = "video",  // prioritize videos (images handled by Coil)
+                    limit = mediaCache.prefetchCount
+                )
+                prefetchManager.prefetch(uncached)
+            }
+        }
+    }
+
+    /**
+     * Clear all cached media files (keeps metadata).
+     */
+    fun clearMediaCache() {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            mediaCache.clearCachedFiles()
         }
     }
 }

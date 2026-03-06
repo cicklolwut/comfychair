@@ -201,7 +201,6 @@ fun CommunityImagesScreen(
     }
 }
 
-@Composable
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun CommunityImageCard(

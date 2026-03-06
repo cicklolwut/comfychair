@@ -208,46 +208,50 @@ private fun CommunityImageCard(
         1f
     }
 
-    Box(
+    Card(
         modifier = Modifier
+            .fillMaxWidth()
             .aspectRatio(aspectRatio)
-            .clickable(onClick = onClick)
+            .clickable(onClick = onClick),
+        shape = MaterialTheme.shapes.medium
     ) {
-        val displayUrl = if (showAnimations) image.animatedThumbnailUrl else image.thumbnailUrl
-        AsyncImage(
-            model = ImageRequest.Builder(LocalContext.current)
-                .data(displayUrl)
-                .crossfade(true)
-                .build(),
-            contentDescription = null,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop
-        )
+        Box(modifier = Modifier.fillMaxSize()) {
+            val displayUrl = if (showAnimations) image.animatedThumbnailUrl else image.thumbnailUrl
+            AsyncImage(
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(displayUrl)
+                    .crossfade(true)
+                    .build(),
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
 
-        // Heart count overlay
-        if (image.stats?.heartCount != null && image.stats.heartCount > 0) {
-            Surface(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(4.dp),
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
-                shape = MaterialTheme.shapes.small
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+            // Heart count overlay
+            if (image.stats?.heartCount != null && image.stats.heartCount > 0) {
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(4.dp),
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
+                    shape = MaterialTheme.shapes.small
                 ) {
-                    Icon(
-                        Icons.Default.Favorite,
-                        contentDescription = null,
-                        modifier = Modifier.size(12.dp),
-                        tint = MaterialTheme.colorScheme.error
-                    )
-                    Text(
-                        text = formatCount(image.stats.heartCount),
-                        style = MaterialTheme.typography.labelSmall
-                    )
+                    Row(
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Favorite,
+                            contentDescription = null,
+                            modifier = Modifier.size(12.dp),
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                        Text(
+                            text = formatCount(image.stats.heartCount),
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    }
                 }
             }
         }
@@ -311,7 +315,7 @@ private fun CommunityImageViewer(
                         .fillMaxWidth()
                         .background(Color.Black.copy(alpha = 0.7f))
                         .padding(16.dp)
-                        .padding(bottom = 48.dp) // space for FABs
+                        .padding(bottom = 64.dp) // space for bottom pill
                 ) {
                     Text(
                         text = prompt,
@@ -334,54 +338,54 @@ private fun CommunityImageViewer(
                 .padding(top = 16.dp)
         )
         
-        // FAB row at bottom-right
-        Column(
+        // Bottom pill bar with actions
+        val currentImage = images.getOrNull(currentIndex)
+        Surface(
             modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 32.dp),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+            shape = MaterialTheme.shapes.extraLarge,
+            tonalElevation = 4.dp
         ) {
-            // Save/download button
-            val currentImage = images.getOrNull(currentIndex)
-            FloatingActionButton(
-                onClick = { 
-                    currentImage?.let { image ->
-                        // Download image using DownloadManager
-                        val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-                        val request = DownloadManager.Request(Uri.parse(image.url))
-                            .setTitle("image_${image.id}")
-                            .setDescription("Downloading from Civitai...")
-                            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-                            .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "ComfyChair/image_${image.id}.jpg")
-                            .setAllowedOverMetered(true)
-                            .setAllowedOverRoaming(true)
-                        try {
-                            downloadManager.enqueue(request)
-                            Toast.makeText(context, "Downloading to Downloads/ComfyChair...", Toast.LENGTH_SHORT).show()
-                        } catch (e: Exception) {
-                            Toast.makeText(context, "Download failed: ${e.message}", Toast.LENGTH_SHORT).show()
+            Row(
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Download button
+                IconButton(
+                    onClick = {
+                        currentImage?.let { image ->
+                            val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+                            val request = DownloadManager.Request(Uri.parse(image.url))
+                                .setTitle("image_${image.id}")
+                                .setDescription("Downloading from Civitai...")
+                                .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                                .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "ComfyChair/image_${image.id}.jpg")
+                                .setAllowedOverMetered(true)
+                                .setAllowedOverRoaming(true)
+                            try {
+                                downloadManager.enqueue(request)
+                                Toast.makeText(context, "Downloading to Downloads/ComfyChair...", Toast.LENGTH_SHORT).show()
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "Download failed: ${e.message}", Toast.LENGTH_SHORT).show()
+                            }
                         }
                     }
-                },
-                containerColor = MaterialTheme.colorScheme.secondaryContainer
-            ) {
-                Icon(Icons.Default.Download, contentDescription = "Save image")
-            }
-            
-            // Metadata/details button
-            FloatingActionButton(
-                onClick = { showMetadataSheet = true },
-                containerColor = MaterialTheme.colorScheme.secondaryContainer
-            ) {
-                Icon(Icons.Default.Info, contentDescription = "Generation info")
-            }
-            
-            // Close button
-            FloatingActionButton(
-                onClick = onDismiss,
-                containerColor = MaterialTheme.colorScheme.secondaryContainer
-            ) {
-                Icon(Icons.Default.Close, contentDescription = "Close")
+                ) {
+                    Icon(Icons.Default.Download, contentDescription = "Save image", tint = MaterialTheme.colorScheme.onSurface)
+                }
+
+                // Metadata button
+                IconButton(onClick = { showMetadataSheet = true }) {
+                    Icon(Icons.Default.Info, contentDescription = "Generation info", tint = MaterialTheme.colorScheme.onSurface)
+                }
+
+                // Close button
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Default.Close, contentDescription = "Close", tint = MaterialTheme.colorScheme.onSurface)
+                }
             }
         }
     }

@@ -99,8 +99,14 @@ fun ModelBrowserScreen(
 
     val isProviderConfigured = uiState.providerConfigured
     var showFilterSheet by remember { mutableStateOf(false) }
-    var settingsMenuExpanded by remember { mutableStateOf(false) }
+    var showSettingsSheet by remember { mutableStateOf(false) }
     var showAnimationDialog by remember { mutableStateOf(false) }
+
+    // Settings sheet state (don't update store until save)
+    var settingsNsfwMax by remember { mutableStateOf(uiState.nsfwLevels.maxOrNull() ?: 2) }
+    var settingsBlurThreshold by remember { mutableStateOf(uiState.blurThreshold) }
+    var settingsShowAnimations by remember { mutableStateOf(uiState.showAnimations) }
+    var settingsApiKey by remember { mutableStateOf(uiState.apiKey) }
 
     // Event handling
     LaunchedEffect(Unit) {
@@ -145,152 +151,9 @@ fun ModelBrowserScreen(
                     )
                 }
 
-                // Settings menu button
-                Box {
-                    IconButton(onClick = { settingsMenuExpanded = true }) {
-                        Icon(Icons.Default.Settings, "Settings")
-                    }
-
-                    DropdownMenu(
-                        expanded = settingsMenuExpanded,
-                        onDismissRequest = { settingsMenuExpanded = false }
-                    ) {
-                        when (uiState.selectedProvider) {
-                            ModelProvider.CIVITAI -> {
-                                // NSFW level settings
-                                DropdownMenuItem(
-                                    text = {
-                                        Column {
-                                            Text("NSFW Level (Fetch):")
-                                            Spacer(Modifier.height(8.dp))
-                                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                                NSFW_LEVELS.forEach { (label, level) ->
-                                                    val selected = level in uiState.nsfwLevels
-                                                    FilterChip(
-                                                        selected = selected,
-                                                        onClick = { viewModel.toggleNsfwLevel(level) },
-                                                        label = { Text(label) },
-                                                        modifier = Modifier.height(32.dp)
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    },
-                                    onClick = { }
-                                )
-
-                                // Blur threshold dropdown
-                                var blurExpanded by remember { mutableStateOf(false) }
-                                Box {
-                                    DropdownMenuItem(
-                                        text = { Text("Blur images above: ${BLUR_LEVELS.firstOrNull { it.first == uiState.blurThreshold }?.second ?: "PG-13"}") },
-                                        onClick = { blurExpanded = true },
-                                        trailingIcon = { Icon(Icons.Default.ArrowDropDown, null) }
-                                    )
-                                    DropdownMenu(
-                                        expanded = blurExpanded,
-                                        onDismissRequest = { blurExpanded = false }
-                                    ) {
-                                        BLUR_LEVELS.forEach { (level, label) ->
-                                            DropdownMenuItem(
-                                                text = { Text(label) },
-                                                onClick = { viewModel.setBlurThreshold(level); blurExpanded = false },
-                                                trailingIcon = if (level == uiState.blurThreshold) {
-                                                    { Icon(Icons.Default.Check, null) }
-                                                } else null
-                                            )
-                                        }
-                                    }
-                                }
-
-                                // Animated thumbnails toggle
-                                DropdownMenuItem(
-                                    text = {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text("Animated Thumbnails")
-                                            Switch(
-                                                checked = uiState.showAnimations,
-                                                onCheckedChange = { enabled ->
-                                                    if (enabled) {
-                                                        showAnimationDialog = true
-                                                    } else {
-                                                        viewModel.setShowAnimations(false)
-                                                    }
-                                                }
-                                            )
-                                        }
-                                    },
-                                    onClick = { }
-                                )
-
-                                HorizontalDivider()
-
-                                // API key
-                                DropdownMenuItem(
-                                    text = {
-                                        Column {
-                                            Text("API Key:")
-                                            Spacer(Modifier.height(4.dp))
-                                            OutlinedTextField(
-                                                value = uiState.apiKey,
-                                                onValueChange = { viewModel.updateApiKey(it) },
-                                                placeholder = { Text("Enter key...") },
-                                                singleLine = true,
-                                                modifier = Modifier.fillMaxWidth()
-                                            )
-                                            Spacer(Modifier.height(8.dp))
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.End
-                                            ) {
-                                                Button(
-                                                    onClick = { viewModel.saveApiKey(uiState.apiKey); settingsMenuExpanded = false },
-                                                    enabled = uiState.apiKey.isNotBlank()
-                                                ) {
-                                                    Text("Save")
-                                                }
-                                            }
-                                        }
-                                    },
-                                    onClick = { }
-                                )
-                            }
-                            ModelProvider.HUGGINGFACE -> {
-                                DropdownMenuItem(
-                                    text = {
-                                        Column {
-                                            Text("API Token:")
-                                            Spacer(Modifier.height(4.dp))
-                                            OutlinedTextField(
-                                                value = uiState.apiKey,
-                                                onValueChange = { viewModel.updateApiKey(it) },
-                                                placeholder = { Text("Enter token...") },
-                                                singleLine = true,
-                                                modifier = Modifier.fillMaxWidth()
-                                            )
-                                            Spacer(Modifier.height(8.dp))
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.End
-                                            ) {
-                                                Button(
-                                                    onClick = { viewModel.saveApiKey(uiState.apiKey); settingsMenuExpanded = false },
-                                                    enabled = uiState.apiKey.isNotBlank()
-                                                ) {
-                                                    Text("Save")
-                                                }
-                                            }
-                                        }
-                                    },
-                                    onClick = { }
-                                )
-                            }
-                        }
-                    }
+                // Settings button
+                IconButton(onClick = { showSettingsSheet = true; settingsNsfwMax = uiState.nsfwLevels.maxOrNull() ?: 2; settingsBlurThreshold = uiState.blurThreshold; settingsShowAnimations = uiState.showAnimations; settingsApiKey = uiState.apiKey }) {
+                    Icon(Icons.Default.Settings, "Settings")
                 }
             }
 
@@ -460,6 +323,147 @@ fun ModelBrowserScreen(
         )
     }
 
+    // Settings bottom sheet (half-height, save/cancel semantics)
+    if (showSettingsSheet) {
+        val sheetState = rememberModalBottomSheetState()
+        ModalBottomSheet(
+            onDismissRequest = { showSettingsSheet = false },
+            sheetState = sheetState,
+            windowInsets = WindowInsets(0) // Remove insets for half-height
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 300.dp, max = 500.dp)
+                    .verticalScroll(rememberScrollState())
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Title
+                Text(
+                    when (uiState.selectedProvider) {
+                        ModelProvider.CIVITAI -> "Civitai Settings"
+                        ModelProvider.HUGGINGFACE -> "HuggingFace Settings"
+                    },
+                    style = MaterialTheme.typography.titleMedium
+                )
+
+                HorizontalDivider()
+
+                // NSFW Max Level (Civitai only)
+                if (uiState.selectedProvider == ModelProvider.CIVITAI) {
+                    Text("Max Content Level:", style = MaterialTheme.typography.labelMedium)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        NSFW_LEVELS.forEach { (label, level) ->
+                            FilterChip(
+                                selected = settingsNsfwMax >= level,
+                                onClick = { settingsNsfwMax = level },
+                                label = { Text(label, style = MaterialTheme.typography.labelSmall) },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "Select the highest content level to include. Lower levels are always included.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    HorizontalDivider()
+                }
+
+                // Blur Threshold (Civitai only)
+                if (uiState.selectedProvider == ModelProvider.CIVITAI) {
+                    Text("Blur images above:", style = MaterialTheme.typography.labelMedium)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        BLUR_LEVELS.forEach { (level, label) ->
+                            FilterChip(
+                                selected = settingsBlurThreshold == level,
+                                onClick = { settingsBlurThreshold = level },
+                                label = { Text(label, style = MaterialTheme.typography.labelSmall) }
+                            )
+                        }
+                    }
+
+                    HorizontalDivider()
+                }
+
+                // Animated Thumbnails (Civitai only)
+                if (uiState.selectedProvider == ModelProvider.CIVITAI) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Animated Thumbnails", style = MaterialTheme.typography.labelMedium)
+                        Switch(
+                            checked = settingsShowAnimations,
+                            onCheckedChange = { settingsShowAnimations = it }
+                        )
+                    }
+
+                    HorizontalDivider()
+                }
+
+                // API Key
+                Text(
+                    when (uiState.selectedProvider) {
+                        ModelProvider.CIVITAI -> "API Key:"
+                        ModelProvider.HUGGINGFACE -> "API Token:"
+                    },
+                    style = MaterialTheme.typography.labelMedium
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                OutlinedTextField(
+                    value = settingsApiKey,
+                    onValueChange = { settingsApiKey = it },
+                    placeholder = { Text("Enter key...") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Save/Cancel buttons
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = { showSettingsSheet = false },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Cancel")
+                    }
+                    Button(
+                        onClick = {
+                            // Apply settings
+                            viewModel.applySettings(
+                                nsfwMax = settingsNsfwMax,
+                                blurThreshold = settingsBlurThreshold,
+                                showAnimations = settingsShowAnimations,
+                                apiKey = settingsApiKey
+                            )
+                            showSettingsSheet = false
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Save")
+                    }
+                }
+            }
+        }
+    }
+
     // Filter bottom sheet
     if (showFilterSheet) {
         ModalBottomSheet(
@@ -479,54 +483,6 @@ fun ModelBrowserScreen(
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
                 
-                // NSFW Level Toggles
-                Text("Content Levels", style = MaterialTheme.typography.bodyMedium)
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    data class NsfwOption(val level: Int, val label: String)
-                    val options = listOf(
-                        NsfwOption(1, "PG"),
-                        NsfwOption(2, "PG-13"),
-                        NsfwOption(4, "R"),
-                        NsfwOption(8, "X"),
-                        NsfwOption(16, "XXX"),
-                        NsfwOption(32, "—")
-                    )
-                    options.forEach { option ->
-                        FilterChip(
-                            selected = option.level in uiState.nsfwLevels,
-                            onClick = { viewModel.toggleNsfwLevel(option.level) },
-                            label = { Text(option.label, style = MaterialTheme.typography.labelSmall) },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                }
-                
-                Spacer(modifier = Modifier.height(12.dp))
-                
-                // Animation toggle
-                FilterChip(
-                    selected = uiState.showAnimations,
-                    onClick = {
-                        if (uiState.showAnimations) {
-                            // Turning off — no confirmation needed
-                            viewModel.setShowAnimations(false)
-                        } else {
-                            // Turning on — show warning dialog
-                            showAnimationDialog = true
-                        }
-                    },
-                    label = { Text("Animated Thumbnails") },
-                    leadingIcon = {
-                        Icon(Icons.Default.Animation, contentDescription = null, modifier = Modifier.size(18.dp))
-                    }
-                )
-
-                HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
-                
                 // Filters (reuse existing SearchFilters composable)
                 SearchFilters(
                     uiState = uiState,
@@ -535,24 +491,6 @@ fun ModelBrowserScreen(
                     onFilterSortChanged = viewModel::setFilterSort,
                     onFilterPeriodChanged = viewModel::setFilterPeriod
                 )
-                
-                HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
-                
-                // API Key management
-                TextButton(
-                    onClick = {
-                        viewModel.resetProviderApiKey()
-                        showFilterSheet = false
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        when (uiState.selectedProvider) {
-                            ModelProvider.CIVITAI -> "Change Civitai API Key"
-                            ModelProvider.HUGGINGFACE -> "Change HuggingFace API Key"
-                        }
-                    )
-                }
             }
         }
     }

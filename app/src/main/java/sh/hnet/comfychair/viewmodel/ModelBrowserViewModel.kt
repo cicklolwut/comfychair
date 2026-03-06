@@ -762,4 +762,55 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
     fun updateApiKey(key: String) {
         _uiState.value = _uiState.value.copy(apiKey = key)
     }
+
+    /**
+     * Apply all settings at once (from settings sheet save).
+     * Converts max NSFW level to bitmask.
+     */
+    fun applySettings(
+        nsfwMax: Int,
+        blurThreshold: Int,
+        showAnimations: Boolean,
+        apiKey: String
+    ) {
+        // Convert max level to bitmask (include all levels <= max)
+        // Bitmask values: PG=1, PG-13=2, R=4, X=8, XXX=16
+        val nsfwBitmask = when {
+            nsfwMax >= 16 -> 1 or 2 or 4 or 8 or 16  // 31: PG + PG13 + R + X + XXX
+            nsfwMax >= 8 -> 1 or 2 or 4 or 8           // 15: PG + PG13 + R + X
+            nsfwMax >= 4 -> 1 or 2 or 4                // 7: PG + PG13 + R
+            nsfwMax >= 2 -> 1 or 2                     // 3: PG + PG13
+            nsfwMax >= 1 -> 1                          // 1: PG only
+            else -> 1
+        }
+
+        // Convert bitmask to set of individual levels for storage
+        val nsfwLevelSet = mutableSetOf<Int>()
+        if (nsfwBitmask and 1 != 0) nsfwLevelSet.add(1)
+        if (nsfwBitmask and 2 != 0) nsfwLevelSet.add(2)
+        if (nsfwBitmask and 4 != 0) nsfwLevelSet.add(4)
+        if (nsfwBitmask and 8 != 0) nsfwLevelSet.add(8)
+        if (nsfwBitmask and 16 != 0) nsfwLevelSet.add(16)
+
+        modelBrowserSettings.nsfwLevels = nsfwLevelSet
+        modelBrowserSettings.blurThreshold = blurThreshold
+        modelBrowserSettings.showAnimations = showAnimations
+
+        when (_uiState.value.selectedProvider) {
+            ModelProvider.CIVITAI -> modelBrowserSettings.civitaiApiKey = apiKey
+            ModelProvider.HUGGINGFACE -> modelBrowserSettings.huggingfaceApiKey = apiKey
+        }
+
+        _uiState.value = _uiState.value.copy(
+            nsfwLevels = nsfwLevelSet,
+            blurThreshold = blurThreshold,
+            showAnimations = showAnimations,
+            apiKey = apiKey
+        )
+
+        // Re-search if search query is non-empty
+        if (_uiState.value.searchQuery.isNotBlank()) {
+            triggerDebouncedSearch()
+        }
+    }
 }

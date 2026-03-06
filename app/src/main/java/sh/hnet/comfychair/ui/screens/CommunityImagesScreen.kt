@@ -403,22 +403,33 @@ private fun CommunityImagePage(
     // Full-res Civitai images can be 3-4K+ (48MB+ as bitmap). Without a size cap,
     // multiple pages in the pager will exhaust available memory.
     LaunchedEffect(image.id) {
+        android.util.Log.d("CommunityImage", "Loading image ${image.id}: ${image.url}")
         isLoading = true
         val dm = context.resources.displayMetrics
         val request = ImageRequest.Builder(context)
             .data(image.url)
             .size(dm.widthPixels, dm.heightPixels)
             .build()
-        val result = context.imageLoader.execute(request)
-        bitmap = if (result is SuccessResult) {
-            result.image.toBitmap()
-        } else null
+        try {
+            val result = context.imageLoader.execute(request)
+            bitmap = if (result is SuccessResult) {
+                android.util.Log.d("CommunityImage", "Loaded image ${image.id} successfully")
+                result.image.toBitmap()
+            } else {
+                android.util.Log.e("CommunityImage", "Failed to load image ${image.id}: $result")
+                null
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("CommunityImage", "Exception loading image ${image.id}", e)
+        }
         isLoading = false
     }
     
     // Clean up bitmap when page is disposed (scrolled away)
     DisposableEffect(image.id) {
+        android.util.Log.d("CommunityImage", "Composing image page ${image.id}")
         onDispose {
+            android.util.Log.d("CommunityImage", "Disposing image ${image.id}, recycling bitmap")
             bitmap?.recycle()
             bitmap = null
         }

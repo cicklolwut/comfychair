@@ -360,6 +360,7 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
      * Select a model to view details.
      */
     fun selectModel(model: ModelSearchResult) {
+        DebugLogger.d(TAG, "selectModel: ${model.id} - ${model.name}")
         val autoType = sh.hnet.comfychair.model.CivitaiTypeMapper.toComfyUIType(model.civitaiType)
         
         // Show immediately with what we have
@@ -561,6 +562,7 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
      */
     fun toggleCommunityImages() {
         val newShowState = !_uiState.value.showCommunityImages
+        DebugLogger.d(TAG, "toggleCommunityImages: newShowState=$newShowState")
         _uiState.value = _uiState.value.copy(showCommunityImages = newShowState)
         
         // Load images if showing for the first time
@@ -586,10 +588,15 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
     }
 
     fun loadCommunityImages() {
-        val version = _uiState.value.selectedVersion ?: return
+        DebugLogger.d(TAG, "loadCommunityImages: called")
+        val version = _uiState.value.selectedVersion ?: run {
+            DebugLogger.d(TAG, "loadCommunityImages: no selected version, returning")
+            return
+        }
         
         // Only Civitai has community images
         if (_uiState.value.selectedProvider != ModelProvider.CIVITAI) {
+            DebugLogger.d(TAG, "loadCommunityImages: not Civitai provider, returning")
             return
         }
 

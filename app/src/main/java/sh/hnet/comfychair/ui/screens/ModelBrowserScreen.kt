@@ -24,9 +24,12 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import sh.hnet.comfychair.ui.components.shared.NoOverscrollContainer
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Photo
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
@@ -196,6 +199,30 @@ fun ModelBrowserScreen(
                                         }
                                     }
                                 }
+
+                                // Animated thumbnails toggle
+                                DropdownMenuItem(
+                                    text = {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text("Animated Thumbnails")
+                                            Switch(
+                                                checked = uiState.showAnimations,
+                                                onCheckedChange = { enabled ->
+                                                    if (enabled) {
+                                                        showAnimationDialog = true
+                                                    } else {
+                                                        viewModel.setShowAnimations(false)
+                                                    }
+                                                }
+                                            )
+                                        }
+                                    },
+                                    onClick = { }
+                                )
 
                                 HorizontalDivider()
 
@@ -398,8 +425,8 @@ fun ModelBrowserScreen(
                         } // NoOverscrollContainer
                     }
 
-                    // Filter FAB (bottom-right)
-                    SmallFloatingActionButton(
+                    // Filter FAB (bottom-right) - larger than SmallFAB, smaller than main generation FAB
+                    FloatingActionButton(
                         onClick = { showFilterSheet = true },
                         modifier = Modifier
                             .align(Alignment.BottomEnd)
@@ -945,7 +972,7 @@ fun ModelDetailBottomSheet(
                     ) {
                         // Community images FAB (only for Civitai)
                         if (uiState.selectedProvider == ModelProvider.CIVITAI) {
-                            SmallFloatingActionButton(
+                            FloatingActionButton(
                                 onClick = onToggleCommunityImages,
                                 containerColor = MaterialTheme.colorScheme.secondaryContainer
                             ) {
@@ -953,7 +980,7 @@ fun ModelDetailBottomSheet(
                             }
                         }
                         // Download FAB
-                        SmallFloatingActionButton(
+                        FloatingActionButton(
                             onClick = { showDownloadDialog = true }
                         ) {
                             Icon(Icons.Default.Download, contentDescription = "Download")

@@ -228,8 +228,10 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
                     ModelProvider.CIVITAI -> {
                         val state = _uiState.value
                         
-                        // Compute browsingLevel bitmask from selected NSFW levels
-                        val browsingLevel = state.nsfwLevels.fold(0) { acc, level -> acc or level }
+                        // Combine nsfwLevels (model filter) with browseLevel (image filter)
+                        // nsfwLevels controls which models appear; browseLevel controls cover images
+                        val nsfwBitmask = state.nsfwLevels.fold(0) { acc, level -> acc or level }
+                        val browsingLevel = nsfwBitmask and state.browseLevel
                         
                         // Use trpc for search
                         val trpcResult = civitaiTrpcService.searchModels(
@@ -319,8 +321,9 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
                 val currentState = _uiState.value
                 val currentCursor = currentState.searchCursor
                 
-                // Compute browsingLevel bitmask from selected NSFW levels
-                val browsingLevel = currentState.nsfwLevels.fold(0) { acc, level -> acc or level }
+                // Combine nsfwLevels with browseLevel for API call
+                val nsfwBitmask = currentState.nsfwLevels.fold(0) { acc, level -> acc or level }
+                val browsingLevel = nsfwBitmask and currentState.browseLevel
                 
                 val trpcResult = civitaiTrpcService.searchModels(
                     query = currentState.searchQuery.trim(),
@@ -605,7 +608,8 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
             _uiState.value = _uiState.value.copy(isLoadingCommunityImages = true)
             try {
                 val modelId = _uiState.value.selectedModel?.id
-                val browsingLevel = _uiState.value.nsfwLevels.fold(0) { acc, level -> acc or level }
+                val nsfwBitmask = _uiState.value.nsfwLevels.fold(0) { acc, level -> acc or level }
+                val browsingLevel = nsfwBitmask and _uiState.value.browseLevel
                 
                 val (images, nextCursor) = civitaiTrpcService.getModelImages(
                     modelVersionId = version.id,
@@ -645,7 +649,8 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
             _uiState.value = _uiState.value.copy(isLoadingCommunityImages = true)
             try {
                 val modelId = _uiState.value.selectedModel?.id
-                val browsingLevel = _uiState.value.nsfwLevels.fold(0) { acc, level -> acc or level }
+                val nsfwBitmask = _uiState.value.nsfwLevels.fold(0) { acc, level -> acc or level }
+                val browsingLevel = nsfwBitmask and _uiState.value.browseLevel
                 
                 val (newImages, nextCursor) = civitaiTrpcService.getModelImages(
                     modelVersionId = version.id,
@@ -773,6 +778,10 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
     fun setBrowseLevel(level: Int) {
         modelBrowserSettings.browseLevel = level
         _uiState.value = _uiState.value.copy(browseLevel = level)
+        // Re-search with new browseLevel (affects cover image selection via combined browsingLevel)
+        if (_uiState.value.searchQuery.isNotBlank() || _uiState.value.searchResults.isNotEmpty()) {
+            search(_uiState.value.searchQuery)
+        }
     }
 
     /**

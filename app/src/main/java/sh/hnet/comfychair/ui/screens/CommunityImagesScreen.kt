@@ -1,9 +1,12 @@
 package sh.hnet.comfychair.ui.screens
 
+import android.app.DownloadManager
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.graphics.Bitmap
+import android.net.Uri
+import android.os.Environment
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -343,12 +346,21 @@ private fun CommunityImageViewer(
             FloatingActionButton(
                 onClick = { 
                     currentImage?.let { image ->
-                        // Download image to gallery
-                        val request = ImageRequest.Builder(context)
-                            .data(image.url)
-                            .build()
-                        context.imageLoader.enqueue(request)
-                        Toast.makeText(context, "Downloading image...", Toast.LENGTH_SHORT).show()
+                        // Download image using DownloadManager
+                        val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+                        val request = DownloadManager.Request(Uri.parse(image.url))
+                            .setTitle(image.name ?: "image_${image.id}")
+                            .setDescription("Downloading from Civitai...")
+                            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                            .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "ComfyChair/${image.name ?: "image_${image.id}.jpg"}")
+                            .setAllowedOverMetered(true)
+                            .setAllowedOverRoaming(true)
+                        try {
+                            downloadManager.enqueue(request)
+                            Toast.makeText(context, "Downloading to Downloads/ComfyChair...", Toast.LENGTH_SHORT).show()
+                        } catch (e: Exception) {
+                            Toast.makeText(context, "Download failed: ${e.message}", Toast.LENGTH_SHORT).show()
+                        }
                     }
                 },
                 containerColor = MaterialTheme.colorScheme.secondaryContainer
@@ -357,13 +369,11 @@ private fun CommunityImageViewer(
             }
             
             // Metadata/details button
-            if (currentImage?.meta != null) {
-                FloatingActionButton(
-                    onClick = { showMetadataSheet = true },
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer
-                ) {
-                    Icon(Icons.Default.Info, contentDescription = "Generation info")
-                }
+            FloatingActionButton(
+                onClick = { showMetadataSheet = true },
+                containerColor = MaterialTheme.colorScheme.secondaryContainer
+            ) {
+                Icon(Icons.Default.Info, contentDescription = "Generation info")
             }
             
             // Close button
@@ -379,14 +389,13 @@ private fun CommunityImageViewer(
     // Full metadata bottom sheet
     if (showMetadataSheet) {
         val currentImage = images.getOrNull(currentIndex)
-        currentImage?.meta?.let { meta ->
-            ImageMetadataSheet(
-                meta = meta,
-                onDismiss = { showMetadataSheet = false },
-                onImportWorkflow = onImportWorkflow,
-                context = context
-            )
-        }
+        ImageMetadataSheet(
+            meta = currentImage?.meta,
+            imageName = currentImage?.name,
+            onDismiss = { showMetadataSheet = false },
+            onImportWorkflow = onImportWorkflow,
+            context = context
+        )
     }
 }
 
@@ -473,7 +482,8 @@ private fun CommunityImagePage(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ImageMetadataSheet(
-    meta: GenerationMetadata,
+    meta: GenerationMetadata?,
+    imageName: String?,
     onDismiss: () -> Unit,
     onImportWorkflow: (String) -> Unit,
     context: Context
@@ -496,6 +506,40 @@ private fun ImageMetadataSheet(
             )
 
             Spacer(modifier = Modifier.height(8.dp))
+
+            if (meta == null) {
+                // No metadata available
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    shape = MaterialTheme.shapes.small,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            text = "No Metadata Available",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "This image doesn't have generation parameters embedded.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                        if (imageName != null) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Image: $imageName",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+                return@Column
+            }
 
             // Prompt
             meta.prompt?.let { prompt ->

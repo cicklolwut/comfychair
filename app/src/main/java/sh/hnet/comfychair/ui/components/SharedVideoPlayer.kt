@@ -6,7 +6,14 @@ import android.os.Handler
 import android.os.Looper
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.cache.CacheDataSource
+import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
+import androidx.media3.datasource.cache.SimpleCache
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import java.io.File
 
 /**
  * Singleton manager for a shared ExoPlayer instance.
@@ -19,31 +26,54 @@ import androidx.media3.exoplayer.ExoPlayer
  * Uses reference counting to track active consumers. Playback is only paused
  * when all consumers have released the player.
  *
- * Benefits:
- * - No stretched first frame during player initialization
- * - Faster video switching (no player creation overhead)
- * - Lower memory usage (single player instance)
+ * Features:
+ * - Single ExoPlayer instance with reference counting
+ * - 50MB disk cache for video segments (LRU eviction)
  * - Smooth transitions between preview and fullscreen modes
  */
+@UnstableApi
 object SharedVideoPlayer {
 
     private var exoPlayer: ExoPlayer? = null
+    private var videoCache: SimpleCache? = null
     private var currentUri: Uri? = null
     private var isInitialized = false
     private var consumerCount = 0
     private val handler = Handler(Looper.getMainLooper())
     private var pendingStopRunnable: Runnable? = null
 
+    private fun getCache(context: Context): SimpleCache {
+        if (videoCache == null) {
+            val cacheDir = File(context.cacheDir, "video_cache")
+            videoCache = SimpleCache(
+                cacheDir,
+                LeastRecentlyUsedCacheEvictor(50L * 1024 * 1024), // 50MB
+                androidx.media3.database.StandaloneDatabaseProvider(context)
+            )
+        }
+        return videoCache!!
+    }
+
     /**
-     * Get or create the shared ExoPlayer instance.
-     * Must be called from a context that has access to Application context.
+     * Get or create the shared ExoPlayer instance with caching.
      */
     fun getPlayer(context: Context): ExoPlayer {
         if (exoPlayer == null) {
-            exoPlayer = ExoPlayer.Builder(context.applicationContext).build().apply {
-                repeatMode = Player.REPEAT_MODE_ALL
-                playWhenReady = false
-            }
+            val appContext = context.applicationContext
+            val cache = getCache(appContext)
+            val httpDataSourceFactory = DefaultHttpDataSource.Factory()
+                .setConnectTimeoutMs(8_000)
+                .setReadTimeoutMs(8_000)
+                .setAllowCrossProtocolRedirects(true)
+            val cacheDataSourceFactory = CacheDataSource.Factory()
+                .setCache(cache)
+                .setUpstreamDataSourceFactory(httpDataSourceFactory)
+            exoPlayer = ExoPlayer.Builder(appContext)
+                .setMediaSourceFactory(DefaultMediaSourceFactory(cacheDataSourceFactory))
+                .build().apply {
+                    repeatMode = Player.REPEAT_MODE_ALL
+                    playWhenReady = false
+                }
             isInitialized = true
         }
         return exoPlayer!!
@@ -162,6 +192,8 @@ object SharedVideoPlayer {
         pendingStopRunnable = null
         exoPlayer?.release()
         exoPlayer = null
+        videoCache?.release()
+        videoCache = null
         currentUri = null
         isInitialized = false
         consumerCount = 0

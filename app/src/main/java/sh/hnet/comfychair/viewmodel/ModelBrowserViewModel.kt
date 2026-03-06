@@ -780,7 +780,7 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
         _uiState.value = _uiState.value.copy(browseLevel = level)
         // Re-search with new browseLevel (affects cover image selection via combined browsingLevel)
         if (_uiState.value.searchQuery.isNotBlank() || _uiState.value.searchResults.isNotEmpty()) {
-            search(_uiState.value.searchQuery)
+            searchModels()
         }
     }
 

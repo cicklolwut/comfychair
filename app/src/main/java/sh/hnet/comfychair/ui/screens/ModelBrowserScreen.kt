@@ -37,7 +37,9 @@ import androidx.compose.material3.*
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.*
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.material3.HorizontalDivider
@@ -811,19 +813,32 @@ fun ModelDetailBottomSheet(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             lazyItems(filteredImages) { image ->
-                                val params = if (uiState.showAnimations) "width=450,optimized=true" else "anim=false,width=450,optimized=true"
+                                val isVideo = image.type == "video"
+                                val params = "anim=false,width=450,optimized=true"
                                 val imageUrl = image.url
                                     .replace("/original=true/", "/$params/")
                                     .replace(Regex("/width=\\d+[^/]*/"), "/$params/")
-                                AsyncImage(
-                                    model = ImageRequest.Builder(context)
-                                        .data(imageUrl)
-                                        .crossfade(true)
-                                        .build(),
-                                    contentDescription = null,
-                                    modifier = Modifier.height(250.dp),
-                                    contentScale = ContentScale.Fit
-                                )
+                                Box {
+                                    AsyncImage(
+                                        model = ImageRequest.Builder(context)
+                                            .data(imageUrl)
+                                            .crossfade(true)
+                                            .build(),
+                                        contentDescription = null,
+                                        modifier = Modifier.height(250.dp),
+                                        contentScale = ContentScale.Fit
+                                    )
+                                    if (isVideo) {
+                                        Icon(
+                                            imageVector = Icons.Default.PlayCircle,
+                                            contentDescription = "Video",
+                                            modifier = Modifier
+                                                .align(Alignment.Center)
+                                                .size(32.dp),
+                                            tint = Color.White.copy(alpha = 0.85f)
+                                        )
+                                    }
+                                }
                             }
                         }
                         Spacer(modifier = Modifier.height(16.dp))

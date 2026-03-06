@@ -50,6 +50,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.common.Player
+import androidx.media3.common.VideoSize
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.compose.PlayerSurface
 import androidx.media3.ui.compose.SURFACE_TYPE_SURFACE_VIEW
@@ -101,7 +103,9 @@ fun VideoPlayer(
     scaleMode: VideoScaleMode = VideoScaleMode.CROP,
     enableZoom: Boolean = false,
     onSingleTap: (() -> Unit)? = null,
-    cacheKey: MediaCacheKey? = null
+    cacheKey: MediaCacheKey? = null,
+    initialWidth: Int = 0,
+    initialHeight: Int = 0
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -117,8 +121,8 @@ fun VideoPlayer(
     val cachedDimensions = remember(cacheKey) {
         cacheKey?.let { MediaCache.getVideoDimensions(it) }
     }
-    var videoWidth by remember(cacheKey) { mutableStateOf(cachedDimensions?.width ?: 0) }
-    var videoHeight by remember(cacheKey) { mutableStateOf(cachedDimensions?.height ?: 0) }
+    var videoWidth by remember(cacheKey) { mutableStateOf(cachedDimensions?.width ?: initialWidth) }
+    var videoHeight by remember(cacheKey) { mutableStateOf(cachedDimensions?.height ?: initialHeight) }
 
     // Zoom/pan state
     val scaleAnimatable = remember { Animatable(1f) }
@@ -433,15 +437,34 @@ fun VideoPlayer(
                 val presentationState = rememberPresentationState(exoPlayer)
 
                 // Start playback only when surface is ready (first frame can be rendered)
-                // This ensures video starts from frame 0 when thumbnail is replaced
                 LaunchedEffect(presentationState.coverSurface) {
                     if (!presentationState.coverSurface) {
                         SharedVideoPlayer.startPlayback()
                     }
                 }
 
-                // Use video dimensions from MediaMetadataRetriever (extracted earlier)
-                // This is more reliable than presentationState.videoSizeDp when sharing ExoPlayer
+                // Get video dimensions from ExoPlayer directly (works for remote URLs
+                // where MediaMetadataRetriever fails due to redirects)
+                DisposableEffect(exoPlayer) {
+                    val listener = object : Player.Listener {
+                        override fun onVideoSizeChanged(size: VideoSize) {
+                            if (size.width > 0 && size.height > 0) {
+                                videoWidth = size.width
+                                videoHeight = size.height
+                            }
+                        }
+                    }
+                    exoPlayer.addListener(listener)
+                    // Check if dimensions are already available
+                    exoPlayer.videoSize.let { size ->
+                        if (size.width > 0 && size.height > 0) {
+                            videoWidth = size.width
+                            videoHeight = size.height
+                        }
+                    }
+                    onDispose { exoPlayer.removeListener(listener) }
+                }
+
                 val hasValidDimensions = videoWidth > 0 && videoHeight > 0
                 val playerVideoAspectRatio = if (hasValidDimensions) {
                     videoWidth.toFloat() / videoHeight.toFloat()
@@ -474,10 +497,10 @@ fun VideoPlayer(
                     }
                 }
 
-                // Only render PlayerSurface when dimensions are ready
-                // SurfaceView renders on a separate hardware layer that can briefly show stretched
-                // content before Compose overlays cover it, so we prevent this by not rendering at all
-                if (hasValidDimensions) {
+                // Render PlayerSurface even without exact dimensions (use default 16:9).
+                // For remote URLs, MediaMetadataRetriever may fail/timeout, but ExoPlayer plays fine.
+                // Previously gated on hasValidDimensions which caused permanent black screen for HTTP sources.
+                run {
                     Box(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
@@ -511,22 +534,6 @@ fun VideoPlayer(
                                 )
                             }
                         }
-                    }
-                } else {
-                    // Show placeholder until dimensions are extracted
-                    if (thumbnail != null) {
-                        Image(
-                            bitmap = thumbnail!!.asImageBitmap(),
-                            contentDescription = null,
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = thumbnailContentScale
-                        )
-                    } else {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(Color.Black)
-                        )
                     }
                 }
             } else if (thumbnail != null) {
@@ -596,6 +603,26 @@ fun FullscreenVideoPlayer(
         }
     }
 
+    // Get video dimensions from ExoPlayer (works for remote URLs)
+    DisposableEffect(exoPlayer) {
+        val listener = object : Player.Listener {
+            override fun onVideoSizeChanged(size: VideoSize) {
+                if (size.width > 0 && size.height > 0) {
+                    videoWidth = size.width
+                    videoHeight = size.height
+                }
+            }
+        }
+        exoPlayer.addListener(listener)
+        exoPlayer.videoSize.let { size ->
+            if (size.width > 0 && size.height > 0) {
+                videoWidth = size.width
+                videoHeight = size.height
+            }
+        }
+        onDispose { exoPlayer.removeListener(listener) }
+    }
+
     // Prepare video (without playing) when URI changes
     LaunchedEffect(videoUri) {
         if (videoUri != null) {
@@ -644,8 +671,8 @@ fun FullscreenVideoPlayer(
         }
 
         // Shutter overlay - controlled by PresentationState.coverSurface
-        // Shows black background until first frame is rendered or dimensions not ready
-        if (presentationState.coverSurface || !hasValidDimensions) {
+        // Shows black background until first frame is rendered
+        if (presentationState.coverSurface) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()

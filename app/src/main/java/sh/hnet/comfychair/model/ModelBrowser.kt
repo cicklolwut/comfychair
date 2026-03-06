@@ -49,7 +49,8 @@ data class ModelVersionImage(
     val url: String,
     val nsfwLevel: Int = 1,
     val width: Int = 0,
-    val height: Int = 0
+    val height: Int = 0,
+    val type: String = "image"    // "image" or "video"
 )
 
 /**

@@ -9,8 +9,10 @@ import android.net.Uri
 import android.os.Environment
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -25,6 +27,7 @@ import androidx.compose.foundation.verticalScroll
 import sh.hnet.comfychair.ui.components.shared.NoOverscrollContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ExpandLess
@@ -54,6 +57,8 @@ import org.json.JSONObject
 import sh.hnet.comfychair.model.CommunityImage
 import sh.hnet.comfychair.model.GenerationMetadata
 import sh.hnet.comfychair.ui.components.ImageViewer
+import sh.hnet.comfychair.ui.components.VideoPlayer
+import sh.hnet.comfychair.ui.components.VideoScaleMode
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -197,6 +202,8 @@ fun CommunityImagesScreen(
 }
 
 @Composable
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
 private fun CommunityImageCard(
     image: CommunityImage,
     showAnimations: Boolean = false,
@@ -208,24 +215,61 @@ private fun CommunityImageCard(
         1f
     }
 
+    val isVideo = image.type == "video"
+    var inlinePlay by remember { mutableStateOf(false) }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .aspectRatio(aspectRatio)
-            .clickable(onClick = onClick),
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = if (isVideo) {{ inlinePlay = !inlinePlay }} else null
+            ),
         shape = MaterialTheme.shapes.medium
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            val displayUrl = if (showAnimations) image.animatedThumbnailUrl else image.thumbnailUrl
-            AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(displayUrl)
-                    .crossfade(true)
-                    .build(),
-                contentDescription = null,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop
-            )
+            if (inlinePlay && isVideo) {
+                // Inline video playback (long press activated)
+                val videoUrl = image.url
+                    .replace("/original=true/", "/transcode=true,width=450,optimized=true/")
+                VideoPlayer(
+                    videoUri = Uri.parse(videoUrl),
+                    modifier = Modifier.fillMaxSize(),
+                    showController = false,
+                    scaleMode = VideoScaleMode.CROP,
+                    onSingleTap = { inlinePlay = false },
+                    initialWidth = image.width,
+                    initialHeight = image.height
+                )
+            } else {
+                // Static thumbnail
+                val displayUrl = if (showAnimations && !isVideo) {
+                    image.animatedThumbnailUrl
+                } else {
+                    image.thumbnailUrl
+                }
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(displayUrl)
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            }
+            // Play icon overlay for video content
+            if (isVideo && !inlinePlay) {
+                Icon(
+                    imageVector = Icons.Default.PlayCircle,
+                    contentDescription = "Video",
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .size(36.dp),
+                    tint = Color.White.copy(alpha = 0.85f)
+                )
+            }
 
             // Heart count overlay
             if (image.stats?.heartCount != null && image.stats.heartCount > 0) {
@@ -359,10 +403,10 @@ private fun CommunityImageViewer(
                         currentImage?.let { image ->
                             val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
                             val request = DownloadManager.Request(Uri.parse(image.url))
-                                .setTitle("image_${image.id}")
+                                .setTitle("${image.type}_${image.id}")
                                 .setDescription("Downloading from Civitai...")
                                 .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-                                .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "ComfyChair/image_${image.id}.jpg")
+                                .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "ComfyChair/${image.type}_${image.id}.${if (image.type == "video") "mp4" else "jpg"}")
                                 .setAllowedOverMetered(true)
                                 .setAllowedOverRoaming(true)
                             try {
@@ -408,21 +452,48 @@ private fun CommunityImagePage(
     image: CommunityImage,
     onTap: () -> Unit
 ) {
+    if (image.type == "video") {
+        CommunityVideoPage(image = image, onTap = onTap)
+    } else {
+        CommunityStaticImagePage(image = image, onTap = onTap)
+    }
+}
+
+@Composable
+private fun CommunityVideoPage(
+    image: CommunityImage,
+    onTap: () -> Unit
+) {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        val videoUrl = image.url
+            .replace("/original=true/", "/transcode=true,optimized=true/")
+        VideoPlayer(
+            videoUri = Uri.parse(videoUrl),
+            modifier = Modifier.fillMaxSize(),
+            showController = true,
+            scaleMode = VideoScaleMode.FIT,
+            onSingleTap = onTap,
+            initialWidth = image.width,
+            initialHeight = image.height
+        )
+    }
+}
+
+@Composable
+private fun CommunityStaticImagePage(
+    image: CommunityImage,
+    onTap: () -> Unit
+) {
     val context = LocalContext.current
     var bitmap by remember(image.id) { mutableStateOf<Bitmap?>(null) }
     var isLoading by remember(image.id) { mutableStateOf(true) }
     
-    // Load image via Coil, constrained to screen dimensions to prevent OOM.
-    // Full-res Civitai images can be 3-4K+ (48MB+ as bitmap). Without a size cap,
-    // multiple pages in the pager will exhaust available memory.
+    // Load full-res image via Coil, constrained to screen dimensions to prevent OOM.
     LaunchedEffect(image.id) {
         android.util.Log.d("CommunityImage", "Loading image ${image.id}: ${image.url}")
-        // Also write to file for persistence
-        try {
-            context.getExternalFilesDir(null)?.let { dir ->
-                java.io.File(dir, "app_log.txt").appendText("${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(java.util.Date())} Loading image ${image.id}: ${image.url}\n")
-            }
-        } catch (_: Exception) {}
         isLoading = true
         val dm = context.resources.displayMetrics
         val request = ImageRequest.Builder(context)
@@ -432,33 +503,17 @@ private fun CommunityImagePage(
         try {
             val result = context.imageLoader.execute(request)
             bitmap = if (result is SuccessResult) {
-                android.util.Log.d("CommunityImage", "Loaded image ${image.id} successfully")
                 result.image.toBitmap()
-            } else {
-                android.util.Log.e("CommunityImage", "Failed to load image ${image.id}: $result")
-                null
-            }
-        } catch (e: Exception) {
-            android.util.Log.e("CommunityImage", "Exception loading image ${image.id}", e)
-            try {
-                context.getExternalFilesDir(null)?.let { dir ->
-                    val stack = e.stackTraceToString()
-                    java.io.File(dir, "crash_log.txt").appendText("${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(java.util.Date())} Exception loading ${image.id}:\n$stack\n\n")
-                }
-            } catch (_: Exception) {}
-        }
+            } else null
+        } catch (_: Exception) {}
         isLoading = false
     }
-    
-    // Note: We don't manually recycle bitmaps - Coil manages its own memory cache.
-    // Manual recycling causes crashes when the same image is viewed again.
     
     Box(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
         if (isLoading || bitmap == null) {
-            // Show thumbnail as placeholder while loading
             AsyncImage(
                 model = ImageRequest.Builder(context)
                     .data(image.thumbnailUrl)

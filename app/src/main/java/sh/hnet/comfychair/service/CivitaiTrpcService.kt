@@ -603,12 +603,18 @@ class CivitaiTrpcService(
         if (imagesArray != null) {
             for (i in 0 until imagesArray.length()) {
                 val imgObj = imagesArray.getJSONObject(i)
+                val imgUuid = imgObj.optString("url", "")
+                val imgName = imgObj.optString("name", "image.jpeg")
+                val imgType = imgObj.optString("type", "image")
+                // Construct full CDN URL (API returns UUID, not full URL)
+                val fullCdnUrl = "$CDN_BASE/$imgUuid/original=true/$imgName"
                 images.add(
                     ModelVersionImage(
-                        url = imgObj.optString("url", ""),
+                        url = fullCdnUrl,
                         nsfwLevel = imgObj.optInt("nsfwLevel", 1),
                         width = imgObj.optInt("width", 0),
-                        height = imgObj.optInt("height", 0)
+                        height = imgObj.optInt("height", 0),
+                        type = imgType
                     )
                 )
             }
@@ -672,7 +678,7 @@ class CivitaiTrpcService(
         } else {
             "anim=false,width=450,optimized=true"
         }
-        val animatedParams = if (isVideo) staticParams else "width=450,optimized=true"
+        val animatedParams = if (isVideo) "transcode=true,width=450,original=false,optimized=true" else "width=450,optimized=true"
         
         val staticUrl = "$CDN_BASE/$uuid/$staticParams/$name"
         val animatedUrl = "$CDN_BASE/$uuid/$animatedParams/$name"
@@ -697,7 +703,7 @@ class CivitaiTrpcService(
         } else {
             "anim=false,width=450,optimized=true"
         }
-        val animatedParams = if (isVideo) staticParams else "width=450,optimized=true"
+        val animatedParams = if (isVideo) "transcode=true,width=450,original=false,optimized=true" else "width=450,optimized=true"
         
         val thumbnailUrl = "$CDN_BASE/$uuid/$staticParams/$name"
         val animatedThumbnailUrl = "$CDN_BASE/$uuid/$animatedParams/$name"

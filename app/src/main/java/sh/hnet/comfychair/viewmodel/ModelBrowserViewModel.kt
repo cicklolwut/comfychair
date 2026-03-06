@@ -61,7 +61,8 @@ data class ModelBrowserUiState(
     val showAnimations: Boolean = false,
     val blurThreshold: Int = 2, // Default: blur images above PG-13
     val apiKey: String = "", // API key for current provider
-    val browseLevel: Int = 31 // Default: show all images (XXX)
+    val browseLevel: Int = 31, // Default: show all images (XXX)
+
     // Pagination (cursor-based for trpc)
     val searchCursor: String? = null,
     val hasMoreResults: Boolean = true,

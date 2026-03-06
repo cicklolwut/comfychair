@@ -349,10 +349,10 @@ private fun CommunityImageViewer(
                         // Download image using DownloadManager
                         val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
                         val request = DownloadManager.Request(Uri.parse(image.url))
-                            .setTitle(image.name ?: "image_${image.id}")
+                            .setTitle("image_${image.id}")
                             .setDescription("Downloading from Civitai...")
                             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-                            .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "ComfyChair/${image.name ?: "image_${image.id}.jpg"}")
+                            .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "ComfyChair/image_${image.id}.jpg")
                             .setAllowedOverMetered(true)
                             .setAllowedOverRoaming(true)
                         try {
@@ -391,7 +391,7 @@ private fun CommunityImageViewer(
         val currentImage = images.getOrNull(currentIndex)
         ImageMetadataSheet(
             meta = currentImage?.meta,
-            imageName = currentImage?.name,
+            imageName = "image_${currentImage?.id}",
             onDismiss = { showMetadataSheet = false },
             onImportWorkflow = onImportWorkflow,
             context = context

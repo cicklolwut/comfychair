@@ -100,6 +100,7 @@ fun ModelBrowserScreen(
     val isProviderConfigured = uiState.providerConfigured
     var showFilterSheet by remember { mutableStateOf(false) }
     var settingsMenuExpanded by remember { mutableStateOf(false) }
+    var showAnimationDialog by remember { mutableStateOf(false) }
 
     // Event handling
     LaunchedEffect(Unit) {
@@ -194,7 +195,9 @@ fun ModelBrowserScreen(
                                             DropdownMenuItem(
                                                 text = { Text(label) },
                                                 onClick = { viewModel.setBlurThreshold(level); blurExpanded = false },
-                                                trailingIcon = if (level == uiState.blurThreshold) Icon(Icons.Default.Check, null) else null
+                                                trailingIcon = if (level == uiState.blurThreshold) {
+                                                    { Icon(Icons.Default.Check, null) }
+                                                } else null
                                             )
                                         }
                                     }
@@ -440,7 +443,6 @@ fun ModelBrowserScreen(
     }
 
     // Animation confirmation dialog
-    var showAnimationDialog by remember { mutableStateOf(false) }
     if (showAnimationDialog) {
         AlertDialog(
             onDismissRequest = { showAnimationDialog = false },

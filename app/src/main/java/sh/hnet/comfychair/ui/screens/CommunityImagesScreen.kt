@@ -404,6 +404,12 @@ private fun CommunityImagePage(
     // multiple pages in the pager will exhaust available memory.
     LaunchedEffect(image.id) {
         android.util.Log.d("CommunityImage", "Loading image ${image.id}: ${image.url}")
+        // Also write to file for persistence
+        try {
+            context.getExternalFilesDir(null)?.let { dir ->
+                java.io.File(dir, "app_log.txt").appendText("${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(java.util.Date())} Loading image ${image.id}: ${image.url}\n")
+            }
+        } catch (_: Exception) {}
         isLoading = true
         val dm = context.resources.displayMetrics
         val request = ImageRequest.Builder(context)
@@ -421,6 +427,12 @@ private fun CommunityImagePage(
             }
         } catch (e: Exception) {
             android.util.Log.e("CommunityImage", "Exception loading image ${image.id}", e)
+            try {
+                context.getExternalFilesDir(null)?.let { dir ->
+                    val stack = e.stackTraceToString()
+                    java.io.File(dir, "crash_log.txt").appendText("${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(java.util.Date())} Exception loading ${image.id}:\n$stack\n\n")
+                }
+            } catch (_: Exception) {}
         }
         isLoading = false
     }

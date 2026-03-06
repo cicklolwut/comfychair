@@ -437,15 +437,8 @@ private fun CommunityImagePage(
         isLoading = false
     }
     
-    // Clean up bitmap when page is disposed (scrolled away)
-    DisposableEffect(image.id) {
-        android.util.Log.d("CommunityImage", "Composing image page ${image.id}")
-        onDispose {
-            android.util.Log.d("CommunityImage", "Disposing image ${image.id}, recycling bitmap")
-            bitmap?.recycle()
-            bitmap = null
-        }
-    }
+    // Note: We don't manually recycle bitmaps - Coil manages its own memory cache.
+    // Manual recycling causes crashes when the same image is viewed again.
     
     Box(
         modifier = Modifier.fillMaxSize(),

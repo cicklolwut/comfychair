@@ -1,11 +1,14 @@
 package sh.hnet.comfychair.ui.screens
 
 import androidx.compose.material3.ExperimentalMaterial3Api
+import android.net.Uri
 import android.text.Html
 import android.widget.Toast
 import android.widget.TextView
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import kotlinx.coroutines.flow.distinctUntilChanged
 import androidx.compose.foundation.layout.*
@@ -63,6 +66,8 @@ import androidx.compose.material.icons.filled.Animation
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.runtime.CompositionLocalProvider
 import sh.hnet.comfychair.ui.components.SettingsScreenScaffold
+import sh.hnet.comfychair.ui.components.VideoPlayer
+import sh.hnet.comfychair.ui.components.VideoScaleMode
 import sh.hnet.comfychair.model.CivitaiTypeMapper
 import sh.hnet.comfychair.viewmodel.ModelBrowserUiState
 import sh.hnet.comfychair.model.ModelProvider
@@ -711,6 +716,8 @@ fun ApiKeySetupCard(
 }
 
 @Composable
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
 fun ModelGridCard(
     model: ModelSearchResult,
     filterType: String?,
@@ -722,11 +729,18 @@ fun ModelGridCard(
     val context = LocalContext.current
     val displayUrl = if (showAnimations) model.animatedThumbnailUrl ?: model.thumbnailUrl else model.thumbnailUrl
     val coverAllowed = (model.coverImageNsfwLevel and browseLevel) == model.coverImageNsfwLevel
+    val isVideoCover = model.coverImageType == "video"
+    var inlinePlay by remember { mutableStateOf(false) }
     
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = if (isVideoCover && coverAllowed && model.coverVideoUrl != null) {
+                    { inlinePlay = !inlinePlay }
+                } else null
+            )
     ) {
         Column {
             // Cover image with 2:3 aspect ratio + overlaid badges
@@ -735,7 +749,15 @@ fun ModelGridCard(
                     .fillMaxWidth()
                     .aspectRatio(0.67f)
             ) {
-                if (displayUrl != null && coverAllowed) {
+                if (inlinePlay && isVideoCover && model.coverVideoUrl != null) {
+                    VideoPlayer(
+                        videoUri = Uri.parse(model.coverVideoUrl),
+                        modifier = Modifier.fillMaxSize(),
+                        showController = false,
+                        scaleMode = VideoScaleMode.CROP,
+                        onSingleTap = { inlinePlay = false }
+                    )
+                } else if (displayUrl != null && coverAllowed) {
                     AsyncImage(
                         model = ImageRequest.Builder(context)
                             .data(displayUrl)
@@ -745,6 +767,17 @@ fun ModelGridCard(
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop
                     )
+                    // Play icon overlay for video covers
+                    if (isVideoCover) {
+                        Icon(
+                            imageVector = Icons.Default.PlayCircle,
+                            contentDescription = "Video",
+                            modifier = Modifier
+                                .align(Alignment.Center)
+                                .size(32.dp),
+                            tint = Color.White.copy(alpha = 0.85f)
+                        )
+                    }
                 } else if (displayUrl != null && !coverAllowed) {
                     // Cover image exists but blocked by browse level — show placeholder
                     Box(

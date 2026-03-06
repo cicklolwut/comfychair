@@ -13,6 +13,8 @@ data class ModelSearchResult(
     val thumbnailUrl: String?, // Cover image URL (static, anim=false)
     val animatedThumbnailUrl: String? = null, // Animated cover (no anim=false)
     val coverImageNsfwLevel: Int = 1, // NSFW level of the cover image (for browseLevel filtering)
+    val coverImageType: String = "image", // "image" or "video"
+    val coverVideoUrl: String? = null, // transcode URL for video covers (for inline playback)
     val downloadCount: Long?,
     val favoriteCount: Long?,
     val tags: List<String>,

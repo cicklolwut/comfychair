@@ -453,11 +453,18 @@ class CivitaiTrpcService(
         val imagesArray = json.optJSONArray("images")
         val coverImage = selectCoverImage(imagesArray, browsingLevel)
         val coverImageNsfwLevel = coverImage?.optInt("nsfwLevel", 1) ?: 1
+        val coverImageType = coverImage?.optString("type", "image") ?: "image"
         val (thumbnailUrl, animatedThumbnailUrl) = if (coverImage != null) {
             buildCdnUrls(coverImage)
         } else {
             Pair(null, null)
         }
+        // For video covers: build a transcode URL for inline playback
+        val coverVideoUrl = if (coverImageType == "video" && coverImage != null) {
+            val uuid = coverImage.optString("url", "")
+            val imgName = if (coverImage.isNull("name")) "${coverImage.optInt("id")}.mp4" else coverImage.optString("name")
+            "$CDN_BASE/$uuid/transcode=true,width=450,optimized=true/$imgName"
+        } else null
         
         // Base model from version
         val baseModel = versionObj?.optString("baseModel", null)
@@ -469,6 +476,8 @@ class CivitaiTrpcService(
             thumbnailUrl = thumbnailUrl,
             animatedThumbnailUrl = animatedThumbnailUrl,
             coverImageNsfwLevel = coverImageNsfwLevel,
+            coverImageType = coverImageType,
+            coverVideoUrl = coverVideoUrl,
             downloadCount = downloadCount,
             favoriteCount = favoriteCount,
             tags = tags,

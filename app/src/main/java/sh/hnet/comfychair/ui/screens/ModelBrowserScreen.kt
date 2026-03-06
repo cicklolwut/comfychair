@@ -482,7 +482,7 @@ fun ModelBrowserScreen(
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
                 
-                // Browse Level (image NSFW filter)
+                // Browse Level (image NSFW filter) — individual toggles
                 Text("Image Content Level:", style = MaterialTheme.typography.labelMedium)
                 Spacer(modifier = Modifier.height(4.dp))
                 FlowRow(
@@ -490,15 +490,24 @@ fun ModelBrowserScreen(
                 ) {
                     val browseLevels = listOf(
                         1 to "PG",
-                        3 to "PG-13",
-                        7 to "R",
-                        15 to "X",
-                        31 to "XXX"
+                        2 to "PG-13",
+                        4 to "R",
+                        8 to "X",
+                        16 to "XXX"
                     )
-                    browseLevels.forEach { (level, label) ->
+                    browseLevels.forEach { (bit, label) ->
+                        val isSelected = (uiState.browseLevel and bit) != 0
                         FilterChip(
-                            selected = uiState.browseLevel == level,
-                            onClick = { viewModel.setBrowseLevel(level) },
+                            selected = isSelected,
+                            onClick = {
+                                val newLevel = if (isSelected) {
+                                    uiState.browseLevel and bit.inv()
+                                } else {
+                                    uiState.browseLevel or bit
+                                }
+                                // Don't allow deselecting everything
+                                if (newLevel != 0) viewModel.setBrowseLevel(newLevel)
+                            },
                             label = { Text(label, style = MaterialTheme.typography.labelSmall) }
                         )
                     }

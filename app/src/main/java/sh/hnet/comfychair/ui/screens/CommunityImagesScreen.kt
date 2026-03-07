@@ -81,6 +81,7 @@ fun CommunityImagesScreen(
     onMetaOnlyChanged: (Boolean) -> Unit = {},
     onFeaturedFirstChanged: (Boolean) -> Unit = {},
     onGroupByPostChanged: (Boolean) -> Unit = {},
+    onBrowseLevelChanged: (Int) -> Unit = {},
     autoplayVideos: Boolean = false,
     onLoadMore: () -> Unit,
     onBack: () -> Unit,
@@ -259,16 +260,38 @@ fun CommunityImagesScreen(
         // Filter & Sort bottom sheet
         if (showSortSheet) {
             ModalBottomSheet(
-                onDismissRequest = { showSortSheet = false }
+                onDismissRequest = { showSortSheet = false },
+                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
                         .padding(16.dp)
-                        .padding(bottom = 32.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                        .padding(bottom = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Text("Sort & Filter", style = MaterialTheme.typography.titleMedium)
+
+                    // Content Level (browseLevel bitmask)
+                    Text("Content Level:", style = MaterialTheme.typography.labelMedium)
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        listOf(1 to "PG", 2 to "PG-13", 4 to "R", 8 to "X", 16 to "XXX").forEach { (bit, label) ->
+                            val isSelected = (browseLevel and bit) != 0
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = {
+                                    val newLevel = browseLevel xor bit
+                                    if (newLevel != 0) onBrowseLevelChanged(newLevel)
+                                },
+                                label = { Text(label, style = MaterialTheme.typography.labelSmall) }
+                            )
+                        }
+                    }
+
+                    HorizontalDivider()
 
                     // Sort
                     Text("Sort by:", style = MaterialTheme.typography.labelMedium)

@@ -361,7 +361,7 @@ fun ModelBrowserScreen(
 
     // Settings bottom sheet (half-height, save/cancel semantics)
     if (showSettingsSheet) {
-        val sheetState = rememberModalBottomSheetState()
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         ModalBottomSheet(
             onDismissRequest = { showSettingsSheet = false },
             sheetState = sheetState
@@ -372,7 +372,7 @@ fun ModelBrowserScreen(
                     .heightIn(min = 300.dp, max = 600.dp)
                     .verticalScroll(rememberScrollState())
                     .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 // Title
                 Text(
@@ -562,7 +562,7 @@ fun ModelBrowserScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(4.dp))
 
                 // Save/Cancel buttons
                 Row(
@@ -616,7 +616,7 @@ fun ModelBrowserScreen(
                 Text(
                     "Search Settings",
                     style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(bottom = 16.dp)
+                    modifier = Modifier.padding(bottom = 8.dp)
                 )
                 
                 // Browse Level (image NSFW filter) — individual toggles
@@ -650,9 +650,9 @@ fun ModelBrowserScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(6.dp))
                 HorizontalDivider()
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(6.dp))
                 
                 // Filters (reuse existing SearchFilters composable)
                 SearchFilters(
@@ -685,6 +685,7 @@ fun ModelBrowserScreen(
             onMetaOnlyChanged = viewModel::setCommunityMetaOnly,
             onFeaturedFirstChanged = viewModel::setCommunityFeaturedFirst,
             onGroupByPostChanged = viewModel::setCommunityGroupByPost,
+            onBrowseLevelChanged = { viewModel.setBrowseLevel(it) },
             onFetchMetadata = { imageId, callback -> viewModel.fetchImageMetadata(imageId, callback) }
         )
     }
@@ -968,6 +969,7 @@ fun ModelDetailBottomSheet(
     onMetaOnlyChanged: (Boolean) -> Unit = {},
     onFeaturedFirstChanged: (Boolean) -> Unit = {},
     onGroupByPostChanged: (Boolean) -> Unit = {},
+    onBrowseLevelChanged: (Int) -> Unit = {},
     onFetchMetadata: ((Long, (sh.hnet.comfychair.model.GenerationMetadata?) -> Unit) -> Unit)? = null
 ) {
     val context = LocalContext.current
@@ -999,6 +1001,7 @@ fun ModelDetailBottomSheet(
                     onMetaOnlyChanged = onMetaOnlyChanged,
                     onFeaturedFirstChanged = onFeaturedFirstChanged,
                     onGroupByPostChanged = onGroupByPostChanged,
+                    onBrowseLevelChanged = onBrowseLevelChanged,
                     onLoadMore = onLoadMoreCommunityImages,
                     onBack = onToggleCommunityImages,
                     onImportWorkflow = onImportWorkflow,

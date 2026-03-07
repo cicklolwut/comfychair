@@ -175,6 +175,8 @@ class CivitaiCacheRepository(context: Context) {
 
     // --- Tags ---
 
+    suspend fun hasTags(): Boolean = tagDao.count() > 0
+
     suspend fun cacheTags(tags: List<Tag>) = tagDao.upsertAll(tags)
 
     suspend fun cacheImageTags(imageId: Long, tagIds: List<Int>) {

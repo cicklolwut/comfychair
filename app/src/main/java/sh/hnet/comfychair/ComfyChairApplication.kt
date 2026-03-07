@@ -10,6 +10,7 @@ import coil3.request.crossfade
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import sh.hnet.comfychair.db.AssetSeeder
 import sh.hnet.comfychair.db.entity.Technique
 import sh.hnet.comfychair.db.repository.CivitaiCacheRepository
 import sh.hnet.comfychair.service.CivitaiTrpcService
@@ -37,18 +38,17 @@ class ComfyChairApplication : Application(), SingletonImageLoader.Factory {
             ))
         }
 
-        // Seed tools from tool.getAll on first launch (fire-and-forget)
+        // Seed tools + tags from bundled assets on first install, then refresh tools from network
         CoroutineScope(Dispatchers.IO).launch {
-            if (!repo.hasTools()) {
-                try {
-                    val settings = ModelBrowserSettings(this@ComfyChairApplication)
-                    val civitaiService = CivitaiTrpcService(settings, this@ComfyChairApplication)
-                    val tools = civitaiService.getTools()
-                    if (tools.isNotEmpty()) repo.cacheTools(tools)
-                } catch (e: Exception) {
-                    // Non-fatal — tools will be fetched next launch
-                    android.util.Log.w("ComfyChairApplication", "Failed to seed tools: ${e.message}")
-                }
+            AssetSeeder.seedIfNeeded(this@ComfyChairApplication, repo)
+            // Opportunistic network refresh for tools (assets may be stale)
+            try {
+                val settings = ModelBrowserSettings(this@ComfyChairApplication)
+                val civitaiService = CivitaiTrpcService(settings, this@ComfyChairApplication)
+                val tools = civitaiService.getTools()
+                if (tools.isNotEmpty()) repo.cacheTools(tools)
+            } catch (e: Exception) {
+                android.util.Log.w("ComfyChairApplication", "Tool network refresh failed: ${e.message}")
             }
         }
     }

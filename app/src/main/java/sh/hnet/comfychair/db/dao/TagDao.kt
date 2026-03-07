@@ -27,4 +27,7 @@ interface TagDao {
 
     @Query("SELECT imageId FROM image_tags WHERE tagId = :tagId")
     suspend fun getImageIdsForTag(tagId: Int): List<Long>
+
+    @Query("SELECT COUNT(*) FROM tags")
+    suspend fun count(): Int
 }

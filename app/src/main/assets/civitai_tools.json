@@ -1,0 +1,1208 @@
+[
+  {
+    "toolId": 303,
+    "name": "Wan Video",
+    "type": "Video",
+    "icon": null,
+    "domain": null,
+    "priority": null,
+    "supported": true
+  },
+  {
+    "toolId": 65,
+    "name": "Haiper",
+    "type": "Video",
+    "icon": "7881d0e6-fda7-40b2-8b46-19a32e291d62",
+    "domain": "https://haiper.ai/explore",
+    "priority": 4,
+    "supported": true
+  },
+  {
+    "toolId": 169,
+    "name": "Mochi",
+    "type": "Video",
+    "icon": "87f4f69f-9cf9-4ba5-942b-55a81c6d433e",
+    "domain": "https://www.genmo.ai/",
+    "priority": 4,
+    "supported": true
+  },
+  {
+    "toolId": 274,
+    "name": "HunYuan",
+    "type": "Video",
+    "icon": null,
+    "domain": null,
+    "priority": null,
+    "supported": true
+  },
+  {
+    "toolId": 240,
+    "name": "Sora",
+    "type": "Video",
+    "icon": null,
+    "domain": null,
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 119,
+    "name": "Tripo 3D",
+    "type": "Video",
+    "icon": "d4c661ce-016b-4415-b4b5-be50334bd66c",
+    "domain": "https://www.tripo3d.ai/",
+    "priority": 4,
+    "supported": false
+  },
+  {
+    "toolId": 241,
+    "name": "Final Cut Pro",
+    "type": "Editor",
+    "icon": null,
+    "domain": null,
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 125,
+    "name": "Luma Genie",
+    "type": "Video",
+    "icon": null,
+    "domain": null,
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 127,
+    "name": "Adobe Premiere",
+    "type": "Editor",
+    "icon": null,
+    "domain": null,
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 128,
+    "name": "Genmo",
+    "type": "Video",
+    "icon": null,
+    "domain": null,
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 129,
+    "name": "AniFusion",
+    "type": "Image",
+    "icon": null,
+    "domain": null,
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 130,
+    "name": "Deep Dream Generator",
+    "type": "Image",
+    "icon": null,
+    "domain": null,
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 133,
+    "name": "VidProc",
+    "type": "Video",
+    "icon": null,
+    "domain": null,
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 134,
+    "name": "VSDC",
+    "type": "Editor",
+    "icon": null,
+    "domain": null,
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 135,
+    "name": "Magic Animate",
+    "type": "Video",
+    "icon": null,
+    "domain": null,
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 142,
+    "name": "MimicMotion",
+    "type": "MotionCapture",
+    "icon": null,
+    "domain": null,
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 148,
+    "name": "Hitfilm",
+    "type": "Editor",
+    "icon": null,
+    "domain": null,
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 126,
+    "name": "Rubbrband",
+    "type": "Image",
+    "icon": null,
+    "domain": null,
+    "priority": 4,
+    "supported": false
+  },
+  {
+    "toolId": 150,
+    "name": "ChatGPT",
+    "type": "Editor",
+    "icon": null,
+    "domain": null,
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 151,
+    "name": "Lasco.ai ",
+    "type": "Image",
+    "icon": null,
+    "domain": null,
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 152,
+    "name": "Canva",
+    "type": "Image",
+    "icon": null,
+    "domain": null,
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 154,
+    "name": "Gooey AI",
+    "type": "Video",
+    "icon": null,
+    "domain": null,
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 155,
+    "name": "Pixverse",
+    "type": "Video",
+    "icon": null,
+    "domain": null,
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 165,
+    "name": "Davant",
+    "type": "Image",
+    "icon": null,
+    "domain": "https://www.davantsystems.com/davant-studio/",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 120,
+    "name": "DeepMake",
+    "type": "Video",
+    "icon": "c43b101b-cfc5-481c-9599-5f55c034dd30",
+    "domain": "https://deepmake.com/",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 141,
+    "name": "LTX Studio",
+    "type": "Video",
+    "icon": null,
+    "domain": null,
+    "priority": 4,
+    "supported": false
+  },
+  {
+    "toolId": 167,
+    "name": "Kolors",
+    "type": "Image",
+    "icon": null,
+    "domain": null,
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 168,
+    "name": "SwarmUI",
+    "type": "Image",
+    "icon": null,
+    "domain": "https://github.com/mcmonkeyprojects/SwarmUI",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 242,
+    "name": "Magix Video",
+    "type": "Editor",
+    "icon": null,
+    "domain": null,
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 249,
+    "name": "Recraft",
+    "type": "Image",
+    "icon": null,
+    "domain": null,
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 304,
+    "name": "FramePack",
+    "type": "Video",
+    "icon": null,
+    "domain": null,
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 131,
+    "name": "Maze",
+    "type": "Image",
+    "icon": null,
+    "domain": null,
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 143,
+    "name": "Live Portrait",
+    "type": "MotionCapture",
+    "icon": null,
+    "domain": null,
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 153,
+    "name": "Kittl AI",
+    "type": "Image",
+    "icon": null,
+    "domain": null,
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 251,
+    "name": "Wondershare ",
+    "type": "Editor",
+    "icon": null,
+    "domain": null,
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 185,
+    "name": "Purplesmart",
+    "type": "Image",
+    "icon": null,
+    "domain": null,
+    "priority": 4,
+    "supported": false
+  },
+  {
+    "toolId": 177,
+    "name": "Higgsfield",
+    "type": "Video",
+    "icon": null,
+    "domain": null,
+    "priority": 2,
+    "supported": false
+  },
+  {
+    "toolId": 174,
+    "name": "Nebius",
+    "type": "Compute",
+    "icon": null,
+    "domain": null,
+    "priority": 2,
+    "supported": false
+  },
+  {
+    "toolId": 170,
+    "name": "Lightricks LTXV",
+    "type": "Video",
+    "icon": null,
+    "domain": "https://www.lightricks.com/",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 180,
+    "name": "Salad",
+    "type": "Compute",
+    "icon": null,
+    "domain": null,
+    "priority": 4,
+    "supported": false
+  },
+  {
+    "toolId": 137,
+    "name": "SadTalker",
+    "type": "Video",
+    "icon": null,
+    "domain": null,
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 252,
+    "name": "Artflow",
+    "type": "Image",
+    "icon": null,
+    "domain": null,
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 171,
+    "name": "AnimateDiff",
+    "type": "Video",
+    "icon": null,
+    "domain": "https://github.com/guoyww/animatediff/",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 253,
+    "name": "PixaBay",
+    "type": "Image",
+    "icon": null,
+    "domain": null,
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 172,
+    "name": "MiniMax / Hailuo",
+    "type": "Video",
+    "icon": null,
+    "domain": " https://hailuoai.video",
+    "priority": 2,
+    "supported": false
+  },
+  {
+    "toolId": 166,
+    "name": "Kling",
+    "type": "Video",
+    "icon": null,
+    "domain": null,
+    "priority": 1,
+    "supported": false
+  },
+  {
+    "toolId": 263,
+    "name": "Blender",
+    "type": "GameEngines",
+    "icon": null,
+    "domain": null,
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 255,
+    "name": "Lambda Labs",
+    "type": "Compute",
+    "icon": null,
+    "domain": null,
+    "priority": 1,
+    "supported": false
+  },
+  {
+    "toolId": 140,
+    "name": "Hedra",
+    "type": "Video",
+    "icon": null,
+    "domain": null,
+    "priority": 2,
+    "supported": false
+  },
+  {
+    "toolId": 24,
+    "name": "RunPod",
+    "type": "Compute",
+    "icon": null,
+    "domain": "https://www.runpod.io/",
+    "priority": 2,
+    "supported": false
+  },
+  {
+    "toolId": 23,
+    "name": "ThinkDiffusion",
+    "type": "Compute",
+    "icon": "ca587fb1-f3ed-47bf-b188-39b15857bb3e",
+    "domain": "https://go.thinkdiffusion.com/civitai",
+    "priority": 2,
+    "supported": false
+  },
+  {
+    "toolId": 121,
+    "name": "neural frames",
+    "type": "Video",
+    "icon": "097f05e7-6994-488e-90fe-044518480d6d",
+    "domain": "https://www.neuralframes.com/",
+    "priority": 3,
+    "supported": false
+  },
+  {
+    "toolId": 184,
+    "name": "CogVideoX",
+    "type": "Video",
+    "icon": null,
+    "domain": null,
+    "priority": 4,
+    "supported": false
+  },
+  {
+    "toolId": 86,
+    "name": "ComfyUI",
+    "type": "Image",
+    "icon": null,
+    "domain": "https://github.com/comfyanonymous/ComfyUI",
+    "priority": 4,
+    "supported": false
+  },
+  {
+    "toolId": 190,
+    "name": "fal",
+    "type": "Compute",
+    "icon": null,
+    "domain": null,
+    "priority": 4,
+    "supported": false
+  },
+  {
+    "toolId": 138,
+    "name": "PicSo",
+    "type": "Image",
+    "icon": null,
+    "domain": null,
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 193,
+    "name": "Vidu",
+    "type": "Video",
+    "icon": null,
+    "domain": null,
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 194,
+    "name": "Silmu",
+    "type": "Video",
+    "icon": null,
+    "domain": null,
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 195,
+    "name": "Scenario",
+    "type": "Image",
+    "icon": null,
+    "domain": null,
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 196,
+    "name": "Picsart",
+    "type": "Editor",
+    "icon": null,
+    "domain": null,
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 192,
+    "name": "SAGA",
+    "type": "Video",
+    "icon": null,
+    "domain": null,
+    "priority": 4,
+    "supported": false
+  },
+  {
+    "toolId": 199,
+    "name": "Flux",
+    "type": "Image",
+    "icon": null,
+    "domain": null,
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 201,
+    "name": "Nim",
+    "type": "Video",
+    "icon": null,
+    "domain": null,
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 202,
+    "name": "Flimora ",
+    "type": "Editor",
+    "icon": null,
+    "domain": null,
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 204,
+    "name": "Veed.io",
+    "type": "Editor",
+    "icon": null,
+    "domain": null,
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 205,
+    "name": "Veo",
+    "type": "Video",
+    "icon": null,
+    "domain": null,
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 236,
+    "name": "Invideo",
+    "type": "Video",
+    "icon": null,
+    "domain": null,
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 10,
+    "name": "Domo AI",
+    "type": "Video",
+    "icon": "855ebd34-88e7-4841-a57e-c2ebda843a88",
+    "domain": "https://domoai.app/r/odyssey",
+    "priority": 4,
+    "supported": false
+  },
+  {
+    "toolId": 139,
+    "name": "Draw Things",
+    "type": "Image",
+    "icon": null,
+    "domain": null,
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 284,
+    "name": "Grok",
+    "type": "LLM",
+    "icon": null,
+    "domain": "https://x.com/i/grok",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 285,
+    "name": "SD.Next",
+    "type": "Image",
+    "icon": null,
+    "domain": "https://github.com/vladmandic/automatic",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 286,
+    "name": "Rendermind",
+    "type": "Image",
+    "icon": null,
+    "domain": null,
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 287,
+    "name": "FaceFusion",
+    "type": "Image",
+    "icon": null,
+    "domain": null,
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 67,
+    "name": "Pika",
+    "type": "Video",
+    "icon": null,
+    "domain": "https://pika.art/home",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 4,
+    "name": "Adobe Firefly",
+    "type": "Image",
+    "icon": null,
+    "domain": "https://www.adobe.com/products/firefly.html",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 1,
+    "name": "Gemini",
+    "type": "Image",
+    "icon": null,
+    "domain": "https://gemini.google.com/",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 2,
+    "name": "KREA",
+    "type": "Image",
+    "icon": null,
+    "domain": "https://www.krea.ai/home",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 30,
+    "name": "Midjourney",
+    "type": "Image",
+    "icon": null,
+    "domain": "https://www.midjourney.com/home",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 7,
+    "name": "Deforum Studio",
+    "type": "Video",
+    "icon": null,
+    "domain": "https://deforum.studio/featured",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 97,
+    "name": "Flush",
+    "type": "Image",
+    "icon": null,
+    "domain": "https://www.flushai.cloud/",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 9,
+    "name": "EBSynth",
+    "type": "Video",
+    "icon": null,
+    "domain": "https://ebsynth.com/",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 39,
+    "name": "Prism",
+    "type": "Video",
+    "icon": null,
+    "domain": "https://www.fable.app/",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 8,
+    "name": "Kaiber",
+    "type": "Video",
+    "icon": null,
+    "domain": "https://kaiber.ai/",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 41,
+    "name": "LensGo",
+    "type": "Video",
+    "icon": null,
+    "domain": "https://lensgo.ai/",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 48,
+    "name": "Topaz Photo AI",
+    "type": "Upscalers",
+    "icon": null,
+    "domain": "https://www.topazlabs.com/",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 49,
+    "name": "Topaz Video AI",
+    "type": "Upscalers",
+    "icon": null,
+    "domain": "https://www.topazlabs.com/",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 26,
+    "name": "Brev",
+    "type": "Compute",
+    "icon": null,
+    "domain": "https://brev.dev/",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 25,
+    "name": "RunDiffusion",
+    "type": "Compute",
+    "icon": null,
+    "domain": "https://rundiffusion.com/",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 27,
+    "name": "Unity",
+    "type": "GameEngines",
+    "icon": null,
+    "domain": "https://unity.com/",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 61,
+    "name": "Unreal Engine",
+    "type": "GameEngines",
+    "icon": null,
+    "domain": "https://www.unrealengine.com/en-US",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 62,
+    "name": "Adobe Photoshop",
+    "type": "Editor",
+    "icon": null,
+    "domain": "https://www.adobe.com/products/photoshop.html",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 63,
+    "name": "Adobe AfterEffects",
+    "type": "Editor",
+    "icon": null,
+    "domain": "https://www.adobe.com/products/aftereffects.html",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 64,
+    "name": "Photopea",
+    "type": "Image",
+    "icon": null,
+    "domain": "https://www.photopea.com/",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 66,
+    "name": "Morph Studio",
+    "type": "Video",
+    "icon": null,
+    "domain": "https://app.morphstudio.com/",
+    "priority": 4,
+    "supported": false
+  },
+  {
+    "toolId": 47,
+    "name": "MAGNIFIC",
+    "type": "Upscalers",
+    "icon": null,
+    "domain": "https://magnific.ai/",
+    "priority": 4,
+    "supported": false
+  },
+  {
+    "toolId": 68,
+    "name": "Runway",
+    "type": "Video",
+    "icon": null,
+    "domain": "https://runwayml.com/",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 69,
+    "name": "iKHOR Labs",
+    "type": "Video",
+    "icon": null,
+    "domain": "https://www.ikhor.ai/",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 71,
+    "name": "Stable Artisan",
+    "type": "Video",
+    "icon": null,
+    "domain": "https://discord.gg/stablediffusion",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 72,
+    "name": "DreamStudio",
+    "type": "Image",
+    "icon": null,
+    "domain": "https://beta.dreamstudio.ai/generate",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 73,
+    "name": "DALL-E 3",
+    "type": "Image",
+    "icon": null,
+    "domain": "https://openai.com/index/dall-e-3/",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 74,
+    "name": "Touch Designer",
+    "type": "Image",
+    "icon": null,
+    "domain": "https://derivative.ca/",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 75,
+    "name": "Salt",
+    "type": "Image",
+    "icon": null,
+    "domain": "https://getsalt.ai/",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 76,
+    "name": "GIMP",
+    "type": "Editor",
+    "icon": null,
+    "domain": "https://www.gimp.org/",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 77,
+    "name": "Krita",
+    "type": "Image",
+    "icon": null,
+    "domain": "https://krita.org/en/",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 79,
+    "name": "Vimeo",
+    "type": "Video",
+    "icon": null,
+    "domain": "https://vimeo.com/campaigns/one-take-video",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 80,
+    "name": "DaVinci Resolve",
+    "type": "Editor",
+    "icon": null,
+    "domain": "https://www.blackmagicdesign.com/",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 81,
+    "name": "CapCut",
+    "type": "Editor",
+    "icon": null,
+    "domain": "https://www.capcut.com/",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 82,
+    "name": "Nijijourney",
+    "type": "Image",
+    "icon": null,
+    "domain": "https://nijijourney.com/",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 83,
+    "name": "Fooocus",
+    "type": "Image",
+    "icon": null,
+    "domain": "https://fooocus.one/",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 84,
+    "name": "A1111",
+    "type": "Image",
+    "icon": null,
+    "domain": "https://github.com/AUTOMATIC1111/stable-diffusion-webui",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 85,
+    "name": "Parseq",
+    "type": "Video",
+    "icon": null,
+    "domain": "https://sd-parseq.web.app/deforum?docId=doc-4472fbbd-5ed5-4918-a5d8-ed1b6682ea3a",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 70,
+    "name": "Banodoco",
+    "type": "Video",
+    "icon": null,
+    "domain": "https://banodoco.ai/",
+    "priority": 4,
+    "supported": false
+  },
+  {
+    "toolId": 87,
+    "name": "Invoke",
+    "type": "Image",
+    "icon": null,
+    "domain": "https://www.invoke.com/",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 88,
+    "name": "Forge",
+    "type": "Image",
+    "icon": null,
+    "domain": "https://github.com/lllyasviel/stable-diffusion-webui-forge",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 89,
+    "name": "Dream",
+    "type": "Image",
+    "icon": null,
+    "domain": "https://www.w.ai/",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 90,
+    "name": "Google ImageFX",
+    "type": "Image",
+    "icon": null,
+    "domain": "https://aitestkitchen.withgoogle.com/tools/image-fx",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 92,
+    "name": "Wowzer",
+    "type": "Image",
+    "icon": null,
+    "domain": "https://wowzer.ai/",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 93,
+    "name": "Craiyon",
+    "type": "Image",
+    "icon": null,
+    "domain": "https://www.craiyon.com/",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 94,
+    "name": "Getty Images Generative AI",
+    "type": "Image",
+    "icon": null,
+    "domain": "https://www.gettyimages.com/ai/generation/about",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 95,
+    "name": "Shutterstock AI Image Generation",
+    "type": "Image",
+    "icon": null,
+    "domain": "https://www.shutterstock.com/ai-image-generator",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 96,
+    "name": "Meta AI",
+    "type": "Image",
+    "icon": null,
+    "domain": "https://www.meta.ai/",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 98,
+    "name": "Warp Video",
+    "type": "Video",
+    "icon": null,
+    "domain": "https://warpvideo.ai/",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 99,
+    "name": "Showrunner AI",
+    "type": "Video",
+    "icon": null,
+    "domain": "https://www.thesimulation.ai/",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 105,
+    "name": "Yodayo",
+    "type": "Image",
+    "icon": null,
+    "domain": "https://yodayo.com/",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 106,
+    "name": "ModelsLab",
+    "type": "Image",
+    "icon": null,
+    "domain": "https://modelslab.com/",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 107,
+    "name": "OpenArt",
+    "type": "Image",
+    "icon": null,
+    "domain": "https://openart.ai/",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 108,
+    "name": "Diffus",
+    "type": "Image",
+    "icon": null,
+    "domain": "https://www.diffus.me/",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 109,
+    "name": "DaVinci",
+    "type": "Image",
+    "icon": null,
+    "domain": "https://davinci.ai/",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 111,
+    "name": "Cuebric",
+    "type": "Image",
+    "icon": null,
+    "domain": "https://cuebric.com/",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 305,
+    "name": "GPT Image 1",
+    "type": "Image",
+    "icon": null,
+    "domain": "https://openai.com/",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 113,
+    "name": "Ideogram",
+    "type": "Image",
+    "icon": null,
+    "domain": "https://ideogram.ai/t/top/1",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 124,
+    "name": "Luma Dream Machine",
+    "type": "Video",
+    "icon": null,
+    "domain": "https://lumalabs.ai/dream-machine\r\n\r\n",
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 5,
+    "name": "Fable",
+    "type": "Video",
+    "icon": null,
+    "domain": null,
+    "priority": null,
+    "supported": false
+  },
+  {
+    "toolId": 302,
+    "name": "Hugging Face",
+    "type": "Image",
+    "icon": null,
+    "domain": null,
+    "priority": null,
+    "supported": false
+  }
+]

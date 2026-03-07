@@ -65,6 +65,7 @@ import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material.icons.filled.Animation
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.runtime.CompositionLocalProvider
+import sh.hnet.comfychair.ui.components.AutoplayVideoThumbnail
 import sh.hnet.comfychair.ui.components.SettingsScreenScaffold
 import sh.hnet.comfychair.ui.components.VideoPlayer
 import sh.hnet.comfychair.ui.components.VideoScaleMode
@@ -114,6 +115,7 @@ fun ModelBrowserScreen(
     var settingsNsfwMax by remember { mutableStateOf(uiState.nsfwLevels.maxOrNull() ?: 2) }
     var settingsBlurThreshold by remember { mutableStateOf(uiState.blurThreshold) }
     var settingsShowAnimations by remember { mutableStateOf(uiState.showAnimations) }
+    var settingsAutoplayVideos by remember { mutableStateOf(uiState.autoplayVideos) }
     var settingsApiKey by remember { mutableStateOf(uiState.apiKey) }
     var settingsCacheLimitMb by remember { mutableStateOf(viewModel.mediaCache.cacheLimitMb) }
     var settingsPrefetchEnabled by remember { mutableStateOf(viewModel.mediaCache.prefetchEnabled) }
@@ -163,7 +165,7 @@ fun ModelBrowserScreen(
                 }
 
                 // Settings button
-                IconButton(onClick = { showSettingsSheet = true; settingsNsfwMax = uiState.nsfwLevels.maxOrNull() ?: 2; settingsBlurThreshold = uiState.blurThreshold; settingsShowAnimations = uiState.showAnimations; settingsApiKey = uiState.apiKey; settingsCacheLimitMb = viewModel.mediaCache.cacheLimitMb; settingsPrefetchEnabled = viewModel.mediaCache.prefetchEnabled; settingsPrefetchCount = viewModel.mediaCache.prefetchCount }) {
+                IconButton(onClick = { showSettingsSheet = true; settingsNsfwMax = uiState.nsfwLevels.maxOrNull() ?: 2; settingsBlurThreshold = uiState.blurThreshold; settingsShowAnimations = uiState.showAnimations; settingsAutoplayVideos = uiState.autoplayVideos; settingsApiKey = uiState.apiKey; settingsCacheLimitMb = viewModel.mediaCache.cacheLimitMb; settingsPrefetchEnabled = viewModel.mediaCache.prefetchEnabled; settingsPrefetchCount = viewModel.mediaCache.prefetchCount }) {
                     Icon(Icons.Default.Settings, "Settings")
                 }
             }
@@ -219,6 +221,21 @@ fun ModelBrowserScreen(
 
                         // Search results - 2-column grid
                         val gridState = rememberLazyGridState()
+
+                        // Track visible video covers for autoplay
+                        val visibleCoverKeys by remember(uiState.autoplayVideos) {
+                            derivedStateOf {
+                                if (!uiState.autoplayVideos) emptySet()
+                                else {
+                                    gridState.layoutInfo.visibleItemsInfo.mapNotNull { info ->
+                                        val model = uiState.searchResults.getOrNull(info.index) ?: return@mapNotNull null
+                                        if (model.coverImageType == "video" && model.coverVideoUrl != null) {
+                                            "cover_${model.id}"
+                                        } else null
+                                    }.toSet()
+                                }
+                            }
+                        }
                         
                         NoOverscrollContainer(modifier = Modifier.fillMaxSize()) {
                         LazyVerticalGrid(
@@ -240,6 +257,7 @@ fun ModelBrowserScreen(
                                     filterType = uiState.filterModelType,
                                     filterBaseModel = uiState.filterBaseModel,
                                     showAnimations = uiState.showAnimations,
+                                    autoplayVisible = "cover_${model.id}" in visibleCoverKeys,
                                     browseLevel = uiState.browseLevel,
                                     onClick = onClick
                                 )
@@ -422,6 +440,25 @@ fun ModelBrowserScreen(
                         )
                     }
 
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text("Autoplay Videos", style = MaterialTheme.typography.labelMedium)
+                            Text(
+                                "Auto-play video clips in grids (muted)",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = settingsAutoplayVideos,
+                            onCheckedChange = { settingsAutoplayVideos = it }
+                        )
+                    }
+
                     HorizontalDivider()
                 }
 
@@ -539,6 +576,7 @@ fun ModelBrowserScreen(
                                 nsfwMax = settingsNsfwMax,
                                 blurThreshold = settingsBlurThreshold,
                                 showAnimations = settingsShowAnimations,
+                                autoplayVideos = settingsAutoplayVideos,
                                 apiKey = settingsApiKey
                             )
                             // Save cache settings
@@ -723,6 +761,7 @@ fun ModelGridCard(
     filterType: String?,
     filterBaseModel: String?,
     showAnimations: Boolean = false,
+    autoplayVisible: Boolean = false,
     browseLevel: Int = 31,
     onClick: () -> Unit
 ) {
@@ -756,6 +795,14 @@ fun ModelGridCard(
                         showController = false,
                         scaleMode = VideoScaleMode.CROP,
                         onSingleTap = { inlinePlay = false }
+                    )
+                } else if (autoplayVisible && isVideoCover && model.coverVideoUrl != null && coverAllowed) {
+                    AutoplayVideoThumbnail(
+                        videoUrl = model.coverVideoUrl!!,
+                        thumbnailUrl = displayUrl ?: "",
+                        itemKey = "cover_${model.id}",
+                        isVisible = true,
+                        modifier = Modifier.fillMaxSize()
                     )
                 } else if (displayUrl != null && coverAllowed) {
                     AsyncImage(
@@ -910,6 +957,7 @@ fun ModelDetailBottomSheet(
                     metaOnly = uiState.communityMetaOnly,
                     featuredFirst = uiState.communityFeaturedFirst,
                     groupByPost = uiState.communityGroupByPost,
+                    autoplayVideos = uiState.autoplayVideos,
                     onSortChanged = onSortCommunityImages,
                     onTypeFilterChanged = { viewModel.setCommunityTypeFilter(it) },
                     onMetaOnlyChanged = { viewModel.setCommunityMetaOnly(it) },

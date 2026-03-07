@@ -25,6 +25,7 @@ class ModelBrowserSettings(context: Context) {
         private const val KEY_TAG_CACHE = "tag_cache"
         private const val KEY_BLUR_THRESHOLD = "blur_threshold"
         private const val KEY_BROWSE_LEVEL = "browse_level"
+        private const val KEY_AUTOPLAY_VIDEOS = "autoplay_videos"
         // Civitai NSFW level mapping:
         // 1=PG, 2=PG-13, 4=R, 8=X, 16=XXX, 32=Blocked
         val DEFAULT_NSFW_LEVELS = setOf(1, 2, 4) // PG, PG-13, R
@@ -50,6 +51,7 @@ class ModelBrowserSettings(context: Context) {
     private var _showAnimations: Boolean? = null
     private var _blurThreshold: Int? = null
     private var _browseLevel: Int? = null
+    private var _autoplayVideos: Boolean? = null
     private var _tagCache: MutableMap<Int, String>? = null
 
     /** Civitai API key. */
@@ -112,6 +114,14 @@ class ModelBrowserSettings(context: Context) {
         set(value) {
             _browseLevel = value
             prefs.edit().putInt(KEY_BROWSE_LEVEL, value).apply()
+        }
+
+    /** Whether to autoplay video clips in grids. Off by default (data usage). */
+    var autoplayVideos: Boolean
+        get() = _autoplayVideos ?: prefs.getBoolean(KEY_AUTOPLAY_VIDEOS, false).also { _autoplayVideos = it }
+        set(value) {
+            _autoplayVideos = value
+            prefs.edit().putBoolean(KEY_AUTOPLAY_VIDEOS, value).apply()
         }
 
     /** Whether Civitai is configured (has API key). */

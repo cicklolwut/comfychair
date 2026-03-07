@@ -69,6 +69,7 @@ data class ModelBrowserUiState(
     val showFilters: Boolean = false,
     val nsfwLevels: Set<Int> = ModelBrowserSettings.DEFAULT_NSFW_LEVELS,
     val showAnimations: Boolean = false,
+    val autoplayVideos: Boolean = false,
     val blurThreshold: Int = 2, // Default: blur images above PG-13
     val apiKey: String = "", // API key for current provider
     val browseLevel: Int = 31, // Default: show all images (XXX)
@@ -115,6 +116,7 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
         providerConfigured = true,
         nsfwLevels = modelBrowserSettings.nsfwLevels,
         showAnimations = modelBrowserSettings.showAnimations,
+        autoplayVideos = modelBrowserSettings.autoplayVideos,
         blurThreshold = modelBrowserSettings.blurThreshold,
         browseLevel = modelBrowserSettings.browseLevel,
         apiKey = modelBrowserSettings.civitaiApiKey // Initial load, updated on provider switch
@@ -855,6 +857,7 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
         nsfwMax: Int,
         blurThreshold: Int,
         showAnimations: Boolean,
+        autoplayVideos: Boolean = false,
         apiKey: String
     ) {
         // Convert max level to bitmask (include all levels <= max)
@@ -879,6 +882,7 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
         modelBrowserSettings.nsfwLevels = nsfwLevelSet
         modelBrowserSettings.blurThreshold = blurThreshold
         modelBrowserSettings.showAnimations = showAnimations
+        modelBrowserSettings.autoplayVideos = autoplayVideos
 
         when (_uiState.value.selectedProvider) {
             ModelProvider.CIVITAI -> modelBrowserSettings.civitaiApiKey = apiKey
@@ -889,6 +893,7 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
             nsfwLevels = nsfwLevelSet,
             blurThreshold = blurThreshold,
             showAnimations = showAnimations,
+            autoplayVideos = autoplayVideos,
             apiKey = apiKey
         )
 

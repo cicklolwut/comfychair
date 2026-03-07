@@ -943,23 +943,23 @@ fun ModelGridCard(
                     overflow = TextOverflow.Ellipsis
                 )
 
-                // Tags as horizontal scroll row
-                if (model.tags.isNotEmpty()) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        model.tags.take(6).forEach { tag ->
-                            MiniChip(
-                                text = tag,
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
+                // Tags temporarily disabled for scroll perf testing
+                // if (model.tags.isNotEmpty()) {
+                //     Row(
+                //         modifier = Modifier
+                //             .fillMaxWidth()
+                //             .horizontalScroll(rememberScrollState()),
+                //         horizontalArrangement = Arrangement.spacedBy(4.dp)
+                //     ) {
+                //         model.tags.take(6).forEach { tag ->
+                //             MiniChip(
+                //                 text = tag,
+                //                 containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                //                 contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                //             )
+                //         }
+                //     }
+                // }
             }
         }
     }

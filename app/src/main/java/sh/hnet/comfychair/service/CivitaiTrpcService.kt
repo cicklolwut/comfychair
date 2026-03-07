@@ -864,7 +864,7 @@ class CivitaiTrpcService(
                     GenerationResource(
                         name = resObj.optString("name", null),
                         type = resObj.optString("type", null),
-                        weight = if (resObj.has("weight")) resObj.optDouble("weight") else null,
+                        weight = if (resObj.has("weight") && !resObj.isNull("weight")) resObj.optDouble("weight").takeIf { !it.isNaN() } else null,
                         modelVersionId = versionId
                     )
                 )
@@ -888,7 +888,7 @@ class CivitaiTrpcService(
                     GenerationResource(
                         name = versionName,
                         type = type,
-                        weight = if (resObj.has("weight")) resObj.optDouble("weight") else null,
+                        weight = if (resObj.has("weight") && !resObj.isNull("weight")) resObj.optDouble("weight").takeIf { !it.isNaN() } else null,
                         modelVersionId = versionId
                     )
                 )
@@ -984,7 +984,7 @@ class CivitaiTrpcService(
                 val name = res.optString("versionName", null)
                     ?: res.optString("modelName", null)
                 val type = res.optString("modelType", null)
-                val weight = if (res.has("strength")) res.optDouble("strength") else null
+                val weight = if (res.has("strength") && !res.isNull("strength")) res.optDouble("strength").takeIf { !it.isNaN() } else null
                 resources.add(
                     GenerationResource(
                         name = name,
@@ -1008,7 +1008,7 @@ class CivitaiTrpcService(
                     GenerationResource(
                         name = res.optString("modelVersionName", null),
                         type = res.optString("type", null),
-                        weight = if (res.has("weight")) res.optDouble("weight") else null,
+                        weight = if (res.has("weight") && !res.isNull("weight")) res.optDouble("weight").takeIf { !it.isNaN() } else null,
                         modelVersionId = versionId
                     )
                 )

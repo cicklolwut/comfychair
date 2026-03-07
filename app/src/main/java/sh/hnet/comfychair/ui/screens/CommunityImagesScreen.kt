@@ -990,9 +990,9 @@ private fun ImageMetadataSheet(
                                     }
                                 }
                             }
-                            resource.weight?.let {
+                            resource.weight?.takeIf { !it.isNaN() && it != 0.0 }?.let {
                                 Text(
-                                    text = "Weight: $it",
+                                    text = "Weight: ${"%.2f".format(it)}",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.primary
                                 )

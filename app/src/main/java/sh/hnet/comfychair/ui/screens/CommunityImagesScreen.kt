@@ -399,8 +399,8 @@ private fun CommunityImageCard(
                     contentScale = ContentScale.Crop
                 )
             }
-            // Play icon overlay for video content
-            if (isVideo && !inlinePlay) {
+            // Play icon overlay for video content (hide during autoplay/inline play)
+            if (isVideo && !inlinePlay && !autoplayVideos) {
                 Icon(
                     imageVector = Icons.Default.PlayCircle,
                     contentDescription = "Video",

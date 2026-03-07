@@ -732,7 +732,9 @@ class CivitaiTrpcService(
         val animatedParams = if (isVideo) "transcode=true,width=450,original=false,optimized=true" else "width=450,optimized=true"
         
         val staticUrl = "$CDN_BASE/$uuid/$staticParams/$thumbName"
-        val animatedUrl = "$CDN_BASE/$uuid/$animatedParams/$name"
+        // For videos, animatedThumbnailUrl would return video/mp4 (no anim=false).
+        // Use the static frame URL instead — video playback uses coverVideoUrl.
+        val animatedUrl = if (isVideo) staticUrl else "$CDN_BASE/$uuid/$animatedParams/$name"
         
         return Pair(staticUrl, animatedUrl)
     }
@@ -763,7 +765,8 @@ class CivitaiTrpcService(
         val animatedParams = if (isVideo) "transcode=true,width=450,original=false,optimized=true" else "width=450,optimized=true"
         
         val thumbnailUrl = "$CDN_BASE/$uuid/$staticParams/$thumbName"
-        val animatedThumbnailUrl = "$CDN_BASE/$uuid/$animatedParams/$name"
+        // For videos, animated URL would return video/mp4 — use static frame instead
+        val animatedThumbnailUrl = if (isVideo) thumbnailUrl else "$CDN_BASE/$uuid/$animatedParams/$name"
         val fullUrl = "$CDN_BASE/$uuid/original=true/$name"
         
         // Parse stats

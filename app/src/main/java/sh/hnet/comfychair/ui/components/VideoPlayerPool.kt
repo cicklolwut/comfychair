@@ -41,6 +41,7 @@ object VideoPlayerPool {
         var lastAssignedAt: Long = 0
     )
 
+    @Synchronized
     private fun ensureInitialized(context: Context) {
         if (isInitialized) return
         val appContext = context.applicationContext
@@ -84,6 +85,7 @@ object VideoPlayerPool {
      * If pool has free players, assigns one.
      * If pool is full, reclaims the oldest assignment.
      */
+    @Synchronized
     fun assignPlayer(context: Context, key: String, uri: Uri): ExoPlayer? {
         ensureInitialized(context)
 
@@ -127,6 +129,7 @@ object VideoPlayerPool {
      * Release a player assignment (item scrolled off screen).
      * The player is stopped and returned to the pool.
      */
+    @Synchronized
     fun releasePlayer(key: String) {
         val pooled = players.find { it.assignedKey == key } ?: return
         pooled.player.stop()

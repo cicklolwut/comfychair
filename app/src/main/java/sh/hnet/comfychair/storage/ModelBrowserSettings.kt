@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKeys
 import org.json.JSONObject
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Persists model browser configuration: API keys for Civitai and HuggingFace.
@@ -52,7 +53,7 @@ class ModelBrowserSettings(context: Context) {
     private var _blurThreshold: Int? = null
     private var _browseLevel: Int? = null
     private var _autoplayVideos: Boolean? = null
-    private var _tagCache: MutableMap<Int, String>? = null
+    private val _tagCache: ConcurrentHashMap<Int, String> by lazy { ConcurrentHashMap(loadTagCache()) }
 
     /** Civitai API key. */
     var civitaiApiKey: String
@@ -137,26 +138,19 @@ class ModelBrowserSettings(context: Context) {
      * Tag mappings are immutable on Civitai, so this is append-only.
      */
     val tagCache: Map<Int, String>
-        get() {
-            if (_tagCache == null) {
-                _tagCache = loadTagCache()
-            }
-            return _tagCache!!
-        }
+        get() = _tagCache
 
     /**
      * Add new tag mappings to the cache. Merges with existing.
      */
     fun updateTagCache(newTags: Map<Int, String>) {
         if (newTags.isEmpty()) return
-        
-        val current = _tagCache ?: loadTagCache()
-        current.putAll(newTags)
-        _tagCache = current
-        
+
+        _tagCache.putAll(newTags)
+
         // Persist to SharedPrefs
         val json = JSONObject()
-        current.forEach { (id, name) -> json.put(id.toString(), name) }
+        _tagCache.forEach { (id, name) -> json.put(id.toString(), name) }
         prefs.edit().putString(KEY_TAG_CACHE, json.toString()).apply()
     }
 

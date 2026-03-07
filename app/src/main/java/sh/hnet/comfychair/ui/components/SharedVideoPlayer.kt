@@ -14,6 +14,7 @@ import androidx.media3.datasource.cache.SimpleCache
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import java.io.File
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Singleton manager for a shared ExoPlayer instance.
@@ -38,7 +39,7 @@ object SharedVideoPlayer {
     private var videoCache: SimpleCache? = null
     private var currentUri: Uri? = null
     private var isInitialized = false
-    private var consumerCount = 0
+    private val consumerCount = AtomicInteger(0)
     private val handler = Handler(Looper.getMainLooper())
     private var pendingStopRunnable: Runnable? = null
 
@@ -57,6 +58,7 @@ object SharedVideoPlayer {
     /**
      * Get or create the shared ExoPlayer instance with caching.
      */
+    @Synchronized
     fun getPlayer(context: Context): ExoPlayer {
         if (exoPlayer == null) {
             val appContext = context.applicationContext
@@ -85,7 +87,7 @@ object SharedVideoPlayer {
      * Cancels any pending stop since there's an active consumer.
      */
     fun registerConsumer(context: Context): ExoPlayer {
-        consumerCount++
+        consumerCount.incrementAndGet()
         // Cancel any pending stop since someone is using the player
         pendingStopRunnable?.let { handler.removeCallbacks(it) }
         pendingStopRunnable = null
@@ -98,13 +100,12 @@ object SharedVideoPlayer {
      * Video is stopped (not paused) so it resets to the beginning on next play.
      */
     fun unregisterConsumer() {
-        consumerCount--
-        if (consumerCount <= 0) {
-            consumerCount = 0
+        if (consumerCount.decrementAndGet() <= 0) {
+            consumerCount.set(0)
             // Schedule delayed stop to allow for transitions
             pendingStopRunnable?.let { handler.removeCallbacks(it) }
             pendingStopRunnable = Runnable {
-                if (consumerCount == 0) {
+                if (consumerCount.get() == 0) {
                     // Stop (not pause) so video resets to beginning on next play
                     exoPlayer?.stop()
                     currentUri = null  // Clear URI so prepareVideo will reload
@@ -166,7 +167,7 @@ object SharedVideoPlayer {
      */
     fun resume() {
         exoPlayer?.let { player ->
-            if (currentUri != null && consumerCount > 0) {
+            if (currentUri != null && consumerCount.get() > 0) {
                 player.play()
             }
         }
@@ -196,7 +197,7 @@ object SharedVideoPlayer {
         videoCache = null
         currentUri = null
         isInitialized = false
-        consumerCount = 0
+        consumerCount.set(0)
     }
 
     /**

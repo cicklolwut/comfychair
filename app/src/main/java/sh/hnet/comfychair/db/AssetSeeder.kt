@@ -1,6 +1,8 @@
 package sh.hnet.comfychair.db
 
 import android.content.Context
+import org.json.JSONArray
+import org.json.JSONObject
 import sh.hnet.comfychair.db.entity.Tag
 import sh.hnet.comfychair.db.entity.Tool
 import sh.hnet.comfychair.db.repository.CivitaiCacheRepository
@@ -20,12 +22,14 @@ object AssetSeeder {
             val arr = JSONArray(json)
             val tools = (0 until arr.length()).map { i ->
                 val obj = arr.getJSONObject(i)
+                val icon = obj.optString("icon", "")
+                val domain = obj.optString("domain", "")
                 Tool(
                     toolId = obj.getInt("toolId"),
                     name = obj.getString("name"),
                     type = obj.optString("type", ""),
-                    icon = obj.optString("icon").takeIf { it.isNotEmpty() },
-                    domain = obj.optString("domain").takeIf { it.isNotEmpty() },
+                    icon = if (icon.isNotEmpty()) icon else null,
+                    domain = if (domain.isNotEmpty()) domain else null,
                     priority = obj.optInt("priority", 0),
                     supported = obj.optBoolean("supported", false)
                 )
@@ -42,7 +46,7 @@ object AssetSeeder {
             val json = context.assets.open("civitai_tags.json")
                 .bufferedReader().use { it.readText() }
             // civitai_tags.json is a flat map {id: name} used by CivitaiTagRepository
-            val obj = org.json.JSONObject(json)
+            val obj = JSONObject(json)
             val tags = obj.keys().asSequence().mapNotNull { key ->
                 val id = key.toIntOrNull() ?: return@mapNotNull null
                 Tag(tagId = id, name = obj.getString(key))

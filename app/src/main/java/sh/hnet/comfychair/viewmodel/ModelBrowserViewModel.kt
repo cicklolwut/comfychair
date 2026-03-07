@@ -257,7 +257,7 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
                             sort = state.filterSort,
                             period = state.filterPeriod,
                             browsingLevel = browsingLevel,
-                            limit = 20,
+                            limit = 100,
                             cursor = null
                         )
                         
@@ -330,7 +330,7 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
                     sort = currentState.filterSort,
                     period = currentState.filterPeriod,
                     browsingLevel = browsingLevel,
-                    limit = 20,
+                    limit = 100,
                     cursor = cursor
                 )
                 
@@ -954,11 +954,15 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
             val context = getApplication<Application>()
             val imageLoader = context.imageLoader
 
+            // Only prefetch first 10 — visible cards + one row ahead.
+            // Rest load on-demand via AsyncImage (which naturally prioritizes visible items).
+            val prefetchBatch = models.take(10)
+
             // Enqueue Coil prefetch for each non-null thumbnail URL.
             // Use the same target size (450x675) as the LaunchedEffect prefetch in the UI so
             // the decoded bitmap lands in the correct size bucket — avoiding a second decode
             // at display time (which would be a cache miss on the sized variant).
-            models.mapNotNull { it.thumbnailUrl }.forEach { url ->
+            prefetchBatch.mapNotNull { it.thumbnailUrl }.forEach { url ->
                 val request = ImageRequest.Builder(context)
                     .data(url)
                     .size(450, 675)
@@ -966,8 +970,8 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
                 imageLoader.enqueue(request)
             }
 
-            // Warm CDN transcode cache for video covers
-            val videoTranscodeUrls = models
+            // Warm CDN transcode cache for video covers (first 10 only)
+            val videoTranscodeUrls = prefetchBatch
                 .filter { it.coverImageType == "video" }
                 .mapNotNull { it.coverVideoUrl }
             if (videoTranscodeUrls.isNotEmpty()) {

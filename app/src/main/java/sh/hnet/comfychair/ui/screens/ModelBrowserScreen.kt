@@ -42,6 +42,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.material3.HorizontalDivider
@@ -847,7 +848,8 @@ fun ModelGridCard(
                         model = coverImageRequest,
                         contentDescription = model.name,
                         modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
+                        contentScale = ContentScale.Crop,
+                        placeholder = ColorPainter(MaterialTheme.colorScheme.surfaceVariant)
                     )
                     // Play icon for video covers (only when not playing)
                     if (isVideoCover && !autoplayVisible) {

@@ -83,7 +83,7 @@ class CivitaiTrpcService(
         sort: String = "Most Downloaded",
         period: String = "AllTime",
         browsingLevel: Int = 7,
-        limit: Int = 20,
+        limit: Int = 100,
         cursor: String? = null
     ): TrpcSearchResult = withContext(Dispatchers.IO) {
         val apiKey = settings.civitaiApiKey.takeIf { it.isNotBlank() }

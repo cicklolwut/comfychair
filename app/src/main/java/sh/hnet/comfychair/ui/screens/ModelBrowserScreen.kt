@@ -755,11 +755,11 @@ fun ModelGridCard(
     onClick: () -> Unit
 ) {
     val context = LocalContext.current
+    val isVideoCover = model.coverImageType == "video"
     // For video covers, never use animatedThumbnailUrl — it returns video/mp4 which Coil can't decode.
     // Video playback is handled separately via coverVideoUrl + ExoPlayer.
     val displayUrl = if (showAnimations && !isVideoCover) model.animatedThumbnailUrl ?: model.thumbnailUrl else model.thumbnailUrl
     val coverAllowed = (model.coverImageNsfwLevel and browseLevel) == model.coverImageNsfwLevel
-    val isVideoCover = model.coverImageType == "video"
     var inlinePlay by remember { mutableStateOf(false) }
     
     Card(

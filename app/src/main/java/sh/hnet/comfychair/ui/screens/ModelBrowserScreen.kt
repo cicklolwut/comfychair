@@ -222,6 +222,27 @@ fun ModelBrowserScreen(
                         // Search results - 2-column grid
                         val gridState = rememberLazyGridState()
 
+                        // Keys of grid items that are ≥33% visible — only these get autoplay.
+                        val autoplayKeys by remember {
+                            derivedStateOf {
+                                val info = gridState.layoutInfo
+                                val viewportStart = info.viewportStartOffset
+                                val viewportEnd = info.viewportEndOffset
+                                info.visibleItemsInfo
+                                    .filter { item ->
+                                        if (item.size.height == 0) return@filter false
+                                        val itemTop = item.offset.y
+                                        val itemBottom = itemTop + item.size.height
+                                        val visibleTop = maxOf(itemTop, viewportStart)
+                                        val visibleBottom = minOf(itemBottom, viewportEnd)
+                                        val visibleHeight = maxOf(0, visibleBottom - visibleTop)
+                                        visibleHeight.toFloat() / item.size.height >= 0.33f
+                                    }
+                                    .map { it.key }
+                                    .toHashSet()
+                            }
+                        }
+
                         NoOverscrollContainer(modifier = Modifier.fillMaxSize()) {
                         LazyVerticalGrid(
                             columns = GridCells.Fixed(2),
@@ -242,7 +263,7 @@ fun ModelBrowserScreen(
                                     filterType = uiState.filterModelType,
                                     filterBaseModel = uiState.filterBaseModel,
                                     showAnimations = uiState.showAnimations,
-                                    autoplayVisible = uiState.autoplayVideos,
+                                    autoplayVisible = uiState.autoplayVideos && autoplayKeys.contains(model.id),
                                     browseLevel = uiState.browseLevel,
                                     onClick = onClick
                                 )

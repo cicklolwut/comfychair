@@ -91,6 +91,30 @@ fun CommunityImagesScreen(
     var selectedImageIndex by remember { mutableIntStateOf(-1) }
     val gridState = rememberLazyGridState()
 
+    // Keys of grid items that are ≥33% visible — only these get an autoplay player.
+    // Using derivedStateOf so recomposition only fires when the *set* actually changes,
+    // not on every scroll pixel. We key by image.id / post.postId (same values used in
+    // the items() key lambdas below), so the items lambda can simply check membership.
+    val autoplayKeys by remember {
+        derivedStateOf {
+            val info = gridState.layoutInfo
+            val viewportStart = info.viewportStartOffset
+            val viewportEnd = info.viewportEndOffset
+            info.visibleItemsInfo
+                .filter { item ->
+                    if (item.size.height == 0) return@filter false
+                    val itemTop = item.offset.y
+                    val itemBottom = itemTop + item.size.height
+                    val visibleTop = maxOf(itemTop, viewportStart)
+                    val visibleBottom = minOf(itemBottom, viewportEnd)
+                    val visibleHeight = maxOf(0, visibleBottom - visibleTop)
+                    visibleHeight.toFloat() / item.size.height >= 0.33f
+                }
+                .map { it.key }
+                .toHashSet()
+        }
+    }
+
     // Apply client-side filters
     val filteredImages = images.filter { image ->
         // Browse level filter
@@ -157,7 +181,7 @@ fun CommunityImagesScreen(
                         CommunityImageCard(
                             image = firstImage,
                             showAnimations = showAnimations,
-                            autoplayVideos = autoplayVideos,
+                            autoplayVideos = autoplayVideos && autoplayKeys.contains(post.postId),
                             onClick = {
                                 // Open viewer with all images from this post
                                 selectedImageIndex = filteredImages.indexOf(firstImage)
@@ -188,7 +212,7 @@ fun CommunityImagesScreen(
                     CommunityImageCard(
                         image = image,
                         showAnimations = showAnimations,
-                        autoplayVideos = autoplayVideos,
+                        autoplayVideos = autoplayVideos && autoplayKeys.contains(image.id),
                         onClick = { selectedImageIndex = filteredImages.indexOf(image) }
                     )
                 }

@@ -4,8 +4,6 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKeys
-import org.json.JSONObject
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Persists model browser configuration: API keys for Civitai and HuggingFace.
@@ -23,7 +21,6 @@ class ModelBrowserSettings(context: Context) {
         private const val KEY_SHOW_NSFW = "show_nsfw"
         private const val KEY_NSFW_LEVELS = "nsfw_levels"
         private const val KEY_SHOW_ANIMATIONS = "show_animations"
-        private const val KEY_TAG_CACHE = "tag_cache"
         private const val KEY_BLUR_THRESHOLD = "blur_threshold"
         private const val KEY_BROWSE_LEVEL = "browse_level"
         private const val KEY_AUTOPLAY_VIDEOS = "autoplay_videos"
@@ -32,8 +29,11 @@ class ModelBrowserSettings(context: Context) {
         val DEFAULT_NSFW_LEVELS = setOf(1, 2, 4) // PG, PG-13, R
     }
 
+    // Retain application context for tag resolution via CivitaiTagRepository.
+    private val appContext: Context = context.applicationContext
+
     private val prefs: SharedPreferences by lazy {
-        context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     }
 
     private val securePrefs: SharedPreferences by lazy {
@@ -41,7 +41,7 @@ class ModelBrowserSettings(context: Context) {
         EncryptedSharedPreferences.create(
             SECURE_PREFS_NAME,
             masterKeyAlias,
-            context.applicationContext,
+            appContext,
             EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
             EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
         )
@@ -53,7 +53,6 @@ class ModelBrowserSettings(context: Context) {
     private var _blurThreshold: Int? = null
     private var _browseLevel: Int? = null
     private var _autoplayVideos: Boolean? = null
-    private val _tagCache: ConcurrentHashMap<Int, String> by lazy { ConcurrentHashMap(loadTagCache()) }
 
     /** Civitai API key. */
     var civitaiApiKey: String
@@ -133,38 +132,16 @@ class ModelBrowserSettings(context: Context) {
     val isHuggingFaceConfigured: Boolean
         get() = huggingfaceApiKey.isNotBlank()
 
-    /**
-     * Tag ID → name cache. Loaded from SharedPrefs on first access.
-     * Tag mappings are immutable on Civitai, so this is append-only.
-     */
-    val tagCache: Map<Int, String>
-        get() = _tagCache
+    // ── Tag resolution (bundled dictionary) ────────────────────────────────────
 
     /**
-     * Add new tag mappings to the cache. Merges with existing.
+     * Return the full bundled tag map (ID → name). Loaded from assets on first call.
+     * Delegates to [CivitaiTagRepository]; no SharedPreferences I/O involved.
      */
-    fun updateTagCache(newTags: Map<Int, String>) {
-        if (newTags.isEmpty()) return
+    fun getAllTags(): Map<Int, String> = CivitaiTagRepository.getTags(appContext)
 
-        _tagCache.putAll(newTags)
-
-        // Persist to SharedPrefs
-        val json = JSONObject()
-        _tagCache.forEach { (id, name) -> json.put(id.toString(), name) }
-        prefs.edit().putString(KEY_TAG_CACHE, json.toString()).apply()
-    }
-
-    private fun loadTagCache(): MutableMap<Int, String> {
-        val stored = prefs.getString(KEY_TAG_CACHE, null) ?: return mutableMapOf()
-        return try {
-            val json = JSONObject(stored)
-            val result = mutableMapOf<Int, String>()
-            json.keys().forEach { key ->
-                result[key.toInt()] = json.getString(key)
-            }
-            result
-        } catch (e: Exception) {
-            mutableMapOf()
-        }
-    }
+    /**
+     * Resolve a single tag ID to a name, or null if the ID isn't in the bundled map.
+     */
+    fun getTagName(id: Int): String? = CivitaiTagRepository.getTagName(appContext, id)
 }

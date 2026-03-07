@@ -274,9 +274,6 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
                         
                         // Prefetch cover thumbnails so they're ready before the user scrolls
                         prefetchCoverImages(trpcResult.models)
-                        
-                        // Background: resolve any uncached tag IDs
-                        resolveTagsInBackground(trpcResult.models)
                     }
                     ModelProvider.HUGGINGFACE -> {
                         if (!modelBrowserSettings.isHuggingFaceConfigured) {
@@ -305,24 +302,6 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
         }
     }
     
-    /**
-     * Trigger background tag resolution for models with unresolved tags.
-     * Tags are resolved from cache in the service, but if many are missing
-     * we should fetch them once and they'll be available for future searches.
-     */
-    private fun resolveTagsInBackground(models: List<ModelSearchResult>) {
-        // If any model has empty tags but likely had tag IDs, trigger a cache population
-        // This is fire-and-forget — tags will be available on next search
-        viewModelScope.launch {
-            try {
-                // Just fetch top tags to populate cache
-                civitaiTrpcService.resolveTagNames(emptyList())
-            } catch (e: Exception) {
-                DebugLogger.d(TAG, "Background tag fetch failed (non-critical): ${e.message}")
-            }
-        }
-    }
-
     /**
      * Load more search results (pagination).
      */

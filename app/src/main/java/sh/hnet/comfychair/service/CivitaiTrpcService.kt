@@ -324,74 +324,17 @@ class CivitaiTrpcService(
     }
 
     /**
-     * Resolve tag IDs to names. Fetches from API if not cached.
-     * Tag cache is append-only (mappings are immutable).
+     * Resolve tag IDs to names using the bundled dictionary only.
+     * IDs not present in the bundled map are silently dropped (callers use mapNotNull).
+     * No network calls are made for tags.
      */
-    suspend fun resolveTagNames(ids: List<Int>): Map<Int, String> = withContext(Dispatchers.IO) {
-        if (ids.isEmpty()) return@withContext emptyMap()
-        
-        val cached = settings.tagCache
-        val missing = ids.filter { it !in cached }
-        
-        if (missing.isEmpty()) {
-            return@withContext ids.associateWith { cached[it]!! }
-        }
-        
-        // Fetch top model tags and merge into cache
-        try {
-            val fetched = fetchTags()
-            settings.updateTagCache(fetched)
-            
-            // Return what we can resolve
-            val updated = settings.tagCache
-            ids.associateWith { updated[it] ?: "tag:$it" }
-        } catch (e: Exception) {
-            DebugLogger.w(TAG, "Failed to fetch tags: ${e.message}")
-            // Return what we have, placeholders for missing
-            ids.associateWith { cached[it] ?: "tag:$it" }
-        }
+    fun resolveTagNames(ids: List<Int>): Map<Int, String> {
+        if (ids.isEmpty()) return emptyMap()
+        val bundled = settings.getAllTags()
+        return ids.mapNotNull { id -> bundled[id]?.let { id to it } }.toMap()
     }
 
     // ========== INTERNAL HELPERS ==========
-
-    /**
-     * Fetch top model tags via tag.getAll.
-     */
-    private suspend fun fetchTags(): Map<Int, String> {
-        val apiKey = settings.civitaiApiKey.takeIf { it.isNotBlank() }
-        
-        val inputJson = "{\"json\":{\"limit\":200,\"entityType\":[\"Model\"]}}"
-        val encodedInput = URLEncoder.encode(inputJson, "UTF-8")
-        val url = "$TRPC_BASE/tag.getAll?input=$encodedInput"
-        
-        val request = buildRequest(url, apiKey)
-        val response = client.newCall(request).execute()
-        
-        if (!response.isSuccessful) {
-            throw RuntimeException("tag.getAll returned ${response.code}")
-        }
-        
-        val body = response.body?.string() ?: throw RuntimeException("Empty response")
-        val root = JSONObject(body)
-        val items = root
-            .getJSONObject("result")
-            .getJSONObject("data")
-            .getJSONObject("json")
-            .optJSONArray("items") ?: return emptyMap()
-        
-        val result = mutableMapOf<Int, String>()
-        for (i in 0 until items.length()) {
-            val item = items.getJSONObject(i)
-            val id = item.optInt("id", 0)
-            val name = item.optString("name", null)
-            if (id > 0 && name != null) {
-                result[id] = name
-            }
-        }
-        
-        DebugLogger.d(TAG, "fetchTags: fetched ${result.size} tags")
-        return result
-    }
 
     /**
      * Build an HTTP request with optional auth headers.
@@ -445,8 +388,8 @@ class CivitaiTrpcService(
                 tagIds.add(tagsArray.getInt(i))
             }
         }
-        // Resolve tags from cache (synchronously — cache is in memory)
-        val tagCache = settings.tagCache
+        // Resolve tags from bundled dictionary — IDs not found are silently dropped
+        val tagCache = settings.getAllTags()
         val tags = tagIds.mapNotNull { tagCache[it] }
         
         // Cover image — pick first matching browsingLevel
@@ -545,13 +488,6 @@ class CivitaiTrpcService(
                 val tagWrapper = tagsOnModels.getJSONObject(i)
                 val tagObj = tagWrapper.optJSONObject("tag")
                 tagObj?.optString("name", null)?.let { tags.add(it) }
-                
-                // Update cache as side effect
-                val tagId = tagObj?.optInt("id", 0) ?: 0
-                val tagName = tagObj?.optString("name", null)
-                if (tagId > 0 && tagName != null) {
-                    settings.updateTagCache(mapOf(tagId to tagName))
-                }
             }
         }
         

@@ -310,8 +310,6 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
         if (state.isLoadingMore || !state.hasMoreResults) return
         if (state.selectedProvider != ModelProvider.CIVITAI) return
         
-        val cursor = state.searchCursor ?: return
-
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoadingMore = true)
             try {
@@ -319,6 +317,12 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
                 val currentState = _uiState.value
                 val currentCursor = currentState.searchCursor
                 
+                // If the cursor was cleared by a new search before this coroutine started, bail out.
+                if (currentCursor == null) {
+                    _uiState.value = _uiState.value.copy(isLoadingMore = false)
+                    return@launch
+                }
+
                 // Combine nsfwLevels with browseLevel for API call
                 val nsfwBitmask = currentState.nsfwLevels.fold(0) { acc, level -> acc or level }
                 val browsingLevel = nsfwBitmask and currentState.browseLevel
@@ -331,7 +335,7 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
                     period = currentState.filterPeriod,
                     browsingLevel = browsingLevel,
                     limit = 100,
-                    cursor = cursor
+                    cursor = currentCursor
                 )
                 
                 // Guard against stale append: if cursor changed (new search), discard

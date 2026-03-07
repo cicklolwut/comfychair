@@ -194,13 +194,13 @@ fun CommunityImagesScreen(
         ) {
             if (groupByPost) {
                 // Post-grouped view: each card shows first image with post count badge
-                items(filteredPosts, key = { it.postId }) { post ->
+                items(filteredPosts, key = { "post_${it.postId}" }) { post ->
                     val firstImage = post.images.first()
                     Box {
                         CommunityImageCard(
                             image = firstImage,
                             showAnimations = showAnimations,
-                            autoplayVideos = autoplayVideos && autoplayKeys.contains(post.postId),
+                            autoplayVideos = autoplayVideos && autoplayKeys.contains("post_${post.postId}"),
                             onClick = {
                                 // Open viewer with all images from this post
                                 selectedImageIndex = imageIndexMap[firstImage.id] ?: 0
@@ -228,11 +228,11 @@ fun CommunityImagesScreen(
             } else {
                 // Flat view: one card per image — itemsIndexed gives the index for free,
                 // eliminating the O(n) indexOf call on every tap.
-                itemsIndexed(filteredImages, key = { _, image -> image.id }) { index, image ->
+                itemsIndexed(filteredImages, key = { _, image -> "img_${image.id}" }) { index, image ->
                     CommunityImageCard(
                         image = image,
                         showAnimations = showAnimations,
-                        autoplayVideos = autoplayVideos && autoplayKeys.contains(image.id),
+                        autoplayVideos = autoplayVideos && autoplayKeys.contains("img_${image.id}"),
                         onClick = { selectedImageIndex = index }
                     )
                 }

@@ -346,6 +346,15 @@ class CivitaiMediaCache(context: Context) : SQLiteOpenHelper(
             modelVersionId = c.getString(c.getColumnIndexOrThrow("model_version_id"))
         )
     }
+
+    /**
+     * Release resources held by this cache instance.
+     * Cancels the eviction coroutine scope and closes the underlying database.
+     */
+    fun close() {
+        evictionScope.cancel()
+        db.close()
+    }
 }
 
 /**

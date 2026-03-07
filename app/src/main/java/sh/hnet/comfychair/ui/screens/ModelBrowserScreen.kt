@@ -875,6 +875,17 @@ fun ModelGridCard(
                     }
                 }
 
+                // Loading spinner while inline video is loading (before first frame)
+                if (inlinePlay && !coverFirstFrame) {
+                    CircularProgressIndicator(
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .size(20.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    )
+                }
+
                 // Type + base model badges overlaid on image (top-left)
                 // Hide badge if its filter is active (redundant info)
                 val showType = model.civitaiType != null && filterType == null && model.civitaiType != "Other"

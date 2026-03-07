@@ -430,6 +430,16 @@ private fun CommunityImageCard(
                     contentScale = ContentScale.Crop
                 )
             }
+            // Loading spinner while inline video is loading (before first frame)
+            if (inlinePlay && !inlineFirstFrame) {
+                CircularProgressIndicator(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .size(20.dp),
+                    strokeWidth = 2.dp,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                )
+            }
             // Play icon overlay for video content (hide during autoplay/inline play)
             if (isVideo && !inlinePlay && !autoplayVideos) {
                 Icon(

@@ -877,7 +877,8 @@ fun ModelGridCard(
                             modifier = Modifier.padding(8.dp)
                         )
                     }
-                } else {
+                } else if (displayUrl == null) {
+                    // No cover image at all — show model name as fallback
                     Box(
                         modifier = Modifier
                             .fillMaxSize()

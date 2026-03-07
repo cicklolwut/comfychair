@@ -717,6 +717,13 @@ class CivitaiTrpcService(
         val imgType = img.optString("type", "image")
         val isVideo = imgType == "video"
         
+        // For video thumbnails: CDN returns JPEG regardless of original extension,
+        // but Coil may use the URL extension to determine decoder. Replace video
+        // extensions with .jpg so Coil uses the image decoder.
+        val thumbName = if (isVideo) {
+            name.replace(Regex("\\.(mp4|webm|mov|avi|mkv)$", RegexOption.IGNORE_CASE), ".jpg")
+        } else name
+        
         val staticParams = if (isVideo) {
             "anim=false,transcode=true,width=450,original=false,optimized=true"
         } else {
@@ -724,7 +731,7 @@ class CivitaiTrpcService(
         }
         val animatedParams = if (isVideo) "transcode=true,width=450,original=false,optimized=true" else "width=450,optimized=true"
         
-        val staticUrl = "$CDN_BASE/$uuid/$staticParams/$name"
+        val staticUrl = "$CDN_BASE/$uuid/$staticParams/$thumbName"
         val animatedUrl = "$CDN_BASE/$uuid/$animatedParams/$name"
         
         return Pair(staticUrl, animatedUrl)
@@ -742,6 +749,12 @@ class CivitaiTrpcService(
         val nsfwLevel = json.optInt("nsfwLevel", 1)
         
         val isVideo = json.optString("type", "image") == "video"
+        // Replace video extensions with .jpg for thumbnails — CDN returns JPEG
+        // regardless, but Coil uses URL extension to pick decoder
+        val thumbName = if (isVideo) {
+            name.replace(Regex("\\.(mp4|webm|mov|avi|mkv)$", RegexOption.IGNORE_CASE), ".jpg")
+        } else name
+        
         val staticParams = if (isVideo) {
             "anim=false,transcode=true,width=450,original=false,optimized=true"
         } else {
@@ -749,7 +762,7 @@ class CivitaiTrpcService(
         }
         val animatedParams = if (isVideo) "transcode=true,width=450,original=false,optimized=true" else "width=450,optimized=true"
         
-        val thumbnailUrl = "$CDN_BASE/$uuid/$staticParams/$name"
+        val thumbnailUrl = "$CDN_BASE/$uuid/$staticParams/$thumbName"
         val animatedThumbnailUrl = "$CDN_BASE/$uuid/$animatedParams/$name"
         val fullUrl = "$CDN_BASE/$uuid/original=true/$name"
         

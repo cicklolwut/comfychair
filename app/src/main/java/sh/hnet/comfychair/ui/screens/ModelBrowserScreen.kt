@@ -223,24 +223,34 @@ fun ModelBrowserScreen(
                         val gridState = rememberLazyGridState()
 
                         // Keys of grid items that are ≥33% visible — only these get autoplay.
-                        val autoplayKeys by remember {
-                            derivedStateOf {
-                                val info = gridState.layoutInfo
-                                val viewportStart = info.viewportStartOffset
-                                val viewportEnd = info.viewportEndOffset
-                                info.visibleItemsInfo
-                                    .filter { item ->
-                                        if (item.size.height == 0) return@filter false
-                                        val itemTop = item.offset.y
-                                        val itemBottom = itemTop + item.size.height
-                                        val visibleTop = maxOf(itemTop, viewportStart)
-                                        val visibleBottom = minOf(itemBottom, viewportEnd)
-                                        val visibleHeight = maxOf(0, visibleBottom - visibleTop)
-                                        visibleHeight.toFloat() / item.size.height >= 0.33f
-                                    }
-                                    .map { it.key }
-                                    .toHashSet()
+                        // snapshotFlow + distinctUntilChanged avoids HashSet allocation on every
+                        // scroll pixel; recomputes only when first/last visible index changes.
+                        var autoplayKeys by remember { mutableStateOf(emptySet<Any>()) }
+
+                        LaunchedEffect(gridState) {
+                            snapshotFlow {
+                                gridState.layoutInfo.visibleItemsInfo.firstOrNull()?.index to
+                                    gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
                             }
+                                .distinctUntilChanged()
+                                .collect { (first, last) ->
+                                    if (first == null || last == null) return@collect
+                                    val info = gridState.layoutInfo
+                                    val viewportStart = info.viewportStartOffset
+                                    val viewportEnd = info.viewportEndOffset
+                                    autoplayKeys = info.visibleItemsInfo
+                                        .filter { item ->
+                                            if (item.size.height == 0) return@filter false
+                                            val itemTop = item.offset.y
+                                            val itemBottom = itemTop + item.size.height
+                                            val visibleTop = maxOf(itemTop, viewportStart)
+                                            val visibleBottom = minOf(itemBottom, viewportEnd)
+                                            val visibleHeight = maxOf(0, visibleBottom - visibleTop)
+                                            visibleHeight.toFloat() / item.size.height >= 0.33f
+                                        }
+                                        .map { it.key }
+                                        .toSet()
+                                }
                         }
 
                         NoOverscrollContainer(modifier = Modifier.fillMaxSize()) {
@@ -298,12 +308,13 @@ fun ModelBrowserScreen(
                         // Image prefetching for smooth scrolling.
                         // distinctUntilChanged() ensures we only fire when the last visible
                         // *row index* changes, not on every sub-pixel scroll frame.
+                        // prefetched lives outside LaunchedEffect so it survives configuration
+                        // changes (e.g. screen rotation) without resetting.
                         val imageLoader = context.imageLoader
                         val searchResults by rememberUpdatedState(uiState.searchResults)
+                        val prefetched = remember { mutableSetOf<String>() }
 
                         LaunchedEffect(gridState) {
-                            val prefetched = mutableSetOf<String>()
-                            
                             snapshotFlow { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0 }
                                 .distinctUntilChanged()
                                 .collect { lastVisible ->

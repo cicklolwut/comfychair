@@ -19,7 +19,9 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import kotlinx.coroutines.flow.distinctUntilChanged
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
@@ -94,27 +96,36 @@ fun CommunityImagesScreen(
     val gridState = rememberLazyGridState()
 
     // Keys of grid items that are ≥33% visible — only these get an autoplay player.
-    // Using derivedStateOf so recomposition only fires when the *set* actually changes,
-    // not on every scroll pixel. We key by image.id / post.postId (same values used in
-    // the items() key lambdas below), so the items lambda can simply check membership.
-    val autoplayKeys by remember {
-        derivedStateOf {
-            val info = gridState.layoutInfo
-            val viewportStart = info.viewportStartOffset
-            val viewportEnd = info.viewportEndOffset
-            info.visibleItemsInfo
-                .filter { item ->
-                    if (item.size.height == 0) return@filter false
-                    val itemTop = item.offset.y
-                    val itemBottom = itemTop + item.size.height
-                    val visibleTop = maxOf(itemTop, viewportStart)
-                    val visibleBottom = minOf(itemBottom, viewportEnd)
-                    val visibleHeight = maxOf(0, visibleBottom - visibleTop)
-                    visibleHeight.toFloat() / item.size.height >= 0.33f
-                }
-                .map { it.key }
-                .toHashSet()
+    // Using snapshotFlow + distinctUntilChanged so the set is only recomputed when the
+    // first/last visible index actually changes, not on every sub-pixel scroll frame.
+    // We key by image.id / post.postId (same values used in the items() key lambdas below),
+    // so the items lambda can simply check membership.
+    var autoplayKeys by remember { mutableStateOf(emptySet<Any>()) }
+
+    LaunchedEffect(gridState) {
+        snapshotFlow {
+            gridState.layoutInfo.visibleItemsInfo.firstOrNull()?.index to
+                gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
         }
+            .distinctUntilChanged()
+            .collect { (first, last) ->
+                if (first == null || last == null) return@collect
+                val info = gridState.layoutInfo
+                val viewportStart = info.viewportStartOffset
+                val viewportEnd = info.viewportEndOffset
+                autoplayKeys = info.visibleItemsInfo
+                    .filter { item ->
+                        if (item.size.height == 0) return@filter false
+                        val itemTop = item.offset.y
+                        val itemBottom = itemTop + item.size.height
+                        val visibleTop = maxOf(itemTop, viewportStart)
+                        val visibleBottom = minOf(itemBottom, viewportEnd)
+                        val visibleHeight = maxOf(0, visibleBottom - visibleTop)
+                        visibleHeight.toFloat() / item.size.height >= 0.33f
+                    }
+                    .map { it.key }
+                    .toSet()
+            }
     }
 
     // Apply client-side filters
@@ -151,6 +162,12 @@ fun CommunityImagesScreen(
         }
     } else emptyList()
 
+    // O(1) lookup for grouped mode: firstImage.id → index in filteredImages flat list.
+    // Recomputed only when filteredImages changes, not on every tap.
+    val imageIndexMap = remember(filteredImages) {
+        filteredImages.withIndex().associate { (idx, img) -> img.id to idx }
+    }
+
     // Item count for pagination trigger
     val itemCount = if (groupByPost) filteredPosts.size else filteredImages.size
 
@@ -186,7 +203,7 @@ fun CommunityImagesScreen(
                             autoplayVideos = autoplayVideos && autoplayKeys.contains(post.postId),
                             onClick = {
                                 // Open viewer with all images from this post
-                                selectedImageIndex = filteredImages.indexOf(firstImage)
+                                selectedImageIndex = imageIndexMap[firstImage.id] ?: 0
                             }
                         )
                         // Post media count badge
@@ -209,13 +226,14 @@ fun CommunityImagesScreen(
                     }
                 }
             } else {
-                // Flat view: one card per image
-                items(filteredImages, key = { it.id }) { image ->
+                // Flat view: one card per image — itemsIndexed gives the index for free,
+                // eliminating the O(n) indexOf call on every tap.
+                itemsIndexed(filteredImages, key = { _, image -> image.id }) { index, image ->
                     CommunityImageCard(
                         image = image,
                         showAnimations = showAnimations,
                         autoplayVideos = autoplayVideos && autoplayKeys.contains(image.id),
-                        onClick = { selectedImageIndex = filteredImages.indexOf(image) }
+                        onClick = { selectedImageIndex = index }
                     )
                 }
             }

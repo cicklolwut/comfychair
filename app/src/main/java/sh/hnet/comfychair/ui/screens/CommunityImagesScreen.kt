@@ -382,25 +382,11 @@ private fun CommunityImageCard(
             ),
         shape = MaterialTheme.shapes.medium
     ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            // Base layer: always show thumbnail (prevents black flash on video load)
-            val displayUrl = if (showAnimations && !isVideo) {
-                image.animatedThumbnailUrl
-            } else {
-                image.thumbnailUrl
-            }
-            AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(displayUrl)
-                    .crossfade(true)
-                    .build(),
-                contentDescription = null,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop
-            )
+        var inlineFirstFrame by remember { mutableStateOf(false) }
 
+        Box(modifier = Modifier.fillMaxSize()) {
             if (inlinePlay && isVideo) {
-                // Inline video playback (long press activated) — layered over thumbnail
+                // Inline video playback (long press activated)
                 val videoUrl = image.url
                     .replace("/original=true/", "/transcode=true,width=450,optimized=true/")
                 VideoPlayer(
@@ -408,12 +394,13 @@ private fun CommunityImageCard(
                     modifier = Modifier.fillMaxSize(),
                     showController = false,
                     scaleMode = VideoScaleMode.CROP,
-                    onSingleTap = { inlinePlay = false },
+                    onSingleTap = { inlinePlay = false; inlineFirstFrame = false },
                     initialWidth = image.width,
-                    initialHeight = image.height
+                    initialHeight = image.height,
+                    onFirstFrame = { inlineFirstFrame = true }
                 )
             } else if (autoplayVideos && isVideo) {
-                // Autoplay from pool (muted, looping)
+                // Autoplay from pool (muted, looping) — has its own thumbnail layering
                 val videoUrl = image.url
                     .replace("/original=true/", "/transcode=true,width=450,optimized=true/")
                 AutoplayVideoThumbnail(
@@ -421,6 +408,26 @@ private fun CommunityImageCard(
                     thumbnailUrl = image.thumbnailUrl,
                     itemKey = "community_${image.id}",
                     modifier = Modifier.fillMaxSize()
+                )
+            }
+
+            // Thumbnail on TOP — visible until video renders first frame
+            // AutoplayVideoThumbnail handles its own thumbnail, so skip for autoplay
+            val showThumbnail = !(inlinePlay && inlineFirstFrame) && !(autoplayVideos && isVideo)
+            if (showThumbnail) {
+                val displayUrl = if (showAnimations && !isVideo) {
+                    image.animatedThumbnailUrl
+                } else {
+                    image.thumbnailUrl
+                }
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(displayUrl)
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
                 )
             }
             // Play icon overlay for video content (hide during autoplay/inline play)

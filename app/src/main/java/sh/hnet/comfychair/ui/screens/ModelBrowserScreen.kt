@@ -800,8 +800,31 @@ fun ModelGridCard(
                     .fillMaxWidth()
                     .aspectRatio(0.67f)
             ) {
-                // Base layer: always show cover thumbnail (prevents black flash)
-                if (displayUrl != null && coverAllowed) {
+                var coverFirstFrame by remember { mutableStateOf(false) }
+
+                if (inlinePlay && isVideoCover && model.coverVideoUrl != null) {
+                    VideoPlayer(
+                        videoUri = Uri.parse(model.coverVideoUrl),
+                        modifier = Modifier.fillMaxSize(),
+                        showController = false,
+                        scaleMode = VideoScaleMode.CROP,
+                        onSingleTap = { inlinePlay = false; coverFirstFrame = false },
+                        onFirstFrame = { coverFirstFrame = true }
+                    )
+                } else if (autoplayVisible && isVideoCover && model.coverVideoUrl != null && coverAllowed) {
+                    // AutoplayVideoThumbnail handles its own thumbnail layering
+                    AutoplayVideoThumbnail(
+                        videoUrl = model.coverVideoUrl!!,
+                        thumbnailUrl = displayUrl ?: "",
+                        itemKey = "cover_${model.id}",
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+
+                // Thumbnail on TOP — hidden once inline video renders first frame
+                // Skip for autoplay (AutoplayVideoThumbnail has its own)
+                val showCoverThumbnail = !(inlinePlay && coverFirstFrame) && !(autoplayVisible && isVideoCover)
+                if (showCoverThumbnail && displayUrl != null && coverAllowed) {
                     AsyncImage(
                         model = ImageRequest.Builder(context)
                             .data(displayUrl)
@@ -811,27 +834,8 @@ fun ModelGridCard(
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop
                     )
-                }
-
-                if (inlinePlay && isVideoCover && model.coverVideoUrl != null) {
-                    // Inline video playback — layered over thumbnail
-                    VideoPlayer(
-                        videoUri = Uri.parse(model.coverVideoUrl),
-                        modifier = Modifier.fillMaxSize(),
-                        showController = false,
-                        scaleMode = VideoScaleMode.CROP,
-                        onSingleTap = { inlinePlay = false }
-                    )
-                } else if (autoplayVisible && isVideoCover && model.coverVideoUrl != null && coverAllowed) {
-                    AutoplayVideoThumbnail(
-                        videoUrl = model.coverVideoUrl!!,
-                        thumbnailUrl = displayUrl ?: "",
-                        itemKey = "cover_${model.id}",
-                        modifier = Modifier.fillMaxSize()
-                    )
-                } else if (displayUrl != null && coverAllowed) {
-                    // Play icon overlay for video covers (only when not playing)
-                    if (isVideoCover) {
+                    // Play icon for video covers (only when not playing)
+                    if (isVideoCover && !autoplayVisible) {
                         Icon(
                             imageVector = Icons.Default.PlayCircle,
                             contentDescription = "Video",

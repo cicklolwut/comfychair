@@ -105,7 +105,8 @@ fun VideoPlayer(
     onSingleTap: (() -> Unit)? = null,
     cacheKey: MediaCacheKey? = null,
     initialWidth: Int = 0,
-    initialHeight: Int = 0
+    initialHeight: Int = 0,
+    onFirstFrame: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -452,6 +453,9 @@ fun VideoPlayer(
                                 videoWidth = size.width
                                 videoHeight = size.height
                             }
+                        }
+                        override fun onRenderedFirstFrame() {
+                            onFirstFrame?.invoke()
                         }
                     }
                     exoPlayer.addListener(listener)

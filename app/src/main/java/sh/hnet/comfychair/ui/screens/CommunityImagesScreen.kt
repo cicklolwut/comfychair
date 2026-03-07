@@ -128,28 +128,6 @@ fun CommunityImagesScreen(
     // Item count for pagination trigger
     val itemCount = if (groupByPost) filteredPosts.size else filteredImages.size
 
-    // Track visible video items for autoplay
-    val visibleVideoKeys by remember(autoplayVideos, groupByPost) {
-        derivedStateOf {
-            if (!autoplayVideos) emptySet()
-            else {
-                val visible = gridState.layoutInfo.visibleItemsInfo
-                visible.mapNotNull { info ->
-                    val idx = info.index
-                    if (groupByPost) {
-                        // In grouped mode, each grid item is a post — check first image
-                        val post = filteredPosts.getOrNull(idx) ?: return@mapNotNull null
-                        val firstImage = post.images.firstOrNull() ?: return@mapNotNull null
-                        if (firstImage.type == "video") "community_${firstImage.id}" else null
-                    } else {
-                        val image = filteredImages.getOrNull(idx) ?: return@mapNotNull null
-                        if (image.type == "video") "community_${image.id}" else null
-                    }
-                }.toSet()
-            }
-        }
-    }
-
     // Detect when scrolled near bottom for pagination
     LaunchedEffect(gridState, itemCount, hasMore, isLoading) {
         if (!hasMore || isLoading) return@LaunchedEffect
@@ -179,7 +157,7 @@ fun CommunityImagesScreen(
                         CommunityImageCard(
                             image = firstImage,
                             showAnimations = showAnimations,
-                            autoplayVisible = "community_${firstImage.id}" in visibleVideoKeys,
+                            autoplayVideos = autoplayVideos,
                             onClick = {
                                 // Open viewer with all images from this post
                                 selectedImageIndex = filteredImages.indexOf(firstImage)
@@ -210,7 +188,7 @@ fun CommunityImagesScreen(
                     CommunityImageCard(
                         image = image,
                         showAnimations = showAnimations,
-                        autoplayVisible = "community_${image.id}" in visibleVideoKeys,
+                        autoplayVideos = autoplayVideos,
                         onClick = { selectedImageIndex = filteredImages.indexOf(image) }
                     )
                 }
@@ -358,7 +336,7 @@ fun CommunityImagesScreen(
 private fun CommunityImageCard(
     image: CommunityImage,
     showAnimations: Boolean = false,
-    autoplayVisible: Boolean = false,
+    autoplayVideos: Boolean = false,
     onClick: () -> Unit
 ) {
     val aspectRatio = if (image.height > 0) {
@@ -394,7 +372,7 @@ private fun CommunityImageCard(
                     initialWidth = image.width,
                     initialHeight = image.height
                 )
-            } else if (autoplayVisible && isVideo) {
+            } else if (autoplayVideos && isVideo) {
                 // Autoplay from pool (muted, looping)
                 val videoUrl = image.url
                     .replace("/original=true/", "/transcode=true,width=450,optimized=true/")
@@ -402,7 +380,6 @@ private fun CommunityImageCard(
                     videoUrl = videoUrl,
                     thumbnailUrl = image.thumbnailUrl,
                     itemKey = "community_${image.id}",
-                    isVisible = true,
                     modifier = Modifier.fillMaxSize()
                 )
             } else {

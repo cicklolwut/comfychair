@@ -18,16 +18,23 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import coil3.compose.AsyncImage
+import coil3.compose.AsyncImagePainter
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import kotlinx.coroutines.delay
 
 /**
- * Video thumbnail that auto-plays when visible in a grid.
+ * Video thumbnail that auto-plays in a lazy grid.
  *
- * Layers: thumbnail (always) → player surface (on top, hidden until playing)
- * Shows a small spinner on the thumbnail while buffering.
- * Player surface only becomes visible once ExoPlayer reaches STATE_READY.
+ * Lifecycle:
+ * 1. Thumbnail loads via Coil (always visible as base layer)
+ * 2. Once thumbnail is loaded (Success), starts 200ms debounce
+ * 3. After debounce, assigns a player from VideoPlayerPool
+ * 4. Player surface stays hidden until ExoPlayer hits STATE_READY
+ * 5. Once ready, player surface appears over thumbnail (seamless transition)
+ * 6. On dispose (scroll off screen), releases player back to pool
+ *
+ * A small spinner shows between steps 3-4 (player assigned, buffering).
  */
 @OptIn(UnstableApi::class)
 @Composable
@@ -35,23 +42,24 @@ fun AutoplayVideoThumbnail(
     videoUrl: String,
     thumbnailUrl: String,
     itemKey: String,
-    isVisible: Boolean,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    var thumbnailLoaded by remember { mutableStateOf(false) }
     var playerAssigned by remember { mutableStateOf(false) }
     var isRendering by remember { mutableStateOf(false) }
 
-    // Debounced pool assignment — wait 200ms before assigning a player
-    LaunchedEffect(isVisible) {
-        if (isVisible) {
-            delay(200)
+    // Once thumbnail is loaded, debounce then assign player
+    LaunchedEffect(thumbnailLoaded) {
+        if (thumbnailLoaded) {
+            delay(200) // don't assign during fast scroll
             val player = VideoPlayerPool.assignPlayer(context, itemKey, Uri.parse(videoUrl))
             if (player != null) {
                 playerAssigned = true
-                // Listen for STATE_READY to know when first frame is available
-                isRendering = player.playbackState == Player.STATE_READY
-                if (!isRendering) {
+                // Check if already ready (cached video)
+                if (player.playbackState == Player.STATE_READY) {
+                    isRendering = true
+                } else {
                     val listener = object : Player.Listener {
                         override fun onPlaybackStateChanged(state: Int) {
                             if (state == Player.STATE_READY) {
@@ -63,23 +71,18 @@ fun AutoplayVideoThumbnail(
                     player.addListener(listener)
                 }
             }
-        } else {
-            VideoPlayerPool.releasePlayer(itemKey)
-            playerAssigned = false
-            isRendering = false
         }
     }
 
+    // Cleanup on dispose
     DisposableEffect(itemKey) {
         onDispose {
             VideoPlayerPool.releasePlayer(itemKey)
-            playerAssigned = false
-            isRendering = false
         }
     }
 
     Box(modifier = modifier) {
-        // Thumbnail is ALWAYS rendered as the base layer
+        // Thumbnail — always the base layer
         AsyncImage(
             model = ImageRequest.Builder(context)
                 .data(thumbnailUrl)
@@ -87,10 +90,15 @@ fun AutoplayVideoThumbnail(
                 .build(),
             contentDescription = null,
             modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop
+            contentScale = ContentScale.Crop,
+            onState = { state ->
+                if (state is AsyncImagePainter.State.Success) {
+                    thumbnailLoaded = true
+                }
+            }
         )
 
-        // Player surface layered on top — only visible once rendering
+        // Player surface — only visible once first frame is decoded
         if (playerAssigned && isRendering) {
             val player = VideoPlayerPool.getPlayer(itemKey)
             if (player != null) {
@@ -111,7 +119,7 @@ fun AutoplayVideoThumbnail(
             }
         }
 
-        // Small spinner while buffering (player assigned but not yet rendering)
+        // Tiny spinner while buffering
         if (playerAssigned && !isRendering) {
             CircularProgressIndicator(
                 modifier = Modifier

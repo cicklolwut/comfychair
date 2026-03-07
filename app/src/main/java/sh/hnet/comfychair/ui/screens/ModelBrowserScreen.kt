@@ -222,21 +222,6 @@ fun ModelBrowserScreen(
                         // Search results - 2-column grid
                         val gridState = rememberLazyGridState()
 
-                        // Track visible video covers for autoplay
-                        val visibleCoverKeys by remember(uiState.autoplayVideos) {
-                            derivedStateOf {
-                                if (!uiState.autoplayVideos) emptySet()
-                                else {
-                                    gridState.layoutInfo.visibleItemsInfo.mapNotNull { info ->
-                                        val model = uiState.searchResults.getOrNull(info.index) ?: return@mapNotNull null
-                                        if (model.coverImageType == "video" && model.coverVideoUrl != null) {
-                                            "cover_${model.id}"
-                                        } else null
-                                    }.toSet()
-                                }
-                            }
-                        }
-                        
                         NoOverscrollContainer(modifier = Modifier.fillMaxSize()) {
                         LazyVerticalGrid(
                             columns = GridCells.Fixed(2),
@@ -257,7 +242,7 @@ fun ModelBrowserScreen(
                                     filterType = uiState.filterModelType,
                                     filterBaseModel = uiState.filterBaseModel,
                                     showAnimations = uiState.showAnimations,
-                                    autoplayVisible = "cover_${model.id}" in visibleCoverKeys,
+                                    autoplayVisible = uiState.autoplayVideos,
                                     browseLevel = uiState.browseLevel,
                                     onClick = onClick
                                 )
@@ -805,7 +790,6 @@ fun ModelGridCard(
                         videoUrl = model.coverVideoUrl!!,
                         thumbnailUrl = displayUrl ?: "",
                         itemKey = "cover_${model.id}",
-                        isVisible = true,
                         modifier = Modifier.fillMaxSize()
                     )
                 } else if (displayUrl != null && coverAllowed) {

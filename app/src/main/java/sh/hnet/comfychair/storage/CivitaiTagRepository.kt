@@ -33,10 +33,15 @@ object CivitaiTagRepository {
     fun getTagName(context: Context, id: Int): String? = getTags(context)[id]
 
     private fun loadTags(context: Context): Map<Int, String> {
-        val json = context.assets.open("civitai_tags.json").bufferedReader().readText()
-        val obj = JSONObject(json)
-        return buildMap {
-            obj.keys().forEach { key -> put(key.toInt(), obj.getString(key)) }
+        return try {
+            val json = context.assets.open("civitai_tags.json").bufferedReader().readText()
+            val obj = JSONObject(json)
+            buildMap {
+                obj.keys().forEach { key -> put(key.toInt(), obj.getString(key)) }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("CivitaiTagRepository", "Failed to load bundled tags: ${e.message}")
+            emptyMap()
         }
     }
 }

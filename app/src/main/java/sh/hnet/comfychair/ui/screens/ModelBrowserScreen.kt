@@ -9,16 +9,15 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.horizontalScroll
 import kotlinx.coroutines.flow.distinctUntilChanged
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
+import androidx.compose.foundation.lazy.staggeredgrid.items
+import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.foundation.lazy.items as lazyItems
 import androidx.compose.runtime.snapshotFlow
 import coil3.imageLoader
@@ -220,7 +219,7 @@ fun ModelBrowserScreen(
                         }
 
                         // Search results - 2-column grid
-                        val gridState = rememberLazyGridState()
+                        val gridState = rememberLazyStaggeredGridState()
 
                         // Keys of grid items that are ≥33% visible — only these get autoplay.
                         // snapshotFlow + distinctUntilChanged avoids HashSet allocation on every
@@ -254,13 +253,13 @@ fun ModelBrowserScreen(
                         }
 
                         NoOverscrollContainer(modifier = Modifier.fillMaxSize()) {
-                        LazyVerticalGrid(
-                            columns = GridCells.Fixed(2),
+                        LazyVerticalStaggeredGrid(
+                            columns = StaggeredGridCells.Fixed(2),
                             state = gridState,
                             modifier = Modifier.fillMaxSize(),
                             contentPadding = PaddingValues(4.dp),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                            verticalItemSpacing = 8.dp
                         ) {
                             items(
                                 items = uiState.searchResults,
@@ -281,7 +280,7 @@ fun ModelBrowserScreen(
                             
                             // Loading indicator at bottom
                             if (uiState.isLoadingMore) {
-                                item(span = { GridItemSpan(2) }) {
+                                item(span = StaggeredGridItemSpan.FullLine) {
                                     Box(
                                         modifier = Modifier
                                             .fillMaxWidth()
@@ -943,23 +942,21 @@ fun ModelGridCard(
                     overflow = TextOverflow.Ellipsis
                 )
 
-                // Tags temporarily disabled for scroll perf testing
-                // if (model.tags.isNotEmpty()) {
-                //     Row(
-                //         modifier = Modifier
-                //             .fillMaxWidth()
-                //             .horizontalScroll(rememberScrollState()),
-                //         horizontalArrangement = Arrangement.spacedBy(4.dp)
-                //     ) {
-                //         model.tags.take(6).forEach { tag ->
-                //             MiniChip(
-                //                 text = tag,
-                //                 containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                //                 contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                //             )
-                //         }
-                //     }
-                // }
+                if (model.tags.isNotEmpty()) {
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        model.tags.take(4).forEach { tag ->
+                            MiniChip(
+                                text = tag,
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
             }
         }
     }

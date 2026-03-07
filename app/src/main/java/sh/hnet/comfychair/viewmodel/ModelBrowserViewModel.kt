@@ -1046,9 +1046,9 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
      * Called when user opens fullscreen viewer — the trpc list endpoint
      * doesn't include meta, so we fetch it via REST on demand.
      */
-    fun fetchImageMetadata(imageId: Long, onResult: (sh.hnet.comfychair.model.GenerationMetadata?) -> Unit) {
+    fun fetchImageMetadata(imageId: Long, postId: Long? = null, onResult: (sh.hnet.comfychair.model.GenerationMetadata?) -> Unit) {
         viewModelScope.launch {
-            val meta = civitaiTrpcService.getImageMetadata(imageId)
+            val meta = civitaiTrpcService.getImageMetadata(imageId, postId)
             // Update the image in state with the fetched metadata
             if (meta != null) {
                 val updated = _uiState.value.communityImages.map { img ->

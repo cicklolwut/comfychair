@@ -89,7 +89,7 @@ fun CommunityImagesScreen(
     onLoadMore: () -> Unit,
     onBack: () -> Unit,
     onImportWorkflow: (String) -> Unit,
-    onFetchMetadata: ((Long, (GenerationMetadata?) -> Unit) -> Unit)? = null
+    onFetchMetadata: ((Long, Long?, (GenerationMetadata?) -> Unit) -> Unit)? = null
 ) {
     val context = LocalContext.current
     var selectedImageIndex by remember { mutableIntStateOf(-1) }
@@ -547,7 +547,7 @@ private fun CommunityImageViewer(
     initialIndex: Int,
     onDismiss: () -> Unit,
     onImportWorkflow: (String) -> Unit,
-    onFetchMetadata: ((Long, (GenerationMetadata?) -> Unit) -> Unit)? = null
+    onFetchMetadata: ((Long, Long?, (GenerationMetadata?) -> Unit) -> Unit)? = null
 ) {
     val context = LocalContext.current
     var showMetadataSheet by remember { mutableStateOf(false) }
@@ -571,7 +571,7 @@ private fun CommunityImageViewer(
     LaunchedEffect(currentImage?.id) {
         if (currentImage != null && currentImage.hasMeta && currentImage.meta == null && onFetchMetadata != null) {
             isLoadingMeta = true
-            onFetchMetadata(currentImage.id) { isLoadingMeta = false }
+            onFetchMetadata(currentImage.id, currentImage.postId) { isLoadingMeta = false }
         }
     }
 

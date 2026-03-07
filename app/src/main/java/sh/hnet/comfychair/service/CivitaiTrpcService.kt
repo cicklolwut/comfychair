@@ -768,8 +768,9 @@ class CivitaiTrpcService(
             }
         }
 
-        // civitaiResources often includes the base model and may have entries not in resources[].
-        // Skip anything already added (by modelVersionId). Use a fallback name for unnamed entries.
+        // civitaiResources often includes the base model and entries not present in resources[].
+        // These entries carry modelVersionName (e.g. "Jugg_XI_by_RunDiffusion") — use that as
+        // the display name. Skip anything already added by modelVersionId to avoid duplicates.
         val civitaiResourcesArray = actualMeta.optJSONArray("civitaiResources")
         if (civitaiResourcesArray != null) {
             for (i in 0 until civitaiResourcesArray.length()) {
@@ -777,10 +778,11 @@ class CivitaiTrpcService(
                 val versionId = if (resObj.has("modelVersionId")) resObj.optLong("modelVersionId") else null
                 if (versionId != null && versionId in seenVersionIds) continue
                 val type = resObj.optString("type", null)
+                // modelVersionName is the human-readable name (e.g. checkpoint version, LoRA name)
+                val versionName = resObj.optString("modelVersionName", null)
                 resources.add(
                     GenerationResource(
-                        // Use a readable fallback when no name is available
-                        name = versionId?.let { "Version #$it" },
+                        name = versionName,
                         type = type,
                         weight = if (resObj.has("weight")) resObj.optDouble("weight") else null,
                         modelVersionId = versionId
@@ -804,12 +806,26 @@ class CivitaiTrpcService(
 
     /**
      * Fetch generation metadata for a specific image via REST API.
-     * The trpc endpoint doesn't include meta in list responses —
-     * this is the only way to get prompt/seed/sampler for community images.
+     *
+     * NOTE: The v1 images list endpoint ignores `?id=imageId` as an image filter —
+     * it must be looked up by postId (`?postId=...`). The response may contain multiple
+     * images if the post has several; we filter to the matching imageId.
+     *
+     * @param imageId  The Civitai image ID.
+     * @param postId   The parent post ID (available on CommunityImage.postId). Required for
+     *                 the correct REST lookup. If null, falls back to the broken ?id= path.
      */
-    suspend fun getImageMetadata(imageId: Long): GenerationMetadata? = withContext(Dispatchers.IO) {
+    suspend fun getImageMetadata(imageId: Long, postId: Long? = null): GenerationMetadata? = withContext(Dispatchers.IO) {
         val apiKey = settings.civitaiApiKey.takeIf { it.isNotBlank() }
-        val url = "https://civitai.com/api/v1/images?id=$imageId"
+
+        // Prefer postId-based lookup — the only reliable way to get metadata for a specific image.
+        val url = if (postId != null) {
+            "https://civitai.com/api/v1/images?postId=$postId"
+        } else {
+            // Fallback: broken for most images, kept for compatibility with call sites that
+            // don't yet pass postId.
+            "https://civitai.com/api/v1/images?id=$imageId"
+        }
 
         val request = buildRequest(url, apiKey)
         val response = client.newCall(request).execute()
@@ -818,12 +834,23 @@ class CivitaiTrpcService(
 
         val body = response.body?.string() ?: return@withContext null
         val root = JSONObject(body)
-        val items = root.optJSONArray("items")
-        if (items == null || items.length() == 0) return@withContext null
+        val items = root.optJSONArray("items") ?: return@withContext null
 
-        val imgObj = items.getJSONObject(0)
-        val metaObj = if (!imgObj.isNull("meta")) imgObj.optJSONObject("meta") else null
-        if (metaObj != null) parseGenerationMetadata(metaObj) else null
+        // Find the specific image in the post response
+        for (i in 0 until items.length()) {
+            val imgObj = items.getJSONObject(i)
+            if (imgObj.optLong("id") == imageId) {
+                val metaObj = if (!imgObj.isNull("meta")) imgObj.optJSONObject("meta") else null
+                return@withContext if (metaObj != null) parseGenerationMetadata(metaObj) else null
+            }
+        }
+
+        // If exact match not found (shouldn't happen with postId), try first item
+        if (items.length() > 0) {
+            val metaObj = if (!items.getJSONObject(0).isNull("meta")) items.getJSONObject(0).optJSONObject("meta") else null
+            return@withContext if (metaObj != null) parseGenerationMetadata(metaObj) else null
+        }
+        null
     }
 
     /**

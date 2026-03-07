@@ -696,7 +696,7 @@ fun ModelBrowserScreen(
             onGroupByPostChanged = viewModel::setCommunityGroupByPost,
             onBrowseLevelChanged = { viewModel.updateBrowseLevel(it) },
             onCommunityFiltersApplied = viewModel::reloadCommunityImages,
-            onFetchMetadata = { imageId, callback -> viewModel.fetchImageMetadata(imageId, callback) }
+            onFetchMetadata = { imageId, postId, callback -> viewModel.fetchImageMetadata(imageId, postId, callback) }
         )
     }
 }
@@ -986,7 +986,7 @@ fun ModelDetailBottomSheet(
     onGroupByPostChanged: (Boolean) -> Unit = {},
     onBrowseLevelChanged: (Int) -> Unit = {},
     onCommunityFiltersApplied: () -> Unit = {},
-    onFetchMetadata: ((Long, (sh.hnet.comfychair.model.GenerationMetadata?) -> Unit) -> Unit)? = null
+    onFetchMetadata: ((Long, Long?, (sh.hnet.comfychair.model.GenerationMetadata?) -> Unit) -> Unit)? = null
 ) {
     val context = LocalContext.current
     var showDownloadDialog by remember { mutableStateOf(false) }

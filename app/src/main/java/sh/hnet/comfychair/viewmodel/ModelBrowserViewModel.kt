@@ -24,6 +24,11 @@ import sh.hnet.comfychair.model.ModelVersion
 import sh.hnet.comfychair.model.ModelFile
 import sh.hnet.comfychair.connection.ConnectionManager
 import sh.hnet.comfychair.connection.ConnectionState
+import sh.hnet.comfychair.db.dao.ImageResourceWithVersion
+import sh.hnet.comfychair.db.entity.ImageGenerationData
+import sh.hnet.comfychair.db.repository.CivitaiCacheRepository
+import sh.hnet.comfychair.model.GenerationMetadata
+import sh.hnet.comfychair.model.GenerationResource
 import sh.hnet.comfychair.service.CivitaiTrpcService
 import sh.hnet.comfychair.service.HuggingFaceService
 import sh.hnet.comfychair.service.ComfyUIManagerService
@@ -99,7 +104,8 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
     }
 
     private val modelBrowserSettings = ModelBrowserSettings(getApplication())
-    private val civitaiTrpcService = CivitaiTrpcService(modelBrowserSettings)
+    private val civitaiCacheRepository = CivitaiCacheRepository.getInstance(getApplication())
+    private val civitaiTrpcService = CivitaiTrpcService(modelBrowserSettings, getApplication())
     private val huggingFaceService = HuggingFaceService(modelBrowserSettings)
     val mediaCache = CivitaiMediaCache.getInstance(getApplication())
     private val prefetchManager = MediaPrefetchManager(mediaCache)
@@ -1043,21 +1049,96 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
 
     /**
      * Lazy-load generation metadata for a community image.
+     * Cache-first: checks Room DB for a fresh (< 24h) cached result before hitting the network.
      * Called when user opens fullscreen viewer — the trpc list endpoint
      * doesn't include meta, so we fetch it via REST on demand.
      */
-    fun fetchImageMetadata(imageId: Long, postId: Long? = null, onResult: (sh.hnet.comfychair.model.GenerationMetadata?) -> Unit) {
+    fun fetchImageMetadata(imageId: Long, postId: Long? = null, onResult: (GenerationMetadata?) -> Unit) {
         viewModelScope.launch {
+            // 1. Check cache on IO dispatcher (awaited — on the critical path)
+            val cached = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                civitaiCacheRepository.getFreshGenerationData(imageId)
+            }
+
+            if (cached != null) {
+                val resources = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    civitaiCacheRepository.getResourcesWithVersions(imageId)
+                }
+                val meta = buildMetadataFromCache(cached, resources)
+                // Update the image in state with the reconstructed metadata
+                val updated = _uiState.value.communityImages.map { img ->
+                    if (img.id == imageId) img.copy(meta = meta) else img
+                }
+                _uiState.value = _uiState.value.copy(communityImages = updated)
+                onResult(meta)
+                return@launch
+            }
+
+            // 2. Cache miss — fetch from network
             val meta = civitaiTrpcService.getImageMetadata(imageId, postId)
+
             // Update the image in state with the fetched metadata
             if (meta != null) {
                 val updated = _uiState.value.communityImages.map { img ->
                     if (img.id == imageId) img.copy(meta = meta) else img
                 }
                 _uiState.value = _uiState.value.copy(communityImages = updated)
+
+                // 3. Cache the fetched result (fire-and-forget on IO)
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    civitaiCacheRepository.cacheGenerationData(
+                        imageId = imageId,
+                        process = null,          // not available via REST metadata endpoint
+                        onSite = false,
+                        prompt = meta.prompt,
+                        negativePrompt = meta.negativePrompt,
+                        cfgScale = meta.cfgScale,
+                        steps = meta.steps,
+                        sampler = meta.sampler,
+                        seed = meta.seed,
+                        size = null,             // not available via REST metadata endpoint
+                        model = null,
+                        version = null,
+                        clipSkip = null,
+                        denoisingStrength = null,
+                        canRemix = false,
+                        hideMeta = false,
+                        resources = meta.resources
+                    )
+                }
             }
+
             onResult(meta)
         }
+    }
+
+    /**
+     * Reconstruct a [GenerationMetadata] from cached Room data.
+     * Resources are populated from the stored [ImageResourceWithVersion] join rows.
+     */
+    private fun buildMetadataFromCache(
+        cached: ImageGenerationData,
+        resources: List<ImageResourceWithVersion>
+    ): GenerationMetadata {
+        val genResources = resources.mapNotNull { rWithV ->
+            val v = rWithV.version ?: return@mapNotNull null
+            GenerationResource(
+                name = v.modelName,
+                type = v.modelType,
+                weight = rWithV.resource.strength,
+                modelVersionId = rWithV.resource.versionId
+            )
+        }
+        return GenerationMetadata(
+            prompt = cached.prompt,
+            negativePrompt = cached.negativePrompt,
+            sampler = cached.sampler,
+            steps = cached.steps,
+            cfgScale = cached.cfgScale,
+            seed = cached.seed,
+            baseModel = null, // not stored on ImageGenerationData
+            resources = genResources
+        )
     }
 
     /**

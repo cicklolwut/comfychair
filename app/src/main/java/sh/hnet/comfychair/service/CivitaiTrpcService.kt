@@ -1,10 +1,14 @@
 package sh.hnet.comfychair.service
 
+import android.content.Context
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
+import sh.hnet.comfychair.db.repository.CivitaiCacheRepository
 import sh.hnet.comfychair.model.CommunityImage
 import sh.hnet.comfychair.model.CommunityPost
 import sh.hnet.comfychair.model.GenerationMetadata
@@ -27,8 +31,12 @@ import java.net.URLEncoder
  * for potential rate limit benefits.
  */
 class CivitaiTrpcService(
-    private val settings: ModelBrowserSettings
+    private val settings: ModelBrowserSettings,
+    context: Context? = null
 ) {
+    // Repository for fire-and-forget cache seeding; null when no context provided.
+    private val repository: CivitaiCacheRepository? =
+        context?.applicationContext?.let { CivitaiCacheRepository.getInstance(it) }
     companion object {
         private const val TAG = "CivitaiTrpcService"
         private const val TRPC_BASE = "https://civitai.com/api/trpc"
@@ -227,16 +235,22 @@ class CivitaiTrpcService(
         cursor: String? = null,
         browsingLevel: Int? = null,
         sort: String = "Most Reactions",
-        types: List<String>? = null
+        period: String = "AllTime",
+        types: List<String>? = null,
+        withMeta: Boolean? = null,
+        fromPlatform: Boolean? = null,
+        nonRemixesOnly: Boolean? = null,
+        remixesOnly: Boolean? = null,
+        hideManualResources: Boolean? = null,
+        hideAutoResources: Boolean? = null
     ): CommunityImageResult = withContext(Dispatchers.IO) {
         val apiKey = settings.civitaiApiKey.takeIf { it.isNotBlank() }
 
         val inputJson = buildString {
             append("{\"json\":{")
-            append("\"period\":\"AllTime\",")
+            append("\"period\":\"$period\",")
             append("\"periodMode\":\"published\",")
             append("\"sort\":\"$sort\",")
-            append("\"withMeta\":false,")
             append("\"modelVersionId\":$modelVersionId,")
             if (modelId != null) {
                 append("\"modelId\":$modelId,")
@@ -244,6 +258,12 @@ class CivitaiTrpcService(
             if (types != null && types.isNotEmpty()) {
                 append("\"types\":[${types.joinToString(",") { "\"$it\"" }}],")
             }
+            if (withMeta != null) append("\"withMeta\":$withMeta,")
+            if (fromPlatform != null) append("\"fromPlatform\":$fromPlatform,")
+            if (nonRemixesOnly != null) append("\"nonRemixesOnly\":$nonRemixesOnly,")
+            if (remixesOnly != null) append("\"remixesOnly\":$remixesOnly,")
+            if (hideManualResources != null) append("\"hideManualResources\":$hideManualResources,")
+            if (hideAutoResources != null) append("\"hideAutoResources\":$hideAutoResources,")
             append("\"hidden\":false,")
             append("\"limit\":$limit,")
             append("\"browsingLevel\":${browsingLevel ?: 31},")
@@ -320,7 +340,63 @@ class CivitaiTrpcService(
         }
 
         DebugLogger.d(TAG, "getModelImages: found ${allImages.size} images from ${communityPosts.size} posts")
+
+        // Fire-and-forget: seed ModelVersion IDs and image-level join rows from gallery response.
+        if (repository != null && allImages.isNotEmpty()) {
+            CoroutineScope(Dispatchers.IO).launch {
+                // Seed ModelVersion IDs from gallery response (partial rows; names enriched later)
+                val allVersionIds = allImages
+                    .flatMap { img -> img.modelVersionIds + img.modelVersionIdsManual }
+                    .distinct()
+                if (allVersionIds.isNotEmpty()) {
+                    repository.seedModelVersionIds(allVersionIds)
+                }
+
+                // Cache image-level join rows (tools, techniques, tags)
+                for (img in allImages) {
+                    if (img.toolIds.isNotEmpty()) repository.cacheImageTools(img.id, img.toolIds)
+                    if (img.techniqueIds.isNotEmpty()) repository.cacheImageTechniques(img.id, img.techniqueIds)
+                    if (img.tagIds.isNotEmpty()) repository.cacheImageTags(img.id, img.tagIds)
+                }
+            }
+        }
+
         CommunityImageResult(allImages, communityPosts, nextCursor)
+    }
+
+    /**
+     * Fetch all tools from tool.getAll trpc endpoint.
+     * Used at startup to populate the tools cache (rarely changes).
+     */
+    suspend fun getTools(): List<sh.hnet.comfychair.db.entity.Tool> = withContext(Dispatchers.IO) {
+        val inputJson = "{\"json\":{}}"
+        val encodedInput = java.net.URLEncoder.encode(inputJson, "UTF-8")
+        val url = "$TRPC_BASE/tool.getAll?input=$encodedInput"
+        val request = buildRequest(url, settings.civitaiApiKey.takeIf { it.isNotBlank() })
+        val response = client.newCall(request).execute()
+        if (!response.isSuccessful) return@withContext emptyList()
+        val body = response.body?.string() ?: return@withContext emptyList()
+        try {
+            val root = JSONObject(body)
+            val arr = root.getJSONObject("result").getJSONObject("data").getJSONObject("json").getJSONArray("items")
+            (0 until arr.length()).mapNotNull { i ->
+                val obj = arr.getJSONObject(i)
+                val id = obj.optInt("id", -1)
+                if (id < 0) return@mapNotNull null
+                sh.hnet.comfychair.db.entity.Tool(
+                    toolId = id,
+                    name = obj.optString("name", ""),
+                    type = obj.optString("type", ""),
+                    icon = obj.optString("icon").takeIf { it.isNotEmpty() },
+                    domain = obj.optString("domain").takeIf { it.isNotEmpty() },
+                    priority = obj.optInt("priority", 0),
+                    supported = obj.optBoolean("supported", false)
+                )
+            }
+        } catch (e: Exception) {
+            DebugLogger.w(TAG, "getTools: parse failed: ${e.message}")
+            emptyList()
+        }
     }
 
     /**
@@ -715,10 +791,30 @@ class CivitaiTrpcService(
             )
         } else null
         
-        // Parse generation metadata
+        // Parse generation metadata (inline meta from gallery response, if present)
         val metaObj = if (!json.isNull("meta")) json.optJSONObject("meta") else null
         val meta = if (metaObj != null) parseGenerationMetadata(metaObj) else null
-        
+
+        // Parse gallery-level join fields (Wave 3)
+        val modelVersionIds = json.optJSONArray("modelVersionIds")?.let { arr ->
+            (0 until arr.length()).map { arr.getLong(it) }
+        } ?: emptyList()
+        val modelVersionIdsManual = json.optJSONArray("modelVersionIdsManual")?.let { arr ->
+            (0 until arr.length()).map { arr.getLong(it) }
+        } ?: emptyList()
+        val toolIds = json.optJSONArray("toolIds")?.let { arr ->
+            (0 until arr.length()).map { arr.getInt(it) }
+        } ?: emptyList()
+        val techniqueIds = json.optJSONArray("techniqueIds")?.let { arr ->
+            (0 until arr.length()).map { arr.getInt(it) }
+        } ?: emptyList()
+        val tagIds = json.optJSONArray("tagIds")?.let { arr ->
+            (0 until arr.length()).map { arr.getInt(it) }
+        } ?: emptyList()
+        val baseModel = json.optString("baseModel").takeIf { it.isNotEmpty() }
+        val onSite = json.optBoolean("onSite", false)
+        val hideMeta = json.optBoolean("hideMeta", false)
+
         return CommunityImage(
             id = id,
             url = fullUrl,
@@ -731,7 +827,15 @@ class CivitaiTrpcService(
             hasMeta = json.optBoolean("hasMeta", false),
             postId = postId,
             stats = stats,
-            meta = meta
+            meta = meta,
+            modelVersionIds = modelVersionIds,
+            modelVersionIdsManual = modelVersionIdsManual,
+            toolIds = toolIds,
+            techniqueIds = techniqueIds,
+            tagIds = tagIds,
+            baseModel = baseModel,
+            onSite = onSite,
+            hideMeta = hideMeta
         )
     }
 
@@ -805,52 +909,123 @@ class CivitaiTrpcService(
     }
 
     /**
-     * Fetch generation metadata for a specific image via REST API.
+     * Fetch generation metadata for a specific image via image.getGenerationData trpc endpoint.
      *
-     * NOTE: The v1 images list endpoint ignores `?id=imageId` as an image filter —
-     * it must be looked up by postId (`?postId=...`). The response may contain multiple
-     * images if the post has several; we filter to the matching imageId.
+     * Replaces the old REST v1/images approach. The trpc endpoint returns richer data:
+     * named resources with full model info, nested meta object, and remix flags.
      *
      * @param imageId  The Civitai image ID.
-     * @param postId   The parent post ID (available on CommunityImage.postId). Required for
-     *                 the correct REST lookup. If null, falls back to the broken ?id= path.
+     * @param postId   Unused — kept for signature compatibility with the ViewModel call site.
      */
     suspend fun getImageMetadata(imageId: Long, postId: Long? = null): GenerationMetadata? = withContext(Dispatchers.IO) {
         val apiKey = settings.civitaiApiKey.takeIf { it.isNotBlank() }
+        val authed = apiKey != null
 
-        // Prefer postId-based lookup — the only reliable way to get metadata for a specific image.
-        val url = if (postId != null) {
-            "https://civitai.com/api/v1/images?postId=$postId"
-        } else {
-            // Fallback: broken for most images, kept for compatibility with call sites that
-            // don't yet pass postId.
-            "https://civitai.com/api/v1/images?id=$imageId"
-        }
+        val inputJson = "{\"json\":{\"id\":$imageId,\"authed\":$authed}}"
+        val encodedInput = java.net.URLEncoder.encode(inputJson, "UTF-8")
+        val url = "$TRPC_BASE/image.getGenerationData?input=$encodedInput"
 
         val request = buildRequest(url, apiKey)
         val response = client.newCall(request).execute()
-
         if (!response.isSuccessful) return@withContext null
 
         val body = response.body?.string() ?: return@withContext null
-        val root = JSONObject(body)
-        val items = root.optJSONArray("items") ?: return@withContext null
+        return@withContext try {
+            val root = JSONObject(body)
+            val json = root.getJSONObject("result").getJSONObject("data").getJSONObject("json")
+            parseGetGenerationDataResponse(json)
+        } catch (e: Exception) {
+            DebugLogger.w(TAG, "getImageMetadata: parse failed for id=$imageId: ${e.message}")
+            null
+        }
+    }
 
-        // Find the specific image in the post response
-        for (i in 0 until items.length()) {
-            val imgObj = items.getJSONObject(i)
-            if (imgObj.optLong("id") == imageId) {
-                val metaObj = if (!imgObj.isNull("meta")) imgObj.optJSONObject("meta") else null
-                return@withContext if (metaObj != null) parseGenerationMetadata(metaObj) else null
+    /**
+     * Parse image.getGenerationData trpc response into GenerationMetadata.
+     *
+     * Response shape differs from the REST v1/images "meta" object:
+     *   - `resources` is at the ROOT with full model info ({modelVersionId, modelName, modelType, versionName, baseModel, ...})
+     *   - `meta` is a NESTED object ({prompt, negativePrompt, cfgScale, steps, sampler, seed, Size, baseModel, ...})
+     *     and may be null if hideMeta=true
+     *   - `civitaiResources` is at the ROOT as a lightweight fallback ({type, modelVersionId, weight})
+     *   - `process`, `canRemix`, `onSite` are also at the root
+     *
+     * Contrast with parseGenerationMetadata() which handles the REST flat format where
+     * resources/civitaiResources live inside the meta object itself.
+     */
+    private fun parseGetGenerationDataResponse(json: JSONObject): GenerationMetadata {
+        // Nested meta object — may be null (hideMeta=true)
+        val metaObj = if (!json.isNull("meta")) json.optJSONObject("meta") else null
+
+        val prompt = metaObj?.optString("prompt", null)
+        val negativePrompt = metaObj?.optString("negativePrompt", null)
+            ?: metaObj?.optString("negative_prompt", null)
+        val sampler = metaObj?.optString("sampler", null)
+        val steps = if (metaObj?.has("steps") == true) metaObj.optInt("steps") else null
+        val cfgScale = if (metaObj?.has("cfgScale") == true) metaObj.optDouble("cfgScale") else null
+        val seed = if (metaObj?.has("seed") == true) metaObj.optLong("seed") else null
+        // baseModel from meta takes priority; fall through to root-level baseModel as well
+        val baseModel = metaObj?.optString("baseModel", null)
+
+        val resources = mutableListOf<GenerationResource>()
+        val seenVersionIds = mutableSetOf<Long>()
+
+        // Primary resource list at root — has full model names
+        val resourcesArray = json.optJSONArray("resources")
+        if (resourcesArray != null) {
+            for (i in 0 until resourcesArray.length()) {
+                val res = resourcesArray.getJSONObject(i)
+                // getGenerationData uses versionId (not modelVersionId) as the primary key
+                val versionId = when {
+                    res.has("versionId") -> res.optLong("versionId").takeIf { it > 0 }
+                    res.has("modelVersionId") -> res.optLong("modelVersionId").takeIf { it > 0 }
+                    else -> null
+                }
+                val name = res.optString("versionName", null)
+                    ?: res.optString("modelName", null)
+                val type = res.optString("modelType", null)
+                val weight = if (res.has("strength")) res.optDouble("strength") else null
+                resources.add(
+                    GenerationResource(
+                        name = name,
+                        type = type,
+                        weight = weight,
+                        modelVersionId = versionId
+                    )
+                )
+                if (versionId != null) seenVersionIds.add(versionId)
             }
         }
 
-        // If exact match not found (shouldn't happen with postId), try first item
-        if (items.length() > 0) {
-            val metaObj = if (!items.getJSONObject(0).isNull("meta")) items.getJSONObject(0).optJSONObject("meta") else null
-            return@withContext if (metaObj != null) parseGenerationMetadata(metaObj) else null
+        // civitaiResources at root — lightweight fallback; skip already-seen version IDs
+        val civitaiResourcesArray = json.optJSONArray("civitaiResources")
+        if (civitaiResourcesArray != null) {
+            for (i in 0 until civitaiResourcesArray.length()) {
+                val res = civitaiResourcesArray.getJSONObject(i)
+                val versionId = if (res.has("modelVersionId")) res.optLong("modelVersionId").takeIf { it > 0 } else null
+                if (versionId != null && versionId in seenVersionIds) continue
+                resources.add(
+                    GenerationResource(
+                        name = res.optString("modelVersionName", null),
+                        type = res.optString("type", null),
+                        weight = if (res.has("weight")) res.optDouble("weight") else null,
+                        modelVersionId = versionId
+                    )
+                )
+                if (versionId != null) seenVersionIds.add(versionId)
+            }
         }
-        null
+
+        return GenerationMetadata(
+            prompt = prompt,
+            negativePrompt = negativePrompt,
+            sampler = sampler,
+            steps = steps,
+            cfgScale = cfgScale,
+            seed = seed,
+            baseModel = baseModel,
+            resources = resources
+        )
     }
 
     /**

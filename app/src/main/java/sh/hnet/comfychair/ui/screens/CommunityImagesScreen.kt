@@ -687,6 +687,7 @@ private fun CommunityImageViewer(
     if (showMetadataSheet) {
         val currentImage = images.getOrNull(currentIndex)
         ImageMetadataSheet(
+            selectedImage = currentImage,
             meta = currentImage?.meta,
             imageName = "image_${currentImage?.id}",
             onDismiss = { showMetadataSheet = false },
@@ -790,6 +791,7 @@ private fun CommunityStaticImagePage(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ImageMetadataSheet(
+    selectedImage: CommunityImage? = null,
     meta: GenerationMetadata?,
     imageName: String?,
     onDismiss: () -> Unit,
@@ -914,7 +916,9 @@ private fun ImageMetadataSheet(
             Spacer(modifier = Modifier.height(8.dp))
 
             // Parameters
-            meta.baseModel?.let {
+            // Prefer gallery-level baseModel (available immediately); fall back to metadata
+            val displayBaseModel = selectedImage?.baseModel ?: meta.baseModel
+            displayBaseModel?.let {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -965,8 +969,9 @@ private fun ImageMetadataSheet(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
-                                // Show name if available, otherwise fall back to type as label
+                                // Show name if available; fall back to version ID then type
                                 val displayName = resource.name
+                                    ?: resource.modelVersionId?.let { "Version #$it" }
                                     ?: resource.type?.replaceFirstChar { it.uppercase() }
                                     ?: "Unknown"
                                 Text(

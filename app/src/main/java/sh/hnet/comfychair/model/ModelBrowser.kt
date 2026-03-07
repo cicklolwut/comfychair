@@ -111,7 +111,16 @@ data class CommunityImage(
     val hasMeta: Boolean = false,     // whether generation metadata exists (from API)
     val postId: Long? = null,         // parent post ID for grouping
     val stats: ImageStats?,
-    val meta: GenerationMetadata?
+    val meta: GenerationMetadata?,
+    // Gallery-level fields (seeded directly from image.getImagesAsPostsInfinite)
+    val modelVersionIds: List<Long> = emptyList(),
+    val modelVersionIdsManual: List<Long> = emptyList(),
+    val toolIds: List<Int> = emptyList(),
+    val techniqueIds: List<Int> = emptyList(),
+    val tagIds: List<Int> = emptyList(),
+    val baseModel: String? = null,    // base model from gallery response (no need to wait for getGenerationData)
+    val onSite: Boolean = false,      // generated on Civitai
+    val hideMeta: Boolean = false     // metadata hidden by owner
 )
 
 /**

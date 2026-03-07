@@ -674,7 +674,12 @@ fun ModelBrowserScreen(
             onSelectModelType = viewModel::selectModelType,
             onSelectFile = viewModel::selectFile,
             onDownload = viewModel::downloadModel,
-            onImportWorkflow = viewModel::importWorkflow
+            onImportWorkflow = viewModel::importWorkflow,
+            onTypeFilterChanged = viewModel::setCommunityTypeFilter,
+            onMetaOnlyChanged = viewModel::setCommunityMetaOnly,
+            onFeaturedFirstChanged = viewModel::setCommunityFeaturedFirst,
+            onGroupByPostChanged = viewModel::setCommunityGroupByPost,
+            onFetchMetadata = { imageId, callback -> viewModel.fetchImageMetadata(imageId, callback) }
         )
     }
 }
@@ -753,7 +758,6 @@ fun ApiKeySetupCard(
     }
 }
 
-@Composable
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ModelGridCard(
@@ -932,7 +936,12 @@ fun ModelDetailBottomSheet(
     onSelectModelType: (ModelType) -> Unit,
     onSelectFile: (ModelFile) -> Unit,
     onDownload: (subfolder: String) -> Unit,
-    onImportWorkflow: (String) -> Unit
+    onImportWorkflow: (String) -> Unit,
+    onTypeFilterChanged: (String?) -> Unit = {},
+    onMetaOnlyChanged: (Boolean) -> Unit = {},
+    onFeaturedFirstChanged: (Boolean) -> Unit = {},
+    onGroupByPostChanged: (Boolean) -> Unit = {},
+    onFetchMetadata: ((Long, (sh.hnet.comfychair.model.GenerationMetadata?) -> Unit) -> Unit)? = null
 ) {
     val context = LocalContext.current
     var showDownloadDialog by remember { mutableStateOf(false) }
@@ -959,14 +968,14 @@ fun ModelDetailBottomSheet(
                     groupByPost = uiState.communityGroupByPost,
                     autoplayVideos = uiState.autoplayVideos,
                     onSortChanged = onSortCommunityImages,
-                    onTypeFilterChanged = { viewModel.setCommunityTypeFilter(it) },
-                    onMetaOnlyChanged = { viewModel.setCommunityMetaOnly(it) },
-                    onFeaturedFirstChanged = { viewModel.setCommunityFeaturedFirst(it) },
-                    onGroupByPostChanged = { viewModel.setCommunityGroupByPost(it) },
+                    onTypeFilterChanged = onTypeFilterChanged,
+                    onMetaOnlyChanged = onMetaOnlyChanged,
+                    onFeaturedFirstChanged = onFeaturedFirstChanged,
+                    onGroupByPostChanged = onGroupByPostChanged,
                     onLoadMore = onLoadMoreCommunityImages,
                     onBack = onToggleCommunityImages,
                     onImportWorkflow = onImportWorkflow,
-                    onFetchMetadata = { imageId, callback -> viewModel.fetchImageMetadata(imageId, callback) }
+                    onFetchMetadata = onFetchMetadata
                 )
             } else {
                 Box(modifier = Modifier.fillMaxSize()) {

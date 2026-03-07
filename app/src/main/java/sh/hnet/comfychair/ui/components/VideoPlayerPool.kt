@@ -29,7 +29,7 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 object VideoPlayerPool {
 
     private const val TAG = "VideoPlayerPool"
-    private const val MAX_PLAYERS = 4
+    private const val MAX_PLAYERS = 6
 
     private var players = mutableListOf<PooledPlayer>()
     private var isInitialized = false

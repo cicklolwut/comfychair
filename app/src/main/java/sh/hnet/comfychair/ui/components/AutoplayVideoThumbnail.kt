@@ -14,6 +14,7 @@ import androidx.media3.ui.PlayerView
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
+import kotlinx.coroutines.delay
 
 /**
  * Video thumbnail that auto-plays when visible in a grid.
@@ -37,19 +38,30 @@ fun AutoplayVideoThumbnail(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    var isPlaying by remember { mutableStateOf(false) }
 
-    // Manage pool assignment based on visibility
-    DisposableEffect(itemKey, isVisible) {
+    // Debounced pool assignment — wait 200ms before assigning a player
+    // so fast scrolling doesn't thrash the pool
+    LaunchedEffect(isVisible) {
         if (isVisible) {
+            delay(200)
             VideoPlayerPool.assignPlayer(context, itemKey, Uri.parse(videoUrl))
+            isPlaying = true
+        } else {
+            VideoPlayerPool.releasePlayer(itemKey)
+            isPlaying = false
         }
+    }
+
+    // Cleanup on dispose
+    DisposableEffect(itemKey) {
         onDispose {
             VideoPlayerPool.releasePlayer(itemKey)
         }
     }
 
     Box(modifier = modifier) {
-        if (isVisible && VideoPlayerPool.hasPlayer(itemKey)) {
+        if (isPlaying && VideoPlayerPool.hasPlayer(itemKey)) {
             // ExoPlayer surface
             val player = VideoPlayerPool.getPlayer(itemKey)
             if (player != null) {

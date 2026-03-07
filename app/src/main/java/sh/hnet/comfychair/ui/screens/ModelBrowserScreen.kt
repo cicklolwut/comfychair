@@ -369,8 +369,6 @@ fun ModelBrowserScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 300.dp, max = 600.dp)
-                    .verticalScroll(rememberScrollState())
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
@@ -676,16 +674,17 @@ fun ModelBrowserScreen(
             onSelectVersion = viewModel::selectVersion,
             onToggleCommunityImages = viewModel::toggleCommunityImages,
             onLoadMoreCommunityImages = viewModel::loadMoreCommunityImages,
-            onSortCommunityImages = viewModel::setCommunityImagesSort,
+            onSortCommunityImages = viewModel::updateCommunitySort,
             onSelectModelType = viewModel::selectModelType,
             onSelectFile = viewModel::selectFile,
             onDownload = viewModel::downloadModel,
             onImportWorkflow = viewModel::importWorkflow,
-            onTypeFilterChanged = viewModel::setCommunityTypeFilter,
+            onTypeFilterChanged = viewModel::updateCommunityTypeFilter,
             onMetaOnlyChanged = viewModel::setCommunityMetaOnly,
             onFeaturedFirstChanged = viewModel::setCommunityFeaturedFirst,
             onGroupByPostChanged = viewModel::setCommunityGroupByPost,
-            onBrowseLevelChanged = { viewModel.setBrowseLevel(it) },
+            onBrowseLevelChanged = { viewModel.updateBrowseLevel(it) },
+            onCommunityFiltersApplied = viewModel::reloadCommunityImages,
             onFetchMetadata = { imageId, callback -> viewModel.fetchImageMetadata(imageId, callback) }
         )
     }
@@ -970,6 +969,7 @@ fun ModelDetailBottomSheet(
     onFeaturedFirstChanged: (Boolean) -> Unit = {},
     onGroupByPostChanged: (Boolean) -> Unit = {},
     onBrowseLevelChanged: (Int) -> Unit = {},
+    onCommunityFiltersApplied: () -> Unit = {},
     onFetchMetadata: ((Long, (sh.hnet.comfychair.model.GenerationMetadata?) -> Unit) -> Unit)? = null
 ) {
     val context = LocalContext.current
@@ -1002,6 +1002,7 @@ fun ModelDetailBottomSheet(
                     onFeaturedFirstChanged = onFeaturedFirstChanged,
                     onGroupByPostChanged = onGroupByPostChanged,
                     onBrowseLevelChanged = onBrowseLevelChanged,
+                    onFiltersApplied = onCommunityFiltersApplied,
                     onLoadMore = onLoadMoreCommunityImages,
                     onBack = onToggleCommunityImages,
                     onImportWorkflow = onImportWorkflow,

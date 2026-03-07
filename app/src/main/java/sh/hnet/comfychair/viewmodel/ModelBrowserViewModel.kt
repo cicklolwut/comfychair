@@ -839,6 +839,7 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
     /**
      * Set browse level for image filtering (what images to show).
      * This is different from nsfwLevels which controls model fetching.
+     * Triggers a model re-search AND a community image reload if currently shown.
      */
     fun setBrowseLevel(level: Int) {
         modelBrowserSettings.browseLevel = level
@@ -846,6 +847,57 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
         // Re-search with new browseLevel (affects cover image selection via combined browsingLevel)
         if (_uiState.value.searchQuery.isNotBlank() || _uiState.value.searchResults.isNotEmpty()) {
             searchModels()
+        }
+        // Reload community images if currently shown — browseLevel is passed to the API as browsingLevel
+        if (_uiState.value.showCommunityImages) {
+            _uiState.value = _uiState.value.copy(
+                communityImages = emptyList(),
+                communityPosts = emptyList(),
+                communityImagesCursor = null,
+                hasMoreCommunityImages = true
+            )
+            loadCommunityImages()
+        }
+    }
+
+    /**
+     * Update community images sort without triggering a reload.
+     * Used by the community filter sheet — reload happens on sheet dismiss (Fix 3).
+     */
+    fun updateCommunitySort(sort: String) {
+        _uiState.value = _uiState.value.copy(communityImagesSort = sort)
+    }
+
+    /**
+     * Update community type filter without triggering a reload.
+     * Used by the community filter sheet — reload happens on sheet dismiss (Fix 3).
+     */
+    fun updateCommunityTypeFilter(type: String?) {
+        _uiState.value = _uiState.value.copy(communityTypeFilter = type)
+    }
+
+    /**
+     * Update browse level state only (persists to settings, no API reload).
+     * Used by the community filter sheet — reload happens on sheet dismiss (Fix 3).
+     */
+    fun updateBrowseLevel(level: Int) {
+        modelBrowserSettings.browseLevel = level
+        _uiState.value = _uiState.value.copy(browseLevel = level)
+    }
+
+    /**
+     * Reload community images from scratch if they are currently shown.
+     * Called after the community filter sheet is dismissed with changed filters.
+     */
+    fun reloadCommunityImages() {
+        if (_uiState.value.showCommunityImages) {
+            _uiState.value = _uiState.value.copy(
+                communityImages = emptyList(),
+                communityPosts = emptyList(),
+                communityImagesCursor = null,
+                hasMoreCommunityImages = true
+            )
+            loadCommunityImages()
         }
     }
 

@@ -82,6 +82,7 @@ fun CommunityImagesScreen(
     onFeaturedFirstChanged: (Boolean) -> Unit = {},
     onGroupByPostChanged: (Boolean) -> Unit = {},
     onBrowseLevelChanged: (Int) -> Unit = {},
+    onFiltersApplied: () -> Unit = {},
     autoplayVideos: Boolean = false,
     onLoadMore: () -> Unit,
     onBack: () -> Unit,
@@ -237,6 +238,10 @@ fun CommunityImagesScreen(
 
         // FAB column (bottom-right): sort + back
         var showSortSheet by remember { mutableStateOf(false) }
+        // Capture filter state when the sheet opens so we can compare on dismiss (Fix 3)
+        var sortAtOpen by remember { mutableStateOf(currentSort) }
+        var typeFilterAtOpen by remember { mutableStateOf(typeFilter) }
+        var browseLevelAtOpen by remember { mutableStateOf(browseLevel) }
         Column(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
@@ -244,7 +249,12 @@ fun CommunityImagesScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             FloatingActionButton(
-                onClick = { showSortSheet = true },
+                onClick = {
+                    sortAtOpen = currentSort
+                    typeFilterAtOpen = typeFilter
+                    browseLevelAtOpen = browseLevel
+                    showSortSheet = true
+                },
                 containerColor = MaterialTheme.colorScheme.secondaryContainer
             ) {
                 Icon(Icons.Default.FilterList, contentDescription = "Sort")
@@ -260,7 +270,13 @@ fun CommunityImagesScreen(
         // Filter & Sort bottom sheet
         if (showSortSheet) {
             ModalBottomSheet(
-                onDismissRequest = { showSortSheet = false },
+                onDismissRequest = {
+                    showSortSheet = false
+                    // Option A debounce: reload once on dismiss if any server-side filter changed
+                    if (currentSort != sortAtOpen || typeFilter != typeFilterAtOpen || browseLevel != browseLevelAtOpen) {
+                        onFiltersApplied()
+                    }
+                },
                 sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
             ) {
                 Column(

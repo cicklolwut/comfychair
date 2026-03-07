@@ -115,15 +115,24 @@ object MetadataParser {
                     }
                 }
 
-                // Checkpoint loaders
-                classType in listOf("CheckpointLoaderSimple", "CheckpointLoader") -> {
-                    val modelName = inputs.optString("ckpt_name", "").takeIf { it.isNotEmpty() }
+                // Checkpoint loaders (standard + NF4/GGUF/custom variants)
+                classType in listOf(
+                    "CheckpointLoaderSimple", "CheckpointLoader",
+                    "CheckpointLoaderSimpleWithNoiseSelect",
+                    "Eff. Loader SD1.x", "Eff. Loader SDXL",    // efficiency-nodes
+                    "CheckpointLoaderNF4",                        // bitsandbytes NF4
+                    "UnetLoaderGGUF", "CheckpointLoaderGGUF",    // GGUF
+                ) -> {
+                    val modelName = (
+                        inputs.optString("ckpt_name", "").takeIf { it.isNotEmpty() }
+                            ?: inputs.optString("unet_name", "").takeIf { it.isNotEmpty() }
+                    )
                     if (modelName != null && modelName !in models) {
                         models.add(modelName)
                     }
                 }
 
-                // UNET loaders
+                // UNET loaders (FLUX / DiT style — separate from checkpoint models)
                 classType == "UNETLoader" -> {
                     val unetName = inputs.optString("unet_name", "").takeIf { it.isNotEmpty() }
                     if (unetName != null && unetName !in unets) {
@@ -139,8 +148,8 @@ object MetadataParser {
                     }
                 }
 
-                // LoRA loaders
-                classType.contains("LoraLoader") -> {
+                // LoRA loaders (all variants: model-only, stacked, etc.)
+                classType.contains("LoraLoader") || classType.contains("Lora Loader") -> {
                     val loraName = inputs.optString("lora_name", "").takeIf { it.isNotEmpty() }
                     val strength = inputs.optDouble("strength_model", 1.0)
                     if (loraName != null) {
@@ -148,10 +157,31 @@ object MetadataParser {
                     }
                 }
 
-                // Latent image size
-                classType in listOf("EmptyLatentImage", "EmptySD3LatentImage", "EmptyMochiLatentVideo", "EmptyHunyuanLatentVideo") -> {
+                // Latent image size — txt2img nodes
+                classType in listOf(
+                    "EmptyLatentImage",
+                    "EmptySD3LatentImage",
+                    "EmptyMochiLatentVideo",
+                    "EmptyHunyuanLatentVideo",
+                    "EmptyWanLatentVideo",          // Wan 2.1
+                    "EmptySamplingImage",           // some custom nodes
+                    "EmptyLatentImagePresets",
+                ) -> {
                     width = inputs.optInt("width", 0).takeIf { it > 0 }
                     height = inputs.optInt("height", 0).takeIf { it > 0 }
+                }
+
+                // Latent size from upscale/resize nodes (img2img / hires-fix pipelines)
+                // Only use if we haven't found a size from an empty latent node yet
+                classType in listOf(
+                    "LatentUpscale", "LatentUpscaleBy",
+                    "ImageScale", "ImageScaleBy",
+                    "ImageResize",                   // was-node-suite
+                    "CR Image Resize",               // ComfyUI-Reactor
+                ) && width == null -> {
+                    val w = inputs.optInt("width", 0).takeIf { it > 0 }
+                    val h = inputs.optInt("height", 0).takeIf { it > 0 }
+                    if (w != null && h != null) { width = w; height = h }
                 }
             }
         }

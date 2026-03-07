@@ -395,8 +395,9 @@ class MediaViewerViewModel : ViewModel() {
 
     /**
      * Fetches metadata for a specific item by index.
-     * Handles both images (PNG) and videos (MP4).
-     * Returns null if metadata cannot be extracted.
+     * Primary source: history API (prompt[2] is the full API-format node graph).
+     * Fallback: PNG/MP4 embedded metadata chunk extraction.
+     * Returns null if metadata cannot be extracted from either source.
      */
     private suspend fun fetchMetadataForIndex(index: Int): GenerationMetadata? {
         val state = _uiState.value
@@ -404,6 +405,29 @@ class MediaViewerViewModel : ViewModel() {
         val context = applicationContext ?: return null
 
         return withContext(Dispatchers.IO) {
+            // --- Primary: history API ---
+            // The history endpoint's prompt[2] is the full API-format node graph and is
+            // always complete, regardless of workflow type (txt2img, img2img, video, etc.)
+            val client = ConnectionManager.clientOrNull
+            if (item.promptId.isNotEmpty() && client != null) {
+                val historyMetadata = kotlin.coroutines.suspendCoroutine<GenerationMetadata?> { continuation ->
+                    client.fetchHistory(item.promptId) { historyJson ->
+                        val result = try {
+                            val promptData = historyJson?.optJSONObject(item.promptId)
+                            val promptArray = promptData?.optJSONArray("prompt")
+                            // prompt[2] is the API-format node graph (same format MetadataParser expects)
+                            val nodesJson = promptArray?.optJSONObject(2)
+                            nodesJson?.let { MetadataParser.parseWorkflowJson(it.toString()) }
+                        } catch (e: Exception) {
+                            null
+                        }
+                        continuation.resumeWith(Result.success(result))
+                    }
+                }
+                if (historyMetadata != null) return@withContext historyMetadata
+            }
+
+            // --- Fallback: embedded file metadata ---
             val bytes: ByteArray? = when {
                 // For SINGLE mode videos, try to read from local file first
                 state.mode == ViewerMode.SINGLE && item.isVideo && state.currentVideoUri != null -> {
@@ -416,9 +440,9 @@ class MediaViewerViewModel : ViewModel() {
                     }
                 }
                 // For items with server file info and a client, fetch from server
-                item.filename.isNotEmpty() && ConnectionManager.clientOrNull != null -> {
+                item.filename.isNotEmpty() && client != null -> {
                     kotlin.coroutines.suspendCoroutine { continuation ->
-                        ConnectionManager.clientOrNull!!.fetchRawBytes(item.filename, item.subfolder, item.type) { rawBytes, _ ->
+                        client.fetchRawBytes(item.filename, item.subfolder, item.type) { rawBytes, _ ->
                             continuation.resumeWith(Result.success(rawBytes))
                         }
                     }

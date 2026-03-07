@@ -129,16 +129,22 @@ fun CommunityImagesScreen(
     val itemCount = if (groupByPost) filteredPosts.size else filteredImages.size
 
     // Track visible video items for autoplay
-    val visibleVideoKeys by remember(autoplayVideos) {
+    val visibleVideoKeys by remember(autoplayVideos, groupByPost) {
         derivedStateOf {
             if (!autoplayVideos) emptySet()
             else {
                 val visible = gridState.layoutInfo.visibleItemsInfo
-                // Items fully visible (offset >= 0 means at least partially on screen)
                 visible.mapNotNull { info ->
                     val idx = info.index
-                    val image = filteredImages.getOrNull(idx) ?: return@mapNotNull null
-                    if (image.type == "video") "community_${image.id}" else null
+                    if (groupByPost) {
+                        // In grouped mode, each grid item is a post — check first image
+                        val post = filteredPosts.getOrNull(idx) ?: return@mapNotNull null
+                        val firstImage = post.images.firstOrNull() ?: return@mapNotNull null
+                        if (firstImage.type == "video") "community_${firstImage.id}" else null
+                    } else {
+                        val image = filteredImages.getOrNull(idx) ?: return@mapNotNull null
+                        if (image.type == "video") "community_${image.id}" else null
+                    }
                 }.toSet()
             }
         }

@@ -954,10 +954,14 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
             val context = getApplication<Application>()
             val imageLoader = context.imageLoader
 
-            // Enqueue Coil prefetch for each non-null thumbnail URL
+            // Enqueue Coil prefetch for each non-null thumbnail URL.
+            // Use the same target size (450x675) as the LaunchedEffect prefetch in the UI so
+            // the decoded bitmap lands in the correct size bucket — avoiding a second decode
+            // at display time (which would be a cache miss on the sized variant).
             models.mapNotNull { it.thumbnailUrl }.forEach { url ->
                 val request = ImageRequest.Builder(context)
                     .data(url)
+                    .size(450, 675)
                     .build()
                 imageLoader.enqueue(request)
             }

@@ -792,6 +792,14 @@ fun ModelGridCard(
     // Video playback is handled separately via coverVideoUrl + ExoPlayer.
     val displayUrl = if (showAnimations && !isVideoCover) model.animatedThumbnailUrl ?: model.thumbnailUrl else model.thumbnailUrl
     val coverAllowed = (model.coverImageNsfwLevel and browseLevel) == model.coverImageNsfwLevel
+    // Cache the ImageRequest — only rebuild when the URL changes, not on every recomposition
+    // (autoplayKeys state changes during scroll would otherwise rebuild it on every frame).
+    val coverImageRequest = remember(displayUrl) {
+        ImageRequest.Builder(context)
+            .data(displayUrl)
+            .crossfade(150) // Shorter crossfade: 300ms default causes visible flicker during fast scrolling
+            .build()
+    }
     var inlinePlay by remember { mutableStateOf(false) }
     
     Card(
@@ -837,10 +845,7 @@ fun ModelGridCard(
                 val showCoverThumbnail = !(inlinePlay && coverFirstFrame) && !(autoplayVisible && isVideoCover)
                 if (showCoverThumbnail && displayUrl != null && coverAllowed) {
                     AsyncImage(
-                        model = ImageRequest.Builder(context)
-                            .data(displayUrl)
-                            .crossfade(true)
-                            .build(),
+                        model = coverImageRequest,
                         contentDescription = model.name,
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop

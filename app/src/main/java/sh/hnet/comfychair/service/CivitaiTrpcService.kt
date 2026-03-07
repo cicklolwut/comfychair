@@ -748,34 +748,45 @@ class CivitaiTrpcService(
         val baseModel = actualMeta.optString("baseModel", null)
         
         val resources = mutableListOf<GenerationResource>()
-        
-        val civitaiResourcesArray = actualMeta.optJSONArray("civitaiResources")
-        if (civitaiResourcesArray != null) {
-            for (i in 0 until civitaiResourcesArray.length()) {
-                val resObj = civitaiResourcesArray.getJSONObject(i)
-                resources.add(
-                    GenerationResource(
-                        name = null,
-                        type = resObj.optString("type", null),
-                        weight = if (resObj.has("weight")) resObj.optDouble("weight") else null,
-                        modelVersionId = if (resObj.has("modelVersionId")) resObj.optLong("modelVersionId") else null
-                    )
-                )
-            }
-        }
-        
+
+        // Parse the named resources array first; track by modelVersionId to avoid duplicates
+        val seenVersionIds = mutableSetOf<Long>()
         val resourcesArray = actualMeta.optJSONArray("resources")
         if (resourcesArray != null) {
             for (i in 0 until resourcesArray.length()) {
                 val resObj = resourcesArray.getJSONObject(i)
+                val versionId = if (resObj.has("modelVersionId")) resObj.optLong("modelVersionId") else null
                 resources.add(
                     GenerationResource(
                         name = resObj.optString("name", null),
                         type = resObj.optString("type", null),
                         weight = if (resObj.has("weight")) resObj.optDouble("weight") else null,
-                        modelVersionId = null
+                        modelVersionId = versionId
                     )
                 )
+                if (versionId != null) seenVersionIds.add(versionId)
+            }
+        }
+
+        // civitaiResources often includes the base model and may have entries not in resources[].
+        // Skip anything already added (by modelVersionId). Use a fallback name for unnamed entries.
+        val civitaiResourcesArray = actualMeta.optJSONArray("civitaiResources")
+        if (civitaiResourcesArray != null) {
+            for (i in 0 until civitaiResourcesArray.length()) {
+                val resObj = civitaiResourcesArray.getJSONObject(i)
+                val versionId = if (resObj.has("modelVersionId")) resObj.optLong("modelVersionId") else null
+                if (versionId != null && versionId in seenVersionIds) continue
+                val type = resObj.optString("type", null)
+                resources.add(
+                    GenerationResource(
+                        // Use a readable fallback when no name is available
+                        name = versionId?.let { "Version #$it" },
+                        type = type,
+                        weight = if (resObj.has("weight")) resObj.optDouble("weight") else null,
+                        modelVersionId = versionId
+                    )
+                )
+                if (versionId != null) seenVersionIds.add(versionId)
             }
         }
         

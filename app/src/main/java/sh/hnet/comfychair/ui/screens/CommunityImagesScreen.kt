@@ -914,6 +914,16 @@ private fun ImageMetadataSheet(
             Spacer(modifier = Modifier.height(8.dp))
 
             // Parameters
+            meta.baseModel?.let {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    ParameterChip("Base Model", it)
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -955,19 +965,24 @@ private fun ImageMetadataSheet(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
-                                resource.name?.let {
-                                    Text(
-                                        text = it,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                }
-                                resource.type?.let {
-                                    Text(
-                                        text = it.uppercase(),
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
-                                    )
+                                // Show name if available, otherwise fall back to type as label
+                                val displayName = resource.name
+                                    ?: resource.type?.replaceFirstChar { it.uppercase() }
+                                    ?: "Unknown"
+                                Text(
+                                    text = displayName,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                // Show type badge only when we also have a real name
+                                if (resource.name != null) {
+                                    resource.type?.let {
+                                        Text(
+                                            text = it.uppercase(),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
+                                        )
+                                    }
                                 }
                             }
                             resource.weight?.let {

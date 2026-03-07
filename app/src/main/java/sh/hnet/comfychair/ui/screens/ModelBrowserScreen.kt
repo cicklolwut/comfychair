@@ -800,7 +800,21 @@ fun ModelGridCard(
                     .fillMaxWidth()
                     .aspectRatio(0.67f)
             ) {
+                // Base layer: always show cover thumbnail (prevents black flash)
+                if (displayUrl != null && coverAllowed) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(context)
+                            .data(displayUrl)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = model.name,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                }
+
                 if (inlinePlay && isVideoCover && model.coverVideoUrl != null) {
+                    // Inline video playback — layered over thumbnail
                     VideoPlayer(
                         videoUri = Uri.parse(model.coverVideoUrl),
                         modifier = Modifier.fillMaxSize(),
@@ -816,16 +830,7 @@ fun ModelGridCard(
                         modifier = Modifier.fillMaxSize()
                     )
                 } else if (displayUrl != null && coverAllowed) {
-                    AsyncImage(
-                        model = ImageRequest.Builder(context)
-                            .data(displayUrl)
-                            .crossfade(true)
-                            .build(),
-                        contentDescription = model.name,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                    // Play icon overlay for video covers
+                    // Play icon overlay for video covers (only when not playing)
                     if (isVideoCover) {
                         Icon(
                             imageVector = Icons.Default.PlayCircle,

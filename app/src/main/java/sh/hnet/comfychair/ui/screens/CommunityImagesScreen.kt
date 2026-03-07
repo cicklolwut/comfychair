@@ -383,8 +383,24 @@ private fun CommunityImageCard(
         shape = MaterialTheme.shapes.medium
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
+            // Base layer: always show thumbnail (prevents black flash on video load)
+            val displayUrl = if (showAnimations && !isVideo) {
+                image.animatedThumbnailUrl
+            } else {
+                image.thumbnailUrl
+            }
+            AsyncImage(
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(displayUrl)
+                    .crossfade(true)
+                    .build(),
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+
             if (inlinePlay && isVideo) {
-                // Inline video playback (long press activated)
+                // Inline video playback (long press activated) — layered over thumbnail
                 val videoUrl = image.url
                     .replace("/original=true/", "/transcode=true,width=450,optimized=true/")
                 VideoPlayer(
@@ -405,22 +421,6 @@ private fun CommunityImageCard(
                     thumbnailUrl = image.thumbnailUrl,
                     itemKey = "community_${image.id}",
                     modifier = Modifier.fillMaxSize()
-                )
-            } else {
-                // Static thumbnail
-                val displayUrl = if (showAnimations && !isVideo) {
-                    image.animatedThumbnailUrl
-                } else {
-                    image.thumbnailUrl
-                }
-                AsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current)
-                        .data(displayUrl)
-                        .crossfade(true)
-                        .build(),
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
                 )
             }
             // Play icon overlay for video content (hide during autoplay/inline play)

@@ -1,6 +1,7 @@
 package sh.hnet.comfychair.ui.components
 
 import android.net.Uri
+import android.util.Log
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
@@ -23,13 +24,12 @@ import coil3.request.ImageRequest
 import coil3.request.crossfade
 import kotlinx.coroutines.delay
 
+private const val TAG = "AutoplayVideo"
+
 /**
  * Video thumbnail that auto-plays in a lazy grid.
  *
- * Layer order: PlayerView (bottom) → Thumbnail (top, removed after first frame)
- * This prevents any black flash — the player renders behind the thumbnail,
- * and the thumbnail is removed only after onRenderedFirstFrame confirms
- * pixels are actually on the surface.
+ * Layer order: PlayerView (bottom) → Thumbnail (top, fades after first frame)
  */
 @OptIn(UnstableApi::class)
 @Composable
@@ -44,17 +44,19 @@ fun AutoplayVideoThumbnail(
     var playerReady by remember { mutableStateOf(false) }
     var firstFrameRendered by remember { mutableStateOf(false) }
 
-    // Watch thumbnailLoaded via snapshotFlow so we don't miss synchronous Coil cache hits
+    // Assign player after thumbnail loads + debounce
     LaunchedEffect(Unit) {
         snapshotFlow { thumbnailLoaded }
             .collect { loaded ->
                 if (loaded && !playerReady) {
-                    delay(200) // debounce for fast scrolling
+                    delay(200)
                     val player = VideoPlayerPool.assignPlayer(context, itemKey, Uri.parse(videoUrl))
                     if (player != null) {
                         playerReady = true
+                        Log.d(TAG, "[$itemKey] player assigned, state=${player.playbackState}")
                         val listener = object : Player.Listener {
                             override fun onRenderedFirstFrame() {
+                                Log.d(TAG, "[$itemKey] first frame rendered")
                                 firstFrameRendered = true
                                 player.removeListener(this)
                             }
@@ -65,6 +67,16 @@ fun AutoplayVideoThumbnail(
             }
     }
 
+    // Fallback: if thumbnail doesn't trigger onState within 1s, proceed anyway
+    // (handles edge cases where Coil loads from disk but onState is missed)
+    LaunchedEffect(Unit) {
+        delay(1000)
+        if (!thumbnailLoaded) {
+            Log.d(TAG, "[$itemKey] thumbnail fallback triggered")
+            thumbnailLoaded = true
+        }
+    }
+
     DisposableEffect(itemKey) {
         onDispose {
             VideoPlayerPool.releasePlayer(itemKey)
@@ -72,7 +84,7 @@ fun AutoplayVideoThumbnail(
     }
 
     Box(modifier = modifier) {
-        // Player surface BEHIND the thumbnail
+        // Player surface — renders BEHIND the thumbnail
         if (playerReady) {
             val player = VideoPlayerPool.getPlayer(itemKey)
             if (player != null) {
@@ -93,7 +105,8 @@ fun AutoplayVideoThumbnail(
             }
         }
 
-        // Thumbnail on top — removed once first video frame is rendered
+        // Thumbnail ALWAYS on top until first video frame renders
+        // Even after first frame, keep it briefly to avoid flicker
         if (!firstFrameRendered) {
             AsyncImage(
                 model = ImageRequest.Builder(context)
@@ -104,13 +117,24 @@ fun AutoplayVideoThumbnail(
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop,
                 onState = { state ->
-                    if (state is AsyncImagePainter.State.Success) {
-                        thumbnailLoaded = true
+                    when (state) {
+                        is AsyncImagePainter.State.Success -> {
+                            if (!thumbnailLoaded) {
+                                Log.d(TAG, "[$itemKey] thumbnail loaded")
+                                thumbnailLoaded = true
+                            }
+                        }
+                        is AsyncImagePainter.State.Error -> {
+                            Log.e(TAG, "[$itemKey] thumbnail FAILED: $thumbnailUrl")
+                            // Proceed anyway so video can still play
+                            thumbnailLoaded = true
+                        }
+                        else -> {}
                     }
                 }
             )
 
-            // Tiny spinner while buffering
+            // Spinner while buffering
             if (thumbnailLoaded && playerReady) {
                 CircularProgressIndicator(
                     modifier = Modifier

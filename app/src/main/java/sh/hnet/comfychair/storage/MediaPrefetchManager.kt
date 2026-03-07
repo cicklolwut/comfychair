@@ -92,7 +92,7 @@ class MediaPrefetchManager(
         }
 
         val ext = if (entry.type == "video") "mp4" else "webp"
-        val localFile = File(cache.getCacheDir(), "${entry.id}.$ext")
+        val localFile = File(cache.cacheDir, "${entry.id}.$ext")
 
         try {
             val conn = URL(downloadUrl).openConnection() as HttpURLConnection

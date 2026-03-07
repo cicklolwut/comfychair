@@ -7,7 +7,6 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
-import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 
@@ -41,41 +40,31 @@ object VideoPlayerPool {
         var lastAssignedAt: Long = 0
     )
 
+    // Retained application context set on first ensureInitialized() call.
+    private var appContext: Context? = null
+
     @Synchronized
     private fun ensureInitialized(context: Context) {
         if (isInitialized) return
-        val appContext = context.applicationContext
-
-        // Reuse SharedVideoPlayer's cache if available
-        val cacheDataSourceFactory = try {
-            val cache = SharedVideoPlayer.let {
-                // Access the cache through getPlayer (ensures it's created)
-                it.getPlayer(appContext)
-                // We'll create our own data source factory using the same cache setup
-                null
-            }
-            // Build our own — simpler, no cache sharing complexity
-            val httpFactory = DefaultHttpDataSource.Factory()
-                .setConnectTimeoutMs(8_000)
-                .setReadTimeoutMs(8_000)
-                .setAllowCrossProtocolRedirects(true)
-            httpFactory
-        } catch (e: Exception) {
-            DefaultHttpDataSource.Factory()
-        }
-
-        for (i in 0 until MAX_PLAYERS) {
-            val player = ExoPlayer.Builder(appContext)
-                .setMediaSourceFactory(DefaultMediaSourceFactory(cacheDataSourceFactory))
-                .build().apply {
-                    repeatMode = Player.REPEAT_MODE_ALL
-                    volume = 0f  // muted for autoplay
-                    playWhenReady = false
-                }
-            players.add(PooledPlayer(player))
-        }
+        appContext = context.applicationContext
+        // Players are created on-demand in assignPlayer(); nothing to pre-allocate.
         isInitialized = true
-        Log.d(TAG, "Initialized pool with $MAX_PLAYERS players")
+        Log.d(TAG, "Pool ready (lazy — players created on first demand)")
+    }
+
+    /** Create a single ExoPlayer with the shared HTTP factory. */
+    private fun createPlayer(context: Context): ExoPlayer {
+        val httpFactory = DefaultHttpDataSource.Factory()
+            .setConnectTimeoutMs(8_000)
+            .setReadTimeoutMs(8_000)
+            .setAllowCrossProtocolRedirects(true)
+        return ExoPlayer.Builder(context.applicationContext)
+            .setMediaSourceFactory(DefaultMediaSourceFactory(httpFactory))
+            .build().apply {
+                repeatMode = Player.REPEAT_MODE_ALL
+                volume = 0f   // muted for autoplay
+                playWhenReady = false
+            }
     }
 
     /**
@@ -104,10 +93,19 @@ object VideoPlayerPool {
             return existing.player
         }
 
-        // Find a free player
+        // Find a free (idle) player
         var pooled = players.find { it.assignedKey == null }
 
-        // No free player — reclaim the oldest
+        if (pooled == null && players.size < MAX_PLAYERS) {
+            // Pool hasn't reached the cap yet — create a new player on-demand
+            val ctx = appContext ?: context.applicationContext
+            val player = createPlayer(ctx)
+            pooled = PooledPlayer(player)
+            players.add(pooled)
+            Log.d(TAG, "Created player ${players.size}/$MAX_PLAYERS (lazy)")
+        }
+
+        // Pool is full — reclaim the oldest assignment
         if (pooled == null) {
             pooled = players.minByOrNull { it.lastAssignedAt }!!
             pooled.player.stop()

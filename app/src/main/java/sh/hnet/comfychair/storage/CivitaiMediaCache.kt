@@ -159,16 +159,19 @@ class CivitaiMediaCache(context: Context) : SQLiteOpenHelper(
 
     /**
      * Mark a media item as cached (file downloaded to local storage).
+     * Runs on Dispatchers.IO to avoid blocking the calling thread.
      */
-    fun markCached(id: String, localPath: String, fileSize: Long) {
-        val values = ContentValues().apply {
-            put("local_path", localPath)
-            put("file_size", fileSize)
-            put("cached_at", System.currentTimeMillis())
-            put("last_viewed", System.currentTimeMillis())
+    suspend fun markCached(id: String, localPath: String, fileSize: Long) {
+        withContext(Dispatchers.IO) {
+            val values = ContentValues().apply {
+                put("local_path", localPath)
+                put("file_size", fileSize)
+                put("cached_at", System.currentTimeMillis())
+                put("last_viewed", System.currentTimeMillis())
+            }
+            writableDatabase.update(TABLE, values, "id = ?", arrayOf(id))
+            evictionScope.launch { evictIfNeeded() }
         }
-        writableDatabase.update(TABLE, values, "id = ?", arrayOf(id))
-        evictionScope.launch { evictIfNeeded() }
     }
 
     /**

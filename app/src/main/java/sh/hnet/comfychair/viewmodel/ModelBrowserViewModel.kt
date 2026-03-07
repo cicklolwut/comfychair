@@ -555,14 +555,20 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
     }
 
     /**
-     * Clear the selected model.
+     * Clear the selected model and free community image memory.
      */
     fun clearSelection() {
         _uiState.value = _uiState.value.copy(
             selectedModel = null,
             selectedVersion = null,
             selectedFile = null,
-            selectedModelType = null
+            selectedModelType = null,
+            communityImages = emptyList(),
+            communityPosts = emptyList(),
+            isLoadingCommunityImages = false,
+            showCommunityImages = false,
+            communityImagesCursor = null,
+            hasMoreCommunityImages = true
         )
     }
 

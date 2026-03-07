@@ -193,7 +193,6 @@ class CivitaiMediaCache(context: Context) {
     /**
      * Get the cache directory for storing downloaded files.
      */
-    fun getCacheDir(): File = cacheDir
 
     /**
      * Release resources held by this cache instance.

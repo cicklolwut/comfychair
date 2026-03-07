@@ -15,12 +15,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.grid.itemsIndexed
-import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
+import androidx.compose.foundation.lazy.staggeredgrid.items
+import androidx.compose.foundation.lazy.staggeredgrid.itemsIndexed
+import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import kotlinx.coroutines.flow.distinctUntilChanged
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -93,7 +93,7 @@ fun CommunityImagesScreen(
 ) {
     val context = LocalContext.current
     var selectedImageIndex by remember { mutableIntStateOf(-1) }
-    val gridState = rememberLazyGridState()
+    val gridState = rememberLazyStaggeredGridState()
 
     // Keys of grid items that are ≥33% visible — only these get an autoplay player.
     // Using snapshotFlow + distinctUntilChanged so the set is only recomputed when the
@@ -184,12 +184,12 @@ fun CommunityImagesScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
         NoOverscrollContainer(modifier = Modifier.fillMaxSize()) {
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(2),
+        LazyVerticalStaggeredGrid(
+            columns = StaggeredGridCells.Fixed(2),
             state = gridState,
             contentPadding = PaddingValues(8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalItemSpacing = 8.dp,
             modifier = Modifier.fillMaxSize()
         ) {
             if (groupByPost) {
@@ -240,7 +240,7 @@ fun CommunityImagesScreen(
 
             // Loading indicator at bottom
             if (isLoading) {
-                item(span = { GridItemSpan(2) }) {
+                item(span = StaggeredGridItemSpan.FullLine) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()

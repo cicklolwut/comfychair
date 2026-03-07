@@ -4,6 +4,8 @@ import android.app.Application
 import androidx.compose.runtime.Stable
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import coil3.imageLoader
+import coil3.request.ImageRequest
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -270,6 +272,9 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
                             _events.emit(ModelBrowserEvent.ShowToast("No results found"))
                         }
                         
+                        // Prefetch cover thumbnails so they're ready before the user scrolls
+                        prefetchCoverImages(trpcResult.models)
+                        
                         // Background: resolve any uncached tag IDs
                         resolveTagsInBackground(trpcResult.models)
                     }
@@ -362,6 +367,8 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
                         hasMoreResults = trpcResult.nextCursor != null,
                         isLoadingMore = false
                     )
+                    // Prefetch cover thumbnails for the new page
+                    prefetchCoverImages(trpcResult.models)
                 } else {
                     // New search started — just clear the loading flag
                     _uiState.value = _uiState.value.copy(isLoadingMore = false)
@@ -904,6 +911,35 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
     }
 
     // --- Media Cache ---
+
+    /**
+     * Prefetch cover image thumbnails for a list of model search results.
+     * Enqueues Coil image loads so thumbnails are warm in the disk/memory cache
+     * before the user scrolls to them. For video covers also fires HEAD requests
+     * to warm the CDN transcode cache.
+     */
+    private fun prefetchCoverImages(models: List<ModelSearchResult>) {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            val context = getApplication<Application>()
+            val imageLoader = context.imageLoader
+
+            // Enqueue Coil prefetch for each non-null thumbnail URL
+            models.mapNotNull { it.thumbnailUrl }.forEach { url ->
+                val request = ImageRequest.Builder(context)
+                    .data(url)
+                    .build()
+                imageLoader.enqueue(request)
+            }
+
+            // Warm CDN transcode cache for video covers
+            val videoTranscodeUrls = models
+                .filter { it.coverImageType == "video" }
+                .mapNotNull { it.coverVideoUrl }
+            if (videoTranscodeUrls.isNotEmpty()) {
+                prefetchManager.warmTranscodeCache(videoTranscodeUrls)
+            }
+        }
+    }
 
     /**
      * Store community image metadata in cache DB and trigger prefetch if enabled.

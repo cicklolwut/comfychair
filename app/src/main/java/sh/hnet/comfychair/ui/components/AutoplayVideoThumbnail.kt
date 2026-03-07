@@ -29,7 +29,9 @@ private const val TAG = "AutoplayVideo"
 /**
  * Video thumbnail that auto-plays in a lazy grid.
  *
- * Layer order: PlayerView (bottom) → Thumbnail (top, fades after first frame)
+ * Layer order: PlayerView (bottom) → Thumbnail (top)
+ * Thumbnail is removed only after onRenderedFirstFrame AND the player
+ * is still assigned to this item (guards against pool reclamation).
  */
 @OptIn(UnstableApi::class)
 @Composable
@@ -43,6 +45,20 @@ fun AutoplayVideoThumbnail(
     var thumbnailLoaded by remember { mutableStateOf(false) }
     var playerReady by remember { mutableStateOf(false) }
     var firstFrameRendered by remember { mutableStateOf(false) }
+
+    // Check if our player was reclaimed by another card
+    // If so, reset state so thumbnail reappears
+    val stillOwnsPlayer = playerReady && VideoPlayerPool.hasPlayer(itemKey)
+    val showThumbnail = !firstFrameRendered || !stillOwnsPlayer
+
+    // Reset state if player was reclaimed
+    LaunchedEffect(stillOwnsPlayer) {
+        if (!stillOwnsPlayer && playerReady) {
+            Log.d(TAG, "[$itemKey] player reclaimed, resetting")
+            playerReady = false
+            firstFrameRendered = false
+        }
+    }
 
     // Assign player after thumbnail loads + debounce
     LaunchedEffect(Unit) {
@@ -68,7 +84,6 @@ fun AutoplayVideoThumbnail(
     }
 
     // Fallback: if thumbnail doesn't trigger onState within 1s, proceed anyway
-    // (handles edge cases where Coil loads from disk but onState is missed)
     LaunchedEffect(Unit) {
         delay(1000)
         if (!thumbnailLoaded) {
@@ -84,8 +99,8 @@ fun AutoplayVideoThumbnail(
     }
 
     Box(modifier = modifier) {
-        // Player surface — renders BEHIND the thumbnail
-        if (playerReady) {
+        // Player surface BEHIND the thumbnail
+        if (stillOwnsPlayer) {
             val player = VideoPlayerPool.getPlayer(itemKey)
             if (player != null) {
                 AndroidView(
@@ -105,9 +120,8 @@ fun AutoplayVideoThumbnail(
             }
         }
 
-        // Thumbnail ALWAYS on top until first video frame renders
-        // Even after first frame, keep it briefly to avoid flicker
-        if (!firstFrameRendered) {
+        // Thumbnail on top — shown until first frame renders AND player still ours
+        if (showThumbnail) {
             AsyncImage(
                 model = ImageRequest.Builder(context)
                     .data(thumbnailUrl)
@@ -126,7 +140,6 @@ fun AutoplayVideoThumbnail(
                         }
                         is AsyncImagePainter.State.Error -> {
                             Log.e(TAG, "[$itemKey] thumbnail FAILED: $thumbnailUrl")
-                            // Proceed anyway so video can still play
                             thumbnailLoaded = true
                         }
                         else -> {}

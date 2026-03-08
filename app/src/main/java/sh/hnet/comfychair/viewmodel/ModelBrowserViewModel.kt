@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import sh.hnet.comfychair.model.CommunityImage
 import sh.hnet.comfychair.model.CommunityPost
@@ -31,7 +32,9 @@ import sh.hnet.comfychair.model.GenerationMetadata
 import sh.hnet.comfychair.model.GenerationResource
 import sh.hnet.comfychair.service.CivitaiTrpcService
 import sh.hnet.comfychair.service.HuggingFaceService
+import sh.hnet.comfychair.service.ComfyChairHelperService
 import sh.hnet.comfychair.service.ComfyUIManagerService
+import sh.hnet.comfychair.service.HttpModule
 // AppSettings is an object singleton, not instantiated
 import sh.hnet.comfychair.storage.ModelBrowserSettings
 import sh.hnet.comfychair.storage.CivitaiMediaCache
@@ -84,7 +87,11 @@ data class ModelBrowserUiState(
     // Pagination (cursor-based for trpc)
     val searchCursor: String? = null,
     val hasMoreResults: Boolean = true,
-    val isLoadingMore: Boolean = false
+    val isLoadingMore: Boolean = false,
+
+    // ComfyChair Helper node integration
+    val helperAvailable: Boolean = false,
+    val installedVersionIds: Set<Long> = emptySet()
 )
 
 /**
@@ -109,7 +116,7 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
     private val huggingFaceService = HuggingFaceService(modelBrowserSettings)
     val mediaCache = CivitaiMediaCache.getInstance(getApplication())
     private val prefetchManager = MediaPrefetchManager(mediaCache)
-    private val comfyUIManagerService = ComfyUIManagerService {
+    private val serverUrlProvider: () -> String = {
         val connState = ConnectionManager.connectionState.value
         if (connState is ConnectionState.Connected) {
             "${connState.protocol}://${connState.hostname}:${connState.port}"
@@ -117,6 +124,13 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
             throw IllegalStateException("Not connected to ComfyUI server")
         }
     }
+
+    private val comfyUIManagerService = ComfyUIManagerService(serverUrlProvider)
+
+    private val helperService = ComfyChairHelperService(
+        serverUrlProvider = serverUrlProvider,
+        client = HttpModule.client
+    )
 
     private val _uiState = MutableStateFlow(ModelBrowserUiState(
         // Civitai trpc works without API key, so it's always "configured"
@@ -140,6 +154,18 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
         // trpc works without API key — load browse results immediately on screen open
         if (_uiState.value.selectedProvider == ModelProvider.CIVITAI) {
             triggerDebouncedSearch()
+        }
+        refreshInstalledVersions()
+    }
+
+    fun refreshInstalledVersions() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val available = helperService.isAvailable()
+            val ids = if (available) helperService.getInstalledVersionIds() else emptySet()
+            _uiState.value = _uiState.value.copy(
+                helperAvailable = available,
+                installedVersionIds = ids
+            )
         }
     }
 

@@ -29,6 +29,7 @@ import sh.hnet.comfychair.ui.components.shared.NoOverscrollContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Photo
 import androidx.compose.material.icons.filled.Search
@@ -1141,10 +1142,22 @@ fun ModelDetailBottomSheet(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     lazyItems(model.versions) { version ->
+                        val isInstalled = version.id.toLongOrNull()
+                            ?.let { it in uiState.installedVersionIds } == true
                         FilterChip(
                             selected = uiState.selectedVersion == version,
                             onClick = { onSelectVersion(version) },
-                            label = { Text(version.name) }
+                            label = { Text(version.name) },
+                            leadingIcon = if (isInstalled) {
+                                {
+                                    Icon(
+                                        imageVector = Icons.Default.CheckCircle,
+                                        contentDescription = "Installed",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            } else null
                         )
                     }
                 }

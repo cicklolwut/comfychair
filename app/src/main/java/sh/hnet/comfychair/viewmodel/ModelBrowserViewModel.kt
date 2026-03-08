@@ -527,7 +527,8 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
                     filename = filename,
                     modelType = modelType.value,
                     modelName = model.name,
-                    savePath = savePath
+                    savePath = savePath,
+                    baseModel = version.baseModel ?: model.baseModel ?: "Other"
                 )
 
                 // Start the queue processing

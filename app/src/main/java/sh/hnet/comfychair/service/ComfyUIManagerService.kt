@@ -39,7 +39,8 @@ class ComfyUIManagerService(
         filename: String,
         modelType: String,
         modelName: String,
-        savePath: String = "default"
+        savePath: String = "default",
+        baseModel: String = "Other"
     ): Boolean = withContext(Dispatchers.IO) {
         val serverUrl = getServerUrl()
         val endpoint = "${serverUrl.trimEnd('/')}/manager/queue/install_model"
@@ -48,6 +49,7 @@ class ComfyUIManagerService(
             put("url", url)
             put("filename", filename)
             put("type", modelType)
+            put("base", baseModel)
             put("name", modelName)
             put("save_path", savePath)
             put("ui_id", System.currentTimeMillis().toString())

@@ -90,7 +90,6 @@ data class ModelBrowserUiState(
     val isLoadingMore: Boolean = false,
 
     // ComfyChair Helper node integration
-    val helperAvailable: Boolean = false,
     val installedVersionIds: Set<Long> = emptySet()
 )
 
@@ -160,12 +159,27 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
 
     fun refreshInstalledVersions() {
         viewModelScope.launch(Dispatchers.IO) {
-            val available = helperService.isAvailable()
-            val ids = if (available) helperService.getInstalledVersionIds() else emptySet()
-            _uiState.value = _uiState.value.copy(
-                helperAvailable = available,
-                installedVersionIds = ids
-            )
+            val serverId = try {
+                serverUrlProvider().trimEnd('/')
+            } catch (e: IllegalStateException) {
+                // Not connected — load whatever is cached in Room
+                val connState = ConnectionManager.connectionState.value
+                if (connState is ConnectionState.Connected) {
+                    "${connState.protocol}://${connState.hostname}:${connState.port}"
+                } else {
+                    return@launch
+                }
+            }
+
+            // Fetch from the node if available, then persist to Room
+            if (helperService.isAvailable()) {
+                val ids = helperService.getInstalledVersionIds()
+                civitaiCacheRepository.upsertInstalledVersions(serverId, ids)
+            }
+
+            // Always read back from Room so UiState reflects persisted state
+            val persisted = civitaiCacheRepository.getInstalledVersionIds(serverId)
+            _uiState.value = _uiState.value.copy(installedVersionIds = persisted)
         }
     }
 

@@ -8,6 +8,7 @@ import sh.hnet.comfychair.db.entity.ImageResource
 import sh.hnet.comfychair.db.entity.ImageTag
 import sh.hnet.comfychair.db.entity.ImageTechnique
 import sh.hnet.comfychair.db.entity.ImageTool
+import sh.hnet.comfychair.db.entity.InstalledVersion
 import sh.hnet.comfychair.db.entity.ModelVersion
 import sh.hnet.comfychair.db.entity.Tag
 import sh.hnet.comfychair.db.entity.Technique
@@ -24,6 +25,7 @@ class CivitaiCacheRepository(context: Context) {
     private val tagDao = db.tagDao()
     private val toolDao = db.toolDao()
     private val techniqueDao = db.techniqueDao()
+    private val installedVersionDao = db.installedVersionDao()
 
     companion object {
         // Cache is considered fresh for 24 hours
@@ -183,4 +185,14 @@ class CivitaiCacheRepository(context: Context) {
         if (tagIds.isEmpty()) return
         tagDao.insertImageTags(tagIds.map { ImageTag(imageId, it) })
     }
+
+    // --- InstalledVersions ---
+
+    suspend fun upsertInstalledVersions(serverId: String, versionIds: Set<Long>) {
+        installedVersionDao.clearForServer(serverId)
+        installedVersionDao.upsertAll(versionIds.map { InstalledVersion(it, serverId) })
+    }
+
+    suspend fun getInstalledVersionIds(serverId: String): Set<Long> =
+        installedVersionDao.getVersionIds(serverId).toSet()
 }

@@ -34,7 +34,6 @@ import sh.hnet.comfychair.service.CivitaiTrpcService
 import sh.hnet.comfychair.service.HuggingFaceService
 import sh.hnet.comfychair.service.ComfyChairHelperService
 import sh.hnet.comfychair.service.ComfyUIManagerService
-import sh.hnet.comfychair.service.HttpModule
 // AppSettings is an object singleton, not instantiated
 import sh.hnet.comfychair.storage.ModelBrowserSettings
 import sh.hnet.comfychair.storage.CivitaiMediaCache
@@ -128,7 +127,7 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
 
     private val helperService = ComfyChairHelperService(
         serverUrlProvider = serverUrlProvider,
-        client = HttpModule.client
+        credentialsProvider = { ConnectionManager.client.getCredentials() }
     )
 
     private val _uiState = MutableStateFlow(ModelBrowserUiState(

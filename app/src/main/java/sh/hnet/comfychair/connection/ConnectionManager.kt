@@ -502,6 +502,8 @@ object ConnectionManager {
                 // Ignore stale callback if session has changed
                 if (!isSessionValid(sessionId)) {
                     DebugLogger.d(TAG, "retrySingleAttempt: ignoring stale callback (session $sessionId)")
+                    // Defensive: reset flag to prevent stuck "Reconnecting..." state
+                    _isReconnecting.value = false
                     return@launch
                 }
 
@@ -549,6 +551,12 @@ object ConnectionManager {
         if (_webSocketState.value is WebSocketState.Connected ||
             _webSocketState.value is WebSocketState.Connecting) {
             DebugLogger.d(TAG, "attemptSilentReconnect: state=${_webSocketState.value}, skipping")
+            return
+        }
+
+        // Don't interfere with manual reconnection in progress (retrySingleAttempt or ensureConnection)
+        if (_isReconnecting.value || _isConnecting.value) {
+            DebugLogger.d(TAG, "attemptSilentReconnect: manual reconnection in progress, skipping")
             return
         }
 

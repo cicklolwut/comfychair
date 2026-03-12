@@ -227,13 +227,8 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
                         ))
                     }
                     InstallResult.FAILED -> {
-                        // Manager returns 400 when the directory already exists
-                        // (installed but not yet restarted). Since we can't distinguish
-                        // "already exists" from a real failure via HTTP status alone,
-                        // offer restart — if it genuinely failed, the helper won't
-                        // appear after restart and the user can retry.
-                        _events.emit(ModelBrowserEvent.PromptRestart(
-                            "Helper may already be installed. If not, check ComfyUI logs after restart."
+                        _events.emit(ModelBrowserEvent.ShowError(
+                            "Installation failed. Check ComfyUI logs for details."
                         ))
                     }
                 }

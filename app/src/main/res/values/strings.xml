@@ -147,6 +147,9 @@
     <string name="button_refresh_models">Refresh Models</string>
     <string name="msg_models_refreshed_success">Models refreshed successfully</string>
     <string name="error_models_refresh">Failed to refresh models</string>
+    <string name="button_restart_comfyui">Restart ComfyUI</string>
+    <string name="msg_server_restarting">Restarting ComfyUI…</string>
+    <string name="error_not_connected">Not connected to a server</string>
 
     <!-- Resource usage strings -->
     <string name="title_ram_usage">RAM</string>

@@ -46,7 +46,8 @@ data class ServerSettingsUiState(
     val systemStats: SystemStats? = null,
     val isLoadingStats: Boolean = false,
     val isClearingHistory: Boolean = false,
-    val isRefreshingModels: Boolean = false
+    val isRefreshingModels: Boolean = false,
+    val isRestarting: Boolean = false
 )
 
 /**
@@ -302,6 +303,43 @@ class SettingsViewModel : ViewModel() {
                 R.string.error_models_refresh
             }
             _events.emit(SettingsEvent.ShowToast(messageResId))
+        }
+    }
+
+    /**
+     * Restart the ComfyUI server via ComfyUI-Manager's reboot endpoint.
+     * Requires Manager to be installed with appropriate security level.
+     */
+    fun restartComfyUI() {
+        viewModelScope.launch {
+            val serverUrl = ConnectionManager.client.getBaseUrl()
+            if (serverUrl == null) {
+                _events.emit(SettingsEvent.ShowToast(R.string.error_not_connected))
+                return@launch
+            }
+            _serverSettingsState.value = _serverSettingsState.value.copy(isRestarting = true)
+            try {
+                val client = okhttp3.OkHttpClient.Builder()
+                    .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+                    .readTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+                    .build()
+                val req = okhttp3.Request.Builder()
+                    .url("${serverUrl.trimEnd('/')}/manager/reboot")
+                    .get().build()
+                withContext(Dispatchers.IO) {
+                    try {
+                        client.newCall(req).execute().close()
+                    } catch (e: Exception) {
+                        // Connection reset is expected — server is shutting down
+                        DebugLogger.d(TAG, "Restart request sent")
+                    }
+                }
+                _events.emit(SettingsEvent.ShowToast(R.string.msg_server_restarting))
+            } catch (e: Exception) {
+                DebugLogger.w(TAG, "Failed to restart: ${e.message}")
+            } finally {
+                _serverSettingsState.value = _serverSettingsState.value.copy(isRestarting = false)
+            }
         }
     }
 

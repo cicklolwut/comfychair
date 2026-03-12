@@ -10,13 +10,23 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -267,6 +277,48 @@ fun ServerSettingsScreen(
                         )
                     ) {
                         Text(stringResource(R.string.button_clear_history))
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Restart ComfyUI button
+                    var showRestartConfirm by remember { mutableStateOf(false) }
+                    OutlinedButton(
+                        onClick = { showRestartConfirm = true },
+                        enabled = !uiState.isRestarting,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        if (uiState.isRestarting) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
+                        Icon(
+                            Icons.Default.Refresh,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(stringResource(R.string.button_restart_comfyui))
+                    }
+
+                    if (showRestartConfirm) {
+                        AlertDialog(
+                            onDismissRequest = { showRestartConfirm = false },
+                            title = { Text("Restart ComfyUI?") },
+                            text = { Text("The server will restart. Any running generations will be lost.") },
+                            confirmButton = {
+                                TextButton(onClick = {
+                                    showRestartConfirm = false
+                                    viewModel.restartComfyUI()
+                                }) { Text("Restart") }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { showRestartConfirm = false }) { Text("Cancel") }
+                            }
+                        )
                     }
                 }
             }

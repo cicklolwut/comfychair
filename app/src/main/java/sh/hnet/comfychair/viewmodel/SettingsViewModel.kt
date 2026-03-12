@@ -19,6 +19,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import sh.hnet.comfychair.AuthInterceptor
 import sh.hnet.comfychair.ComfyUIClient
 import sh.hnet.comfychair.R
 import sh.hnet.comfychair.WorkflowManager
@@ -319,7 +320,9 @@ class SettingsViewModel : ViewModel() {
             }
             _serverSettingsState.value = _serverSettingsState.value.copy(isRestarting = true)
             try {
+                val credentials = ConnectionManager.client.getCredentials()
                 val client = okhttp3.OkHttpClient.Builder()
+                    .addInterceptor(AuthInterceptor(credentials))
                     .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
                     .readTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
                     .build()

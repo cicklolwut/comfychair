@@ -227,9 +227,21 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
                         ))
                     }
                     InstallResult.FAILED -> {
-                        _events.emit(ModelBrowserEvent.ShowError(
-                            "Installation failed. Check ComfyUI logs for details."
-                        ))
+                        // Manager returns 400 when the directory already exists
+                        // (e.g. installed but not yet restarted). Check if it's there.
+                        if (helperService.isAvailable()) {
+                            // Already running — no action needed
+                            _events.emit(ModelBrowserEvent.ShowToast(
+                                "Helper is already installed and running."
+                            ))
+                            checkHelperStatus()
+                        } else {
+                            // Could be installed but not loaded (needs restart),
+                            // or genuinely failed
+                            _events.emit(ModelBrowserEvent.PromptRestart(
+                                "Helper may already be installed but not yet active."
+                            ))
+                        }
                     }
                 }
             } catch (e: Exception) {

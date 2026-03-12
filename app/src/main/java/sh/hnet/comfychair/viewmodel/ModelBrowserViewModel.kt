@@ -34,6 +34,7 @@ import sh.hnet.comfychair.service.CivitaiTrpcService
 import sh.hnet.comfychair.service.HuggingFaceService
 import sh.hnet.comfychair.service.ComfyChairHelperService
 import sh.hnet.comfychair.service.HelperVersionInfo
+import sh.hnet.comfychair.service.InstallResult
 import sh.hnet.comfychair.service.OrganizedModel
 import sh.hnet.comfychair.service.ScanStatus
 import sh.hnet.comfychair.service.ComfyUIManagerService
@@ -207,15 +208,29 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(helperInstalling = true)
             try {
-                val success = helperService.installViaManager()
-                if (success) {
-                    _events.emit(ModelBrowserEvent.PromptRestart(
-                        "ComfyChair Helper installed successfully."
-                    ))
-                } else {
-                    _events.emit(ModelBrowserEvent.ShowError(
-                        "Failed to install helper node. Check ComfyUI-Manager security level."
-                    ))
+                val result = helperService.installViaManager()
+                when (result) {
+                    InstallResult.SUCCESS -> {
+                        _events.emit(ModelBrowserEvent.PromptRestart(
+                            "ComfyChair Helper installed successfully."
+                        ))
+                    }
+                    InstallResult.ALREADY_INSTALLED -> {
+                        _events.emit(ModelBrowserEvent.PromptRestart(
+                            "ComfyChair Helper is already installed."
+                        ))
+                    }
+                    InstallResult.SECURITY_BLOCKED -> {
+                        _events.emit(ModelBrowserEvent.ShowError(
+                            "Blocked by ComfyUI-Manager security policy. " +
+                            "Security level must be 'normal-' or lower."
+                        ))
+                    }
+                    InstallResult.FAILED -> {
+                        _events.emit(ModelBrowserEvent.ShowError(
+                            "Installation failed. Check ComfyUI logs for details."
+                        ))
+                    }
                 }
             } catch (e: Exception) {
                 _events.emit(ModelBrowserEvent.ShowError("Install failed: ${e.message}"))

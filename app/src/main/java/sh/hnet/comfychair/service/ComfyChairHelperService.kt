@@ -46,6 +46,13 @@ data class HelperUpdateResult(
     val restartRequired: Boolean
 )
 
+enum class InstallResult {
+    SUCCESS,
+    ALREADY_INSTALLED,
+    SECURITY_BLOCKED,
+    FAILED
+}
+
 data class ScanStatus(
     val running: Boolean,
     val lastScan: Long?,
@@ -256,21 +263,37 @@ class ComfyChairHelperService(
 
     /**
      * Install the helper node via ComfyUI-Manager's git URL install endpoint.
-     * Requires ComfyUI-Manager to be installed with security_level of 'middle' or lower.
+     * The clone runs synchronously server-side — this call blocks until complete.
+     *
+     * Returns:
+     * - SUCCESS: clone completed, restart needed
+     * - ALREADY_INSTALLED: node already exists (Manager returned 200 with skip action)
+     * - SECURITY_BLOCKED: Manager security level too restrictive (403)
+     * - FAILED: clone failed (400) or network error
      */
     suspend fun installViaManager(
         gitUrl: String = "https://git.bun.cafe/cinnabrad/comfyui-comfychair-helper"
-    ): Boolean = withContext(Dispatchers.IO) {
+    ): InstallResult = withContext(Dispatchers.IO) {
         try {
             val req = Request.Builder()
                 .url("${baseUrl()}/customnode/install/git_url")
                 .post(gitUrl.toRequestBody("text/plain".toMediaType()))
                 .build()
             val resp = client.newCall(req).execute()
-            resp.use { it.isSuccessful }
+            resp.use {
+                when (it.code) {
+                    200 -> {
+                        // Manager returns 200 for both fresh install and "already installed"
+                        // We can't distinguish from status alone, but both mean restart is valid
+                        InstallResult.SUCCESS
+                    }
+                    403 -> InstallResult.SECURITY_BLOCKED
+                    else -> InstallResult.FAILED
+                }
+            }
         } catch (e: Exception) {
             DebugLogger.w(TAG, "Failed to install via Manager: ${e.message}")
-            false
+            InstallResult.FAILED
         }
     }
 

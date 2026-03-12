@@ -33,6 +33,9 @@ import sh.hnet.comfychair.model.GenerationResource
 import sh.hnet.comfychair.service.CivitaiTrpcService
 import sh.hnet.comfychair.service.HuggingFaceService
 import sh.hnet.comfychair.service.ComfyChairHelperService
+import sh.hnet.comfychair.service.HelperVersionInfo
+import sh.hnet.comfychair.service.OrganizedModel
+import sh.hnet.comfychair.service.ScanStatus
 import sh.hnet.comfychair.service.ComfyUIManagerService
 // AppSettings is an object singleton, not instantiated
 import sh.hnet.comfychair.storage.ModelBrowserSettings
@@ -89,7 +92,16 @@ data class ModelBrowserUiState(
     val isLoadingMore: Boolean = false,
 
     // ComfyChair Helper node integration
-    val installedVersionIds: Set<Long> = emptySet()
+    val installedVersionIds: Set<Long> = emptySet(),
+    val helperAvailable: Boolean? = null, // null = checking, true/false = result
+    val helperVersion: HelperVersionInfo? = null,
+    val helperUpdateAvailable: Boolean = false,
+    val helperInstalling: Boolean = false,
+    val helperUpdating: Boolean = false,
+    val managerAvailable: Boolean? = null, // null = not checked, for install path
+    val organizedModels: List<OrganizedModel> = emptyList(),
+    val isLoadingOrganized: Boolean = false,
+    val scanStatus: ScanStatus? = null
 )
 
 /**
@@ -156,7 +168,138 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
         if (_uiState.value.selectedProvider == ModelProvider.CIVITAI) {
             triggerDebouncedSearch()
         }
+        checkHelperStatus()
         refreshInstalledVersions()
+    }
+
+    /**
+     * Check if the helper node is installed and get version info.
+     * Called on init and after install/update.
+     */
+    fun checkHelperStatus() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val available = helperService.isAvailable()
+            _uiState.value = _uiState.value.copy(helperAvailable = available)
+
+            if (available) {
+                // Get version info for update check
+                val versionInfo = helperService.getVersionInfo()
+                _uiState.value = _uiState.value.copy(
+                    helperVersion = versionInfo,
+                    helperUpdateAvailable = versionInfo?.updateAvailable == true
+                )
+                // Load organized models
+                loadOrganizedModels()
+            } else {
+                // Check if ComfyUI-Manager is available (for install path)
+                val managerAvailable = helperService.isManagerAvailable()
+                _uiState.value = _uiState.value.copy(managerAvailable = managerAvailable)
+            }
+        }
+    }
+
+    /**
+     * Install the helper node via ComfyUI-Manager.
+     */
+    fun installHelper() {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(helperInstalling = true)
+            try {
+                val success = helperService.installViaManager()
+                if (success) {
+                    _events.emit(ModelBrowserEvent.ShowToast(
+                        "ComfyChair Helper installed! Restart ComfyUI to activate."
+                    ))
+                } else {
+                    _events.emit(ModelBrowserEvent.ShowError(
+                        "Failed to install helper node. Check ComfyUI-Manager security level."
+                    ))
+                }
+            } catch (e: Exception) {
+                _events.emit(ModelBrowserEvent.ShowError("Install failed: ${e.message}"))
+            } finally {
+                _uiState.value = _uiState.value.copy(helperInstalling = false)
+            }
+        }
+    }
+
+    /**
+     * Update the helper node (git pull).
+     */
+    fun updateHelper() {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(helperUpdating = true)
+            try {
+                val result = helperService.update()
+                if (result.ok) {
+                    _events.emit(ModelBrowserEvent.ShowToast(
+                        "Helper updated! Restart ComfyUI to apply changes."
+                    ))
+                    _uiState.value = _uiState.value.copy(helperUpdateAvailable = false)
+                } else {
+                    _events.emit(ModelBrowserEvent.ShowError(
+                        "Update failed: ${result.error ?: "Unknown error"}"
+                    ))
+                }
+            } catch (e: Exception) {
+                _events.emit(ModelBrowserEvent.ShowError("Update failed: ${e.message}"))
+            } finally {
+                _uiState.value = _uiState.value.copy(helperUpdating = false)
+            }
+        }
+    }
+
+    /**
+     * Load organized models from the helper node.
+     */
+    fun loadOrganizedModels() {
+        viewModelScope.launch(Dispatchers.IO) {
+            _uiState.value = _uiState.value.copy(isLoadingOrganized = true)
+            try {
+                val models = helperService.getOrganizedModels()
+                _uiState.value = _uiState.value.copy(
+                    organizedModels = models,
+                    isLoadingOrganized = false
+                )
+            } catch (e: Exception) {
+                DebugLogger.w(TAG, "Failed to load organized models: ${e.message}")
+                _uiState.value = _uiState.value.copy(isLoadingOrganized = false)
+            }
+        }
+    }
+
+    /**
+     * Trigger a model rescan on the server.
+     */
+    fun triggerRescan(force: Boolean = false) {
+        viewModelScope.launch {
+            val success = helperService.triggerScan(force)
+            if (success) {
+                _events.emit(ModelBrowserEvent.ShowToast("Scan started..."))
+                // Poll scan status for a bit
+                pollScanStatus()
+            } else {
+                _events.emit(ModelBrowserEvent.ShowError("Failed to start scan"))
+            }
+        }
+    }
+
+    private fun pollScanStatus() {
+        viewModelScope.launch(Dispatchers.IO) {
+            repeat(60) { // poll for up to 2 minutes
+                val status = helperService.getScanStatus() ?: return@launch
+                _uiState.value = _uiState.value.copy(scanStatus = status)
+                if (!status.running) {
+                    // Scan finished — reload organized models and installed versions
+                    loadOrganizedModels()
+                    refreshInstalledVersions()
+                    _uiState.value = _uiState.value.copy(scanStatus = null)
+                    return@launch
+                }
+                delay(2000)
+            }
+            _uiState.value = _uiState.value.copy(scanStatus = null)
+        }
     }
 
     fun refreshInstalledVersions() {

@@ -111,6 +111,9 @@ fun ModelBrowserScreen(
     var showFilterSheet by remember { mutableStateOf(false) }
     var showSettingsSheet by remember { mutableStateOf(false) }
     var showAnimationDialog by remember { mutableStateOf(false) }
+    
+    // Browse mode: true = browse/search, false = installed models
+    var browseMode by remember { mutableStateOf(true) }
 
     // Settings sheet state (don't update store until save)
     var settingsNsfwMax by remember { mutableStateOf(uiState.nsfwLevels.maxOrNull() ?: 2) }
@@ -121,6 +124,13 @@ fun ModelBrowserScreen(
     var settingsCacheLimitMb by remember { mutableStateOf(viewModel.mediaCache.cacheLimitMb) }
     var settingsPrefetchEnabled by remember { mutableStateOf(viewModel.mediaCache.prefetchEnabled) }
     var settingsPrefetchCount by remember { mutableStateOf(viewModel.mediaCache.prefetchCount) }
+    
+    // Load organized models when entering installed view
+    LaunchedEffect(browseMode, uiState.helperAvailable) {
+        if (!browseMode && uiState.helperAvailable == true) {
+            viewModel.loadOrganizedModels()
+        }
+    }
 
     // Event handling
     LaunchedEffect(Unit) {
@@ -171,7 +181,43 @@ fun ModelBrowserScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Helper status banner (only show when helper is missing or has updates)
+            HelperStatusBanner(
+                helperAvailable = uiState.helperAvailable,
+                helperUpdateAvailable = uiState.helperUpdateAvailable,
+                helperInstalling = uiState.helperInstalling,
+                helperUpdating = uiState.helperUpdating,
+                managerAvailable = uiState.managerAvailable,
+                onInstall = { viewModel.installHelper() },
+                onUpdate = { viewModel.updateHelper() }
+            )
+
+            // Spacer only if banner is showing
+            if (uiState.helperAvailable == false || (uiState.helperAvailable == true && uiState.helperUpdateAvailable)) {
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+
+            // Browse/Installed mode toggle (only show when helper is available)
+            if (uiState.helperAvailable == true) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    FilterChip(
+                        selected = browseMode,
+                        onClick = { browseMode = true },
+                        label = { Text("Browse") }
+                    )
+                    FilterChip(
+                        selected = !browseMode,
+                        onClick = { browseMode = false },
+                        label = { Text("Installed") }
+                    )
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+            }
 
             if (!isProviderConfigured) {
                 // API key setup card
@@ -179,8 +225,8 @@ fun ModelBrowserScreen(
                     provider = uiState.selectedProvider,
                     onKeySaved = { key -> viewModel.saveApiKey(key) }
                 )
-            } else {
-                // Search bar
+            } else if (browseMode) {
+                // BROWSE MODE: Search bar
                 OutlinedTextField(
                     value = uiState.searchQuery,
                     onValueChange = { viewModel.updateSearchQuery(it) },
@@ -349,6 +395,26 @@ fun ModelBrowserScreen(
                     ) {
                         Icon(Icons.Default.FilterList, contentDescription = "Filters")
                     }
+                }
+            } else {
+                // INSTALLED MODE: Organized models view
+                Column(modifier = Modifier.fillMaxSize()) {
+                    // Scan progress indicator
+                    ScanProgressIndicator(
+                        scanStatus = uiState.scanStatus,
+                        onTriggerRescan = { viewModel.triggerRescan(force = false) }
+                    )
+
+                    if (uiState.scanStatus != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+
+                    // Organized models tree
+                    OrganizedModelsView(
+                        organizedModels = uiState.organizedModels,
+                        isLoadingOrganized = uiState.isLoadingOrganized,
+                        modifier = Modifier.weight(1f)
+                    )
                 }
             }
     }

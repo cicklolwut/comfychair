@@ -269,7 +269,7 @@ fun ScanProgressIndicator(
                 scanStatus.lastScan?.let { lastScan ->
                     val lastScanTime = remember(lastScan) {
                         java.text.SimpleDateFormat("MMM d, h:mm a", java.util.Locale.getDefault())
-                            .format(java.util.Date(lastScan))
+                            .format(java.util.Date(lastScan * 1000L))
                     }
                     Text(
                         text = "Last scan: $lastScanTime",

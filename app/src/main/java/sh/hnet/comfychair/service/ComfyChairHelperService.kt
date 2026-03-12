@@ -274,6 +274,24 @@ class ComfyChairHelperService(
         }
     }
 
+    /**
+     * Restart the ComfyUI server via ComfyUI-Manager's reboot endpoint.
+     * The server will go down and come back up — the app should reconnect via WebSocket.
+     */
+    suspend fun restartComfyUI(): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val req = Request.Builder()
+                .url("${baseUrl()}/manager/reboot")
+                .get().build()
+            val resp = client.newCall(req).execute()
+            resp.use { it.isSuccessful }
+        } catch (e: Exception) {
+            // Connection reset is expected — server is shutting down
+            DebugLogger.d(TAG, "Restart request sent (connection closed as expected)")
+            true
+        }
+    }
+
     /** Check if ComfyUI-Manager is available (for the install path). */
     suspend fun isManagerAvailable(): Boolean = withContext(Dispatchers.IO) {
         try {

@@ -111,6 +111,7 @@ fun ModelBrowserScreen(
     var showFilterSheet by remember { mutableStateOf(false) }
     var showSettingsSheet by remember { mutableStateOf(false) }
     var showAnimationDialog by remember { mutableStateOf(false) }
+    var showRestartDialog by remember { mutableStateOf<String?>(null) }
     
     // Browse mode: true = browse/search, false = installed models
     var browseMode by remember { mutableStateOf(true) }
@@ -141,6 +142,9 @@ fun ModelBrowserScreen(
                 }
                 is ModelBrowserEvent.ShowError -> {
                     Toast.makeText(context, event.message, Toast.LENGTH_LONG).show()
+                }
+                is ModelBrowserEvent.PromptRestart -> {
+                    showRestartDialog = event.reason
                 }
             }
         }
@@ -433,6 +437,24 @@ fun ModelBrowserScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showAnimationDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    // Restart ComfyUI dialog (after install/update)
+    showRestartDialog?.let { reason ->
+        AlertDialog(
+            onDismissRequest = { showRestartDialog = null },
+            title = { Text("Restart Required") },
+            text = { Text("$reason\n\nComfyUI needs to restart for changes to take effect.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showRestartDialog = null
+                    viewModel.restartComfyUI()
+                }) { Text("Restart Now") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRestartDialog = null }) { Text("Later") }
             }
         )
     }

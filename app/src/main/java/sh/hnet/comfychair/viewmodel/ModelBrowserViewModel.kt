@@ -110,6 +110,8 @@ data class ModelBrowserUiState(
 sealed class ModelBrowserEvent {
     data class ShowToast(val message: String) : ModelBrowserEvent()
     data class ShowError(val message: String) : ModelBrowserEvent()
+    /** Prompt user to restart ComfyUI (after install/update). */
+    data class PromptRestart(val reason: String) : ModelBrowserEvent()
 }
 
 /**
@@ -207,8 +209,8 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
             try {
                 val success = helperService.installViaManager()
                 if (success) {
-                    _events.emit(ModelBrowserEvent.ShowToast(
-                        "ComfyChair Helper installed! Restart ComfyUI to activate."
+                    _events.emit(ModelBrowserEvent.PromptRestart(
+                        "ComfyChair Helper installed successfully."
                     ))
                 } else {
                     _events.emit(ModelBrowserEvent.ShowError(
@@ -232,10 +234,14 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
             try {
                 val result = helperService.update()
                 if (result.ok) {
-                    _events.emit(ModelBrowserEvent.ShowToast(
-                        "Helper updated! Restart ComfyUI to apply changes."
-                    ))
                     _uiState.value = _uiState.value.copy(helperUpdateAvailable = false)
+                    if (result.restartRequired) {
+                        _events.emit(ModelBrowserEvent.PromptRestart(
+                            "Helper updated successfully."
+                        ))
+                    } else {
+                        _events.emit(ModelBrowserEvent.ShowToast("Helper updated!"))
+                    }
                 } else {
                     _events.emit(ModelBrowserEvent.ShowError(
                         "Update failed: ${result.error ?: "Unknown error"}"
@@ -281,6 +287,20 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
             } else {
                 _events.emit(ModelBrowserEvent.ShowError("Failed to start scan"))
             }
+        }
+    }
+
+    /**
+     * Restart ComfyUI via Manager's reboot endpoint.
+     * After restart, the WebSocket reconnect loop will re-establish connection
+     * and checkHelperStatus() will detect the newly installed/updated helper.
+     */
+    fun restartComfyUI() {
+        viewModelScope.launch {
+            _events.emit(ModelBrowserEvent.ShowToast("Restarting ComfyUI..."))
+            helperService.restartComfyUI()
+            // The WebSocket disconnect handler in ConnectionManager will
+            // trigger reconnection attempts automatically
         }
     }
 

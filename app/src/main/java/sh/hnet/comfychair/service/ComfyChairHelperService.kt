@@ -259,6 +259,112 @@ class ComfyChairHelperService(
         }
     }
 
+    // ---- Model downloads ----
+
+    data class DownloadJob(
+        val id: String,
+        val status: String,       // queued | downloading | done | error
+        val progress: Double,
+        val error: String?,
+        val keyStored: Boolean    // true if the helper stored the API key
+    )
+
+    /**
+     * Check whether the helper has a stored Civitai API key.
+     */
+    suspend fun hasStoredApiKey(): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val req = Request.Builder()
+                .url("${baseUrl()}/comfychair/config/apikey")
+                .get().build()
+            val resp = client.newCall(req).execute()
+            if (!resp.isSuccessful) return@withContext false
+            val body = resp.body?.string() ?: return@withContext false
+            JSONObject(body).optBoolean("has_key", false)
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /**
+     * Download a model via the helper node.
+     *
+     * @param url            Download URL (e.g. Civitai download link)
+     * @param filename       Target filename (e.g. "model_v10.safetensors")
+     * @param modelType      Model type for directory resolution (lora, checkpoint, etc.)
+     * @param savePath       Sub-path under models dir, or "default" for type-based
+     * @param versionId      Optional Civitai version ID for metadata tracking
+     * @param apiKey         Optional API key to pass for this download
+     * @param storeKey       If true and apiKey provided, helper will persist it
+     */
+    suspend fun downloadModel(
+        url: String,
+        filename: String,
+        modelType: String,
+        savePath: String = "default",
+        versionId: Long? = null,
+        apiKey: String? = null,
+        storeKey: Boolean = false
+    ): DownloadJob = withContext(Dispatchers.IO) {
+        val body = JSONObject().apply {
+            put("url", url)
+            put("filename", filename)
+            put("model_type", modelType)
+            put("save_path", savePath)
+            if (versionId != null) put("civitai_version_id", versionId)
+            if (!apiKey.isNullOrBlank()) {
+                put("api_key", apiKey)
+                put("store_key", storeKey)
+            }
+        }
+
+        val req = Request.Builder()
+            .url("${baseUrl()}/comfychair/download")
+            .post(body.toString().toRequestBody(JSON_MEDIA_TYPE))
+            .build()
+
+        val resp = client.newCall(req).execute()
+        val respBody = resp.body?.string()
+            ?: throw RuntimeException("Empty response from helper")
+
+        val obj = JSONObject(respBody)
+        if (!resp.isSuccessful) {
+            throw RuntimeException(obj.optString("error", "Download request failed"))
+        }
+
+        DownloadJob(
+            id = obj.getString("id"),
+            status = obj.getString("status"),
+            progress = obj.optDouble("progress", 0.0),
+            error = obj.optString("error", null),
+            keyStored = obj.optBoolean("key_stored", false)
+        )
+    }
+
+    /**
+     * Poll download progress.
+     */
+    suspend fun getDownloadStatus(jobId: String): DownloadJob? = withContext(Dispatchers.IO) {
+        try {
+            val req = Request.Builder()
+                .url("${baseUrl()}/comfychair/download/$jobId")
+                .get().build()
+            val resp = client.newCall(req).execute()
+            if (!resp.isSuccessful) return@withContext null
+            val body = resp.body?.string() ?: return@withContext null
+            val obj = JSONObject(body)
+            DownloadJob(
+                id = obj.getString("id"),
+                status = obj.getString("status"),
+                progress = obj.optDouble("progress", 0.0),
+                error = obj.optString("error", null),
+                keyStored = false
+            )
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     // ---- Installation via ComfyUI-Manager ----
 
     /**

@@ -113,6 +113,8 @@ sealed class ModelBrowserEvent {
     data class ShowError(val message: String) : ModelBrowserEvent()
     /** Prompt user to restart ComfyUI (after install/update). */
     data class PromptRestart(val reason: String) : ModelBrowserEvent()
+    /** Prompt user to store their Civitai API key on the helper for future downloads. */
+    data class PromptStoreApiKey(val jobId: String) : ModelBrowserEvent()
 }
 
 /**
@@ -698,9 +700,16 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
     }
 
     /**
-     * Download the selected model via ComfyUI Manager.
+     * Download the selected model.
+     *
+     * Fallback chain:
+     * 1. Helper node installed → use /comfychair/download (supports any model)
+     * 2. No helper → show error directing user to install the helper node
+     *
+     * The ComfyUI Manager /manager/queue/install_model endpoint is NOT used
+     * because it validates against a whitelist that excludes most Civitai models.
      */
-    fun downloadModel(subfolder: String = "") {
+    fun downloadModel(subfolder: String = "", storeApiKey: Boolean = false) {
         val model = _uiState.value.selectedModel ?: return
         val version = _uiState.value.selectedVersion ?: return
         val modelType = _uiState.value.selectedModelType
@@ -730,37 +739,50 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
                     }
                     ModelProvider.HUGGINGFACE -> {
                         val file = _uiState.value.selectedFile
-                        if (file == null) {
-                            throw IllegalStateException("No file selected")
-                        }
+                            ?: throw IllegalStateException("No file selected")
                         downloadUrl = file.downloadUrl
                         filename = file.filename
                     }
                 }
 
-                // Determine save path from subfolder
                 val savePath = if (subfolder.isBlank()) "default" else subfolder
 
-                // Queue the download via ComfyUI Manager
-                comfyUIManagerService.queueModelDownload(
+                // Check if helper node is available
+                if (!helperService.isAvailable()) {
+                    throw IllegalStateException(
+                        "ComfyChair Helper node is required for model downloads. " +
+                        "Install it from Server Management in Settings."
+                    )
+                }
+
+                // Get API key from app settings (for Civitai downloads)
+                val apiKey = modelBrowserSettings.civitaiApiKey.takeIf { it.isNotBlank() }
+
+                // Check if helper already has a stored key
+                val helperHasKey = helperService.hasStoredApiKey()
+
+                val job = helperService.downloadModel(
                     url = downloadUrl,
                     filename = filename,
                     modelType = modelType.value,
-                    modelName = model.name,
                     savePath = savePath,
-                    baseModel = version.baseModel ?: model.baseModel ?: "Other"
+                    versionId = version.id?.toLongOrNull(),
+                    apiKey = if (!helperHasKey) apiKey else null,
+                    storeKey = storeApiKey && !helperHasKey
                 )
-
-                // Start the queue processing
-                comfyUIManagerService.startQueue()
 
                 _uiState.value = _uiState.value.copy(
                     isDownloading = false,
                     downloadProgress = null
                 )
 
-                _events.emit(ModelBrowserEvent.ShowToast("Download queued! Check ComfyUI Manager for progress."))
-                
+                _events.emit(ModelBrowserEvent.ShowToast("Download started! (${job.id})"))
+
+                // If we sent an API key but didn't store it, prompt user
+                if (apiKey != null && !helperHasKey && !storeApiKey) {
+                    _events.emit(ModelBrowserEvent.PromptStoreApiKey(job.id))
+                }
+
                 // Clear selection
                 _uiState.value = _uiState.value.copy(
                     selectedModel = null,
@@ -777,6 +799,23 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
                     errorMessage = e.message ?: "Download failed"
                 )
                 _events.emit(ModelBrowserEvent.ShowError(e.message ?: "Download failed"))
+            }
+        }
+    }
+
+    /**
+     * Store the Civitai API key on the helper node for future downloads.
+     * Called when user confirms the PromptStoreApiKey dialog.
+     */
+    fun storeApiKeyOnHelper() {
+        viewModelScope.launch {
+            try {
+                val apiKey = modelBrowserSettings.civitaiApiKey
+                if (apiKey.isBlank()) return@launch
+                helperService.setCivitaiApiKey(apiKey)
+                _events.emit(ModelBrowserEvent.ShowToast("API key saved on server"))
+            } catch (e: Exception) {
+                _events.emit(ModelBrowserEvent.ShowError("Failed to save API key: ${e.message}"))
             }
         }
     }

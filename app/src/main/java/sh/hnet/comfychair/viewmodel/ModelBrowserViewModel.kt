@@ -61,6 +61,7 @@ data class ModelBrowserUiState(
     val selectedModelType: ModelType? = null,
     val isDownloading: Boolean = false,
     val downloadProgress: String? = null,
+    val downloadPercent: Float = 0f, // 0..1 for determinate progress bar
     val errorMessage: String? = null,
     val communityImages: List<CommunityImage> = emptyList(),
     val communityPosts: List<CommunityPost> = emptyList(),
@@ -771,16 +772,44 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
                     storeKey = storeApiKey && !helperHasKey
                 )
 
-                _uiState.value = _uiState.value.copy(
-                    isDownloading = false,
-                    downloadProgress = null
-                )
-
-                _events.emit(ModelBrowserEvent.ShowToast("Download started! (${job.id})"))
-
                 // If we sent an API key but didn't store it, prompt user
                 if (apiKey != null && !helperHasKey && !storeApiKey) {
                     _events.emit(ModelBrowserEvent.PromptStoreApiKey(job.id))
+                }
+
+                // Poll progress until done or error
+                _uiState.value = _uiState.value.copy(
+                    downloadProgress = "Starting download...",
+                    downloadPercent = 0f
+                )
+
+                var jobId = job.id
+                while (true) {
+                    delay(500) // poll every 500ms
+                    val status = helperService.getDownloadStatus(jobId) ?: break
+
+                    when (status.status) {
+                        "downloading" -> {
+                            _uiState.value = _uiState.value.copy(
+                                downloadProgress = formatDownloadProgress(status),
+                                downloadPercent = (status.progress / 100.0).toFloat()
+                                    .coerceIn(0f, 1f)
+                            )
+                        }
+                        "done" -> {
+                            _uiState.value = _uiState.value.copy(
+                                isDownloading = false,
+                                downloadProgress = null,
+                                downloadPercent = 0f
+                            )
+                            _events.emit(ModelBrowserEvent.ShowToast("Download complete!"))
+                            break
+                        }
+                        "error" -> {
+                            throw RuntimeException(status.error ?: "Download failed on server")
+                        }
+                        else -> { /* queued — keep polling */ }
+                    }
                 }
 
                 // Clear selection
@@ -796,6 +825,7 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
                 _uiState.value = _uiState.value.copy(
                     isDownloading = false,
                     downloadProgress = null,
+                    downloadPercent = 0f,
                     errorMessage = e.message ?: "Download failed"
                 )
                 _events.emit(ModelBrowserEvent.ShowError(e.message ?: "Download failed"))
@@ -823,6 +853,17 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
     /**
      * Clear the selected model and free community image memory.
      */
+    private fun formatDownloadProgress(job: ComfyChairHelperService.DownloadJob): String {
+        val percent = job.progress.toInt()
+        val doneMB = job.bytesDone / (1024.0 * 1024.0)
+        val totalMB = job.bytesTotal / (1024.0 * 1024.0)
+        return if (job.bytesTotal > 0) {
+            "$percent% — ${"%.1f".format(doneMB)} / ${"%.1f".format(totalMB)} MB"
+        } else {
+            "$percent% — ${"%.1f".format(doneMB)} MB"
+        }
+    }
+
     fun clearSelection() {
         _uiState.value = _uiState.value.copy(
             selectedModel = null,

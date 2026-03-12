@@ -1569,15 +1569,31 @@ fun DownloadConfigDialog(
 
                 // Download button
                 if (uiState.isDownloading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.align(Alignment.CenterHorizontally)
-                    )
-                    uiState.downloadProgress?.let { progress ->
-                        Text(
-                            text = progress,
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.padding(top = 8.dp)
-                        )
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        if (uiState.downloadPercent > 0f) {
+                            LinearProgressIndicator(
+                                progress = { uiState.downloadPercent },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp)
+                            )
+                        } else {
+                            LinearProgressIndicator(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp)
+                            )
+                        }
+                        uiState.downloadProgress?.let { progress ->
+                            Text(
+                                text = progress,
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.padding(top = 8.dp)
+                            )
+                        }
                     }
                 } else {
                     Row(
@@ -1593,7 +1609,6 @@ fun DownloadConfigDialog(
                         Button(
                             onClick = { 
                                 onDownload(subfolder.trim())
-                                onDismiss()
                             },
                             modifier = Modifier.weight(1f),
                             enabled = uiState.selectedModelType != null

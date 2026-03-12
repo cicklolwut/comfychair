@@ -265,6 +265,8 @@ class ComfyChairHelperService(
         val id: String,
         val status: String,       // queued | downloading | done | error
         val progress: Double,
+        val bytesDone: Long,
+        val bytesTotal: Long,
         val error: String?,
         val keyStored: Boolean    // true if the helper stored the API key
     )
@@ -336,6 +338,8 @@ class ComfyChairHelperService(
             id = obj.getString("id"),
             status = obj.getString("status"),
             progress = obj.optDouble("progress", 0.0),
+            bytesDone = obj.optLong("bytes_done", 0),
+            bytesTotal = obj.optLong("bytes_total", 0),
             error = obj.optString("error", null),
             keyStored = obj.optBoolean("key_stored", false)
         )
@@ -357,6 +361,8 @@ class ComfyChairHelperService(
                 id = obj.getString("id"),
                 status = obj.getString("status"),
                 progress = obj.optDouble("progress", 0.0),
+                bytesDone = obj.optLong("bytes_done", 0),
+                bytesTotal = obj.optLong("bytes_total", 0),
                 error = obj.optString("error", null),
                 keyStored = false
             )

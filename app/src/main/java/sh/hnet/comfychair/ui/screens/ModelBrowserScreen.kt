@@ -112,6 +112,7 @@ fun ModelBrowserScreen(
     var showSettingsSheet by remember { mutableStateOf(false) }
     var showAnimationDialog by remember { mutableStateOf(false) }
     var showRestartDialog by remember { mutableStateOf<String?>(null) }
+    var showStoreApiKeyDialog by remember { mutableStateOf(false) }
     
     // Browse mode: true = browse/search, false = installed models
     var browseMode by remember { mutableStateOf(true) }
@@ -147,7 +148,7 @@ fun ModelBrowserScreen(
                     showRestartDialog = event.reason
                 }
                 is ModelBrowserEvent.PromptStoreApiKey -> {
-                    // TODO: show dialog asking user to store API key on server
+                    showStoreApiKeyDialog = true
                 }
             }
         }
@@ -440,6 +441,24 @@ fun ModelBrowserScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showAnimationDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    // Store API key dialog
+    if (showStoreApiKeyDialog) {
+        AlertDialog(
+            onDismissRequest = { showStoreApiKeyDialog = false },
+            title = { Text("Save API Key on Server?") },
+            text = { Text("Your Civitai API key was used for this download. Save it on the ComfyUI server so future downloads don't need it sent each time?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showStoreApiKeyDialog = false
+                    viewModel.storeApiKeyOnHelper()
+                }) { Text("Save") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showStoreApiKeyDialog = false }) { Text("No Thanks") }
             }
         )
     }

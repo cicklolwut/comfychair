@@ -146,6 +146,9 @@ fun ModelBrowserScreen(
                 is ModelBrowserEvent.PromptRestart -> {
                     showRestartDialog = event.reason
                 }
+                is ModelBrowserEvent.PromptStoreApiKey -> {
+                    // TODO: show dialog asking user to store API key on server
+                }
             }
         }
     }

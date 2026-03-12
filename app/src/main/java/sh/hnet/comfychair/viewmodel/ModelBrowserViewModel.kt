@@ -123,7 +123,10 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
-    private val comfyUIManagerService = ComfyUIManagerService(serverUrlProvider)
+    private val comfyUIManagerService = ComfyUIManagerService(
+        serverUrlProvider = serverUrlProvider,
+        credentialsProvider = { ConnectionManager.client.getCredentials() }
+    )
 
     private val helperService = ComfyChairHelperService(
         serverUrlProvider = serverUrlProvider,

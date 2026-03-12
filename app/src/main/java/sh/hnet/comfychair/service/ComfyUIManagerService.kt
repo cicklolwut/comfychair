@@ -7,6 +7,8 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
+import sh.hnet.comfychair.AuthInterceptor
+import sh.hnet.comfychair.model.AuthCredentials
 import sh.hnet.comfychair.util.DebugLogger
 import java.util.concurrent.TimeUnit
 
@@ -19,14 +21,27 @@ import java.util.concurrent.TimeUnit
  * - Non-safetensors formats require security_level of 'high' or lower + default channel whitelist
  */
 class ComfyUIManagerService(
-    private val serverUrlProvider: () -> String
+    private val serverUrlProvider: () -> String,
+    private val credentialsProvider: () -> AuthCredentials = { AuthCredentials.None }
 ) {
     companion object {
         private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
         private const val TAG = "ComfyUIManagerService"
     }
 
-    private val client = HttpModule.client
+    private val authInterceptor = AuthInterceptor(credentialsProvider())
+
+    private val client: OkHttpClient = OkHttpClient.Builder()
+        .addInterceptor { chain ->
+            // Refresh credentials on each request so changes (e.g. re-auth) take effect
+            authInterceptor.setCredentials(credentialsProvider())
+            chain.proceed(chain.request())
+        }
+        .addInterceptor(authInterceptor)
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .writeTimeout(15, TimeUnit.SECONDS)
+        .build()
 
     /** Get the server base URL from the injected provider. */
     private fun getServerUrl(): String = serverUrlProvider()

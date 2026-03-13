@@ -131,6 +131,15 @@ object ConnectionManager {
     private val _silentRefreshFailed = MutableStateFlow(false)
     val silentRefreshFailed: StateFlow<Boolean> = _silentRefreshFailed.asStateFlow()
 
+    /**
+     * Called when any component detects an expired auth session.
+     * Triggers the silent cookie refresh flow (or UI dialog fallback).
+     */
+    fun handleSessionExpired() {
+        DebugLogger.w(TAG, "Session expired reported by external component — attempting silent refresh")
+        attemptSilentCookieRefresh()
+    }
+
     /** Reset session expired and silent-refresh-failed flags after re-auth completes. */
     fun clearSessionExpired() {
         _sessionExpired.value = false
@@ -611,8 +620,8 @@ object ConnectionManager {
         val authDomain = creds?.authDomain ?: ""
         val authDomainCookies = creds?.authDomainCookies ?: ""
 
-        if (creds == null || authDomain.isEmpty() || authDomainCookies.isEmpty()) {
-            DebugLogger.w(TAG, "Silent cookie refresh: no auth domain stored, falling back to UI dialog")
+        if (creds == null) {
+            DebugLogger.w(TAG, "Silent cookie refresh: no cookie credentials, falling back to UI dialog")
             _silentRefreshFailed.value = true
             _sessionExpired.value = true
             return
@@ -641,6 +650,48 @@ object ConnectionManager {
                 val comfyHost = connState.hostname
                 val serverUrl = "${connState.protocol}://${connState.hostname}:${connState.port}/system_stats"
 
+                // If no auth domain is stored (e.g. server was configured before auth domain
+                // tracking was added), discover it by making a no-follow request and inspecting
+                // the redirect Location header.
+                var effectiveAuthDomain = authDomain
+                var effectiveAuthDomainCookies = authDomainCookies
+                if (effectiveAuthDomain.isEmpty()) {
+                    DebugLogger.i(TAG, "Silent cookie refresh: no auth domain stored, attempting discovery")
+                    try {
+                        val discoveryReq = Request.Builder().url(serverUrl).get().build()
+                        val discoveryResp = refreshClient.newCall(discoveryReq).execute()
+                        if (discoveryResp.isRedirect) {
+                            val location = discoveryResp.header("Location") ?: ""
+                            val discoveredHost = try { Uri.parse(location).host ?: "" } catch (e: Exception) { "" }
+                            if (discoveredHost.isNotEmpty() && !discoveredHost.equals(comfyHost, ignoreCase = true)) {
+                                effectiveAuthDomain = discoveredHost
+                                DebugLogger.i(TAG, "Silent cookie refresh: discovered auth domain: $discoveredHost")
+                                // No auth domain cookies yet — the redirect chain will need to
+                                // proceed without them. If Authentik's session cookie is still
+                                // valid in WebView's CookieManager, we can try to extract it.
+                                val webViewCookies = try {
+                                    android.webkit.CookieManager.getInstance()
+                                        .getCookie("https://$discoveredHost")?.trim() ?: ""
+                                } catch (e: Exception) { "" }
+                                if (webViewCookies.isNotEmpty()) {
+                                    effectiveAuthDomainCookies = webViewCookies
+                                    DebugLogger.i(TAG, "Silent cookie refresh: found WebView cookies for auth domain")
+                                }
+                            }
+                        }
+                        discoveryResp.close()
+                    } catch (e: Exception) {
+                        DebugLogger.w(TAG, "Silent cookie refresh: discovery failed: ${e.message}")
+                    }
+
+                    if (effectiveAuthDomain.isEmpty()) {
+                        DebugLogger.w(TAG, "Silent cookie refresh: could not discover auth domain, falling back to UI dialog")
+                        _silentRefreshFailed.value = true
+                        _sessionExpired.value = true
+                        return@launch
+                    }
+                }
+
                 // Seed the per-domain cookie map from existing (possibly expired) ComfyUI cookies.
                 // We'll overwrite individual entries as Set-Cookie headers arrive.
                 val cookieMap = LinkedHashMap<String, String>()
@@ -667,8 +718,10 @@ object ConnectionManager {
                             val cookieStr = cookieMap.entries.joinToString("; ") { "${it.key}=${it.value}" }
                             if (cookieStr.isNotEmpty()) requestBuilder.header("Cookie", cookieStr)
                         }
-                        currentHost.equals(authDomain, ignoreCase = true) -> {
-                            requestBuilder.header("Cookie", authDomainCookies)
+                        currentHost.equals(effectiveAuthDomain, ignoreCase = true) -> {
+                            if (effectiveAuthDomainCookies.isNotEmpty()) {
+                                requestBuilder.header("Cookie", effectiveAuthDomainCookies)
+                            }
                         }
                         // Unknown host — no cookies injected
                     }
@@ -733,8 +786,8 @@ object ConnectionManager {
                     val newCookieString = cookieMap.entries.joinToString("; ") { "${it.key}=${it.value}" }
                     val newCreds = AuthCredentials.Cookie(
                         cookies = newCookieString,
-                        authDomain = authDomain,
-                        authDomainCookies = authDomainCookies
+                        authDomain = effectiveAuthDomain,
+                        authDomainCookies = effectiveAuthDomainCookies
                     )
 
                     // Validate the new cookies actually work before accepting them.

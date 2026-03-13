@@ -148,7 +148,8 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
 
     private val helperService = ComfyChairHelperService(
         serverUrlProvider = serverUrlProvider,
-        credentialsProvider = { ConnectionManager.client.getCredentials() }
+        credentialsProvider = { ConnectionManager.client.getCredentials() },
+        onSessionExpired = { ConnectionManager.handleSessionExpired() }
     )
 
     private val _uiState = MutableStateFlow(ModelBrowserUiState(
@@ -825,6 +826,15 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
                     selectedModelType = null
                 )
 
+            } catch (e: ComfyChairHelperService.SessionExpiredException) {
+                DebugLogger.w(TAG, "Download failed: auth session expired")
+                _uiState.value = _uiState.value.copy(
+                    isDownloading = false,
+                    downloadProgress = null,
+                    downloadPercent = 0f,
+                    errorMessage = "Session expired — please re-authenticate"
+                )
+                _events.emit(ModelBrowserEvent.ShowError("Session expired — please re-authenticate"))
             } catch (e: Exception) {
                 DebugLogger.w(TAG, "Download failed: ${e.message}")
                 _uiState.value = _uiState.value.copy(

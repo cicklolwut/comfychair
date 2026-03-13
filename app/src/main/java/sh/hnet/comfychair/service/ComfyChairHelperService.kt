@@ -63,7 +63,9 @@ data class ScanStatus(
 
 class ComfyChairHelperService(
     private val serverUrlProvider: () -> String,
-    private val credentialsProvider: () -> AuthCredentials = { AuthCredentials.None }
+    private val credentialsProvider: () -> AuthCredentials = { AuthCredentials.None },
+    /** Called when auth session appears expired. Wire to ConnectionManager's refresh flow. */
+    var onSessionExpired: (() -> Unit)? = null
 ) {
     private val authInterceptor = AuthInterceptor(credentialsProvider())
 
@@ -78,12 +80,31 @@ class ComfyChairHelperService(
         .writeTimeout(15, TimeUnit.SECONDS)
         .build()
 
+    init {
+        authInterceptor.onSessionExpired = { onSessionExpired?.invoke() }
+    }
+
     companion object {
         private const val TAG = "ComfyChairHelperService"
         private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
     }
 
     private fun baseUrl(): String = serverUrlProvider().trimEnd('/')
+
+    /**
+     * Check if a response is actually an auth redirect (HTML login page instead of JSON).
+     * OkHttp follows redirects automatically, so we check the content type.
+     * Throws [SessionExpiredException] if auth appears expired.
+     */
+    private fun requireJsonResponse(resp: okhttp3.Response, context: String) {
+        val contentType = resp.header("Content-Type") ?: ""
+        if (contentType.contains("text/html", ignoreCase = true)) {
+            throw SessionExpiredException("Authentication session expired during $context. Please re-authenticate.")
+        }
+    }
+
+    /** Thrown when a request gets an auth redirect instead of the expected API response. */
+    class SessionExpiredException(message: String) : RuntimeException(message)
 
     // ---- Health / availability ----
 
@@ -326,10 +347,16 @@ class ComfyChairHelperService(
             .build()
 
         val resp = client.newCall(req).execute()
+        requireJsonResponse(resp, "model download")
+
         val respBody = resp.body?.string()
             ?: throw RuntimeException("Empty response from helper")
 
-        val obj = JSONObject(respBody)
+        val obj = try {
+            JSONObject(respBody)
+        } catch (e: org.json.JSONException) {
+            throw RuntimeException("Server returned invalid response (expected JSON, got: ${respBody.take(100)})")
+        }
         if (!resp.isSuccessful) {
             throw RuntimeException(obj.optString("error", "Download request failed"))
         }
@@ -354,6 +381,7 @@ class ComfyChairHelperService(
                 .url("${baseUrl()}/comfychair/download/$jobId")
                 .get().build()
             val resp = client.newCall(req).execute()
+            requireJsonResponse(resp, "download status poll")
             if (!resp.isSuccessful) return@withContext null
             val body = resp.body?.string() ?: return@withContext null
             val obj = JSONObject(body)
@@ -366,6 +394,8 @@ class ComfyChairHelperService(
                 error = if (obj.isNull("error")) null else obj.optString("error", null),
                 keyStored = false
             )
+        } catch (e: SessionExpiredException) {
+            throw e // Don't swallow auth errors — let them propagate
         } catch (e: Exception) {
             null
         }

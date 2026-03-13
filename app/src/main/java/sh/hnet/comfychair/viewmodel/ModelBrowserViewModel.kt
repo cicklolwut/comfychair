@@ -624,9 +624,11 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
                             thumbnailUrl = fullModel.thumbnailUrl ?: model.thumbnailUrl,
                             animatedThumbnailUrl = fullModel.animatedThumbnailUrl ?: model.animatedThumbnailUrl
                         )
+                        val firstVersion = merged.versions.firstOrNull()
+                        DebugLogger.d(TAG, "getModelDetails: loaded ${merged.versions.size} versions, primary url=${firstVersion?.downloadUrl?.take(120)}, files=${firstVersion?.files?.size ?: 0}")
                         _uiState.value = _uiState.value.copy(
                             selectedModel = merged,
-                            selectedVersion = merged.versions.firstOrNull()
+                            selectedVersion = firstVersion
                         )
                     }
                 } catch (e: Exception) {

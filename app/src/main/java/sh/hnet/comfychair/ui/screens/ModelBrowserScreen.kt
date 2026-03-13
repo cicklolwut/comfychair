@@ -70,6 +70,7 @@ import sh.hnet.comfychair.ui.components.AutoplayVideoThumbnail
 import sh.hnet.comfychair.ui.components.SettingsScreenScaffold
 import sh.hnet.comfychair.ui.components.VideoPlayer
 import sh.hnet.comfychair.ui.components.VideoScaleMode
+import sh.hnet.comfychair.connection.ConnectionManager
 import sh.hnet.comfychair.model.CivitaiTypeMapper
 import sh.hnet.comfychair.viewmodel.ModelBrowserUiState
 import sh.hnet.comfychair.model.ModelProvider
@@ -1354,6 +1355,15 @@ fun ModelDetailBottomSheet(
 
     // Download config dialog
     if (showDownloadDialog) {
+        // Auto-select primary file when dialog opens (if files available and none selected)
+        LaunchedEffect(showDownloadDialog) {
+            val files = uiState.selectedVersion?.files ?: emptyList()
+            if (files.isNotEmpty() && uiState.selectedFile == null) {
+                val primary = files.firstOrNull { it.primary } ?: files.first()
+                onSelectFile(primary)
+            }
+        }
+
         DownloadConfigDialog(
             model = model,
             uiState = uiState,
@@ -1507,6 +1517,7 @@ fun HtmlText(html: String) {
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DownloadConfigDialog(
     model: ModelSearchResult,
@@ -1517,6 +1528,34 @@ fun DownloadConfigDialog(
     onDownload: (subfolder: String) -> Unit
 ) {
     var subfolder by remember { mutableStateOf("") }
+    var isSubfolderExpanded by remember { mutableStateOf(false) }
+    val version = uiState.selectedVersion
+    val files = version?.files ?: emptyList()
+    val hasFiles = files.isNotEmpty()
+
+    // Get existing subfolders from the server's model cache based on detected type
+    val modelCache by ConnectionManager.modelCache.collectAsState()
+    val detectedType = CivitaiTypeMapper.toComfyUIType(model.civitaiType)
+    val existingSubfolders = remember(modelCache, detectedType) {
+        val modelList = when (detectedType) {
+            ModelType.CHECKPOINT -> modelCache.checkpoints
+            ModelType.LORA -> modelCache.loras
+            ModelType.VAE -> modelCache.vaes
+            ModelType.EMBEDDING -> emptyList() // embeddings usually flat
+            ModelType.CONTROLNET -> emptyList()
+            ModelType.UPSCALE -> modelCache.latentUpscaleModels
+            ModelType.CLIP_VISION -> modelCache.clips
+            ModelType.TEXT_ENCODER -> modelCache.textEncoders
+            ModelType.DIFFUSION_MODEL -> modelCache.unets
+            else -> emptyList()
+        }
+        // Extract unique subfolder prefixes from model paths (e.g. "illustrious/model.safetensors" → "illustrious")
+        modelList
+            .filter { it.contains("/") || it.contains("\\") }
+            .map { it.substringBeforeLast("/").substringBeforeLast("\\") }
+            .distinct()
+            .sorted()
+    }
 
     Dialog(onDismissRequest = onDismiss) {
         Card(modifier = Modifier.fillMaxWidth()) {
@@ -1526,70 +1565,155 @@ fun DownloadConfigDialog(
                     .padding(16.dp)
             ) {
                 Text(
-                    text = "Download Configuration",
+                    text = "Download",
                     style = MaterialTheme.typography.titleLarge
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Model type selection (auto-detected)
-                Text("Model Type:", style = MaterialTheme.typography.labelMedium)
-                Spacer(modifier = Modifier.height(8.dp))
-
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    ModelType.entries.forEach { type ->
-                        FilterChip(
-                            selected = uiState.selectedModelType == type,
-                            onClick = { onSelectModelType(type) },
-                            label = { Text(type.displayName) }
-                        )
-                    }
+                version?.let { v ->
+                    Text(
+                        text = v.name,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Subfolder input
-                OutlinedTextField(
-                    value = subfolder,
-                    onValueChange = { subfolder = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Subfolder (optional)") },
-                    placeholder = { Text("e.g. illustrious or sdxl/loras") },
-                    singleLine = true
-                )
+                // File selection — show available files with metadata
+                if (hasFiles) {
+                    if (files.size > 1) {
+                        Text("Select File:", style = MaterialTheme.typography.labelMedium)
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
 
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "Leave empty to use default location",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                    files.forEach { file ->
+                        val isSelected = uiState.selectedFile == file
+                        val sizeText = file.sizeBytes?.let { formatFileSize(it) } ?: ""
+                        val metaParts = mutableListOf<String>()
+                        file.fp?.let { metaParts.add(it) }
+                        file.quantization?.let { metaParts.add(it) }
+                        file.format?.let { metaParts.add(it) }
+                        val metaText = metaParts.joinToString(" · ")
 
-                // File selection (for HuggingFace)
-                if (model.provider == ModelProvider.HUGGINGFACE && 
-                    uiState.selectedVersion?.files?.isNotEmpty() == true) {
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text("Select File:", style = MaterialTheme.typography.labelMedium)
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 2.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (isSelected)
+                                    MaterialTheme.colorScheme.primaryContainer
+                                else
+                                    MaterialTheme.colorScheme.surfaceVariant
+                            ),
+                            onClick = { onSelectFile(file) }
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = file.filename,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    if (metaText.isNotEmpty()) {
+                                        Text(
+                                            text = metaText,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                                if (sizeText.isNotEmpty()) {
+                                    Text(
+                                        text = sizeText,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(start = 8.dp)
+                                    )
+                                }
+                                if (file.primary && files.size > 1) {
+                                    Text(
+                                        text = "★",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        modifier = Modifier.padding(start = 4.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                } else if (model.provider == ModelProvider.CIVITAI) {
+                    // No files from API — show model type picker as fallback
+                    Text("Model Type:", style = MaterialTheme.typography.labelMedium)
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    uiState.selectedVersion?.files?.forEach { file ->
-                        FilterChip(
-                            selected = uiState.selectedFile == file,
-                            onClick = { onSelectFile(file) },
-                            label = { Text(file.filename) },
-                            modifier = Modifier.fillMaxWidth()
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        ModelType.entries.forEach { type ->
+                            FilterChip(
+                                selected = uiState.selectedModelType == type,
+                                onClick = { onSelectModelType(type) },
+                                label = { Text(type.displayName) }
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Subfolder dropdown with existing folders from server
+                Text("Save to:", style = MaterialTheme.typography.labelMedium)
+                Spacer(modifier = Modifier.height(8.dp))
+
+                ExposedDropdownMenuBox(
+                    expanded = isSubfolderExpanded,
+                    onExpandedChange = { isSubfolderExpanded = it },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    OutlinedTextField(
+                        value = subfolder.ifEmpty { "Default" },
+                        onValueChange = { },
+                        readOnly = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isSubfolderExpanded) },
+                        singleLine = true
+                    )
+                    ExposedDropdownMenu(
+                        expanded = isSubfolderExpanded,
+                        onDismissRequest = { isSubfolderExpanded = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Default") },
+                            onClick = {
+                                subfolder = ""
+                                isSubfolderExpanded = false
+                            }
                         )
-                        Spacer(modifier = Modifier.height(4.dp))
+                        existingSubfolders.forEach { folder ->
+                            DropdownMenuItem(
+                                text = { Text(folder) },
+                                onClick = {
+                                    subfolder = folder
+                                    isSubfolderExpanded = false
+                                }
+                            )
+                        }
                     }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Download button
+                // Download button / progress
                 if (uiState.isDownloading) {
                     Column(
                         modifier = Modifier.fillMaxWidth(),
@@ -1618,6 +1742,12 @@ fun DownloadConfigDialog(
                         }
                     }
                 } else {
+                    val canDownload = if (hasFiles) {
+                        uiState.selectedFile != null
+                    } else {
+                        uiState.selectedModelType != null
+                    }
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -1629,11 +1759,9 @@ fun DownloadConfigDialog(
                             Text("Cancel")
                         }
                         Button(
-                            onClick = { 
-                                onDownload(subfolder.trim())
-                            },
+                            onClick = { onDownload(subfolder.trim()) },
                             modifier = Modifier.weight(1f),
-                            enabled = uiState.selectedModelType != null
+                            enabled = canDownload
                         ) {
                             Text("Download")
                         }
@@ -1641,6 +1769,15 @@ fun DownloadConfigDialog(
                 }
             }
         }
+    }
+}
+
+private fun formatFileSize(bytes: Long): String {
+    return when {
+        bytes >= 1_073_741_824 -> String.format("%.1f GB", bytes / 1_073_741_824.0)
+        bytes >= 1_048_576 -> String.format("%.0f MB", bytes / 1_048_576.0)
+        bytes >= 1024 -> String.format("%.0f KB", bytes / 1024.0)
+        else -> "$bytes B"
     }
 }
 

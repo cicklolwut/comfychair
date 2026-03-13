@@ -633,18 +633,28 @@ class CivitaiTrpcService(
                 val fileObj = filesArray.getJSONObject(i)
                 val filename = fileObj.optString("name", "")
                 val sizeKB = fileObj.optDouble("sizeKB", 0.0).toLong()
-                // trpc returns "url" (R2 CDN direct link), REST API returns "downloadUrl".
-                // Prefer downloadUrl if present, otherwise construct from version ID.
-                // Don't use R2 url directly — it bypasses auth/rate-limiting.
+                // trpc returns "url" (R2 CDN link), REST returns "downloadUrl".
+                // Use whichever is available — trpc url is the direct download link.
                 val downloadUrl = fileObj.optString("downloadUrl", "")
+                    .ifBlank { fileObj.optString("url", "") }
                     .ifBlank { "https://civitai.com/api/download/models/$id" }
                 val isPrimary = fileObj.optBoolean("primary", false)
+                
+                // File metadata (precision, size variant, format)
+                val metadata = fileObj.optJSONObject("metadata")
+                val fp = metadata?.optString("fp", null)?.takeIf { it != "null" }
+                val quantization = metadata?.optString("size", null)?.takeIf { it != "null" }
+                val format = metadata?.optString("format", null)?.takeIf { it != "null" }
                 
                 files.add(
                     ModelFile(
                         filename = filename,
                         downloadUrl = downloadUrl,
-                        sizeBytes = sizeKB * 1024
+                        sizeBytes = sizeKB * 1024,
+                        fp = fp,
+                        quantization = quantization,
+                        format = format,
+                        primary = isPrimary
                     )
                 )
                 

@@ -722,12 +722,14 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
             DebugLogger.w(TAG, "downloadModel: no version selected")
             return
         }
+        // Auto-detect model type from Civitai type, fall back to manual selection
         val modelType = _uiState.value.selectedModelType
+            ?: sh.hnet.comfychair.model.CivitaiTypeMapper.toComfyUIType(model.civitaiType)
 
         if (modelType == null) {
-            DebugLogger.w(TAG, "downloadModel: no model type selected")
+            DebugLogger.w(TAG, "downloadModel: no model type detected (civitaiType=${model.civitaiType})")
             viewModelScope.launch {
-                _events.emit(ModelBrowserEvent.ShowToast("Select a model type first"))
+                _events.emit(ModelBrowserEvent.ShowToast("Could not determine model type. Select manually."))
             }
             return
         }
@@ -745,24 +747,26 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
                 val downloadUrl: String
                 val filename: String
 
-                when (_uiState.value.selectedProvider) {
-                    ModelProvider.CIVITAI -> {
+                // Use selected file's URL if available (Civitai with files or HuggingFace),
+                // otherwise fall back to version-level download URL
+                val selectedFile = _uiState.value.selectedFile
+                when {
+                    selectedFile != null -> {
+                        downloadUrl = selectedFile.downloadUrl
+                        filename = selectedFile.filename
+                        DebugLogger.d(TAG, "downloadModel: file=${filename}, url=${downloadUrl.take(120)}")
+                    }
+                    _uiState.value.selectedProvider == ModelProvider.CIVITAI -> {
                         downloadUrl = version.downloadUrl
                         filename = version.filename.ifBlank {
                             version.files.firstOrNull()?.filename
                                 ?: "model_v${version.id}.safetensors"
                         }
-                        DebugLogger.d(TAG, "downloadModel: Civitai url=${downloadUrl.take(120)}, filename=$filename")
-                        if (downloadUrl.isBlank()) {
-                            throw IllegalStateException("No download URL for this model version. The model may require login on Civitai.")
-                        }
+                        DebugLogger.d(TAG, "downloadModel: Civitai fallback url=${downloadUrl.take(120)}, filename=$filename")
                     }
-                    ModelProvider.HUGGINGFACE -> {
-                        val file = _uiState.value.selectedFile
-                            ?: throw IllegalStateException("No file selected")
-                        downloadUrl = file.downloadUrl
-                        filename = file.filename
-                        DebugLogger.d(TAG, "downloadModel: HuggingFace url=${downloadUrl.take(120)}, filename=$filename")
+                    else -> {
+                        throw IllegalStateException("No file selected")
+                    }
                     }
                 }
 

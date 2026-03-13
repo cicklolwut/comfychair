@@ -56,13 +56,23 @@ data class ModelVersionImage(
 )
 
 /**
- * A specific file in a model version (for HuggingFace repos with multiple files).
+ * A specific file in a model version.
+ * For Civitai: populated from trpc files array with format metadata.
+ * For HuggingFace: populated from repo file listing.
  */
 @Immutable
 data class ModelFile(
     val filename: String,
     val downloadUrl: String,
-    val sizeBytes: Long?
+    val sizeBytes: Long?,
+    /** Precision: "fp16", "fp32", "fp8", "bf16", etc. */
+    val fp: String? = null,
+    /** Size variant: "full", "pruned" */
+    val quantization: String? = null,
+    /** File format: "SafeTensor", "PickleTensor", "Other", etc. */
+    val format: String? = null,
+    /** Whether this is the primary/default file for the version */
+    val primary: Boolean = false
 )
 
 /**

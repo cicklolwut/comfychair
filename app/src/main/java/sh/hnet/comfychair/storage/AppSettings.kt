@@ -17,6 +17,8 @@ object AppSettings {
     private const val KEY_OFFLINE_MODE = "offline_mode"
     private const val KEY_EDGE_ROUTER = "edge_router"
     private const val DEFAULT_EDGE_ROUTER = "hermite"
+    private const val KEY_MODEL_SELECTOR_MODE = "model_selector_mode"
+    private const val DEFAULT_MODEL_SELECTOR_MODE = "file_path"
 
     /**
      * Check if live preview is enabled.
@@ -175,6 +177,27 @@ object AppSettings {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit()
             .putString(KEY_EDGE_ROUTER, routerId)
+            .apply()
+    }
+
+    /**
+     * Get the model selector mode.
+     * Returns "file_path" (default) or "metadata".
+     */
+    fun getModelSelectorMode(context: Context): String {
+        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getString(KEY_MODEL_SELECTOR_MODE, DEFAULT_MODEL_SELECTOR_MODE)
+            ?: DEFAULT_MODEL_SELECTOR_MODE
+    }
+
+    /**
+     * Set the model selector mode.
+     * @param mode Either "file_path" or "metadata"
+     */
+    fun setModelSelectorMode(context: Context, mode: String) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KEY_MODEL_SELECTOR_MODE, mode)
             .apply()
     }
 }

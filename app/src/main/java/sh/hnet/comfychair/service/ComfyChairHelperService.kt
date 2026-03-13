@@ -61,6 +61,22 @@ data class ScanStatus(
     val currentFile: String?
 )
 
+/**
+ * Represents a model file that is in the wrong folder according to its classification.
+ */
+data class ModelDiscrepancy(
+    val path: String,
+    val filename: String,
+    val currentFolderType: String,
+    val expectedFolderType: String,
+    val classificationSource: String,  // "header" or "civitai"
+    val headerClass: String?,
+    val civitaiType: String?,
+    val baseModel: String?,
+    val suggestedPath: String,
+    val hash: String
+)
+
 class ComfyChairHelperService(
     private val serverUrlProvider: () -> String,
     private val credentialsProvider: () -> AuthCredentials = { AuthCredentials.None },
@@ -473,6 +489,67 @@ class ComfyChairHelperService(
             val resp = client.newCall(req).execute()
             resp.use { it.isSuccessful }
         } catch (e: Exception) {
+            false
+        }
+    }
+
+    // ---- Model organization (discrepancy detection) ----
+
+    /**
+     * Get list of models that are in the wrong folder based on their classification.
+     */
+    suspend fun getDiscrepancies(): List<ModelDiscrepancy> = withContext(Dispatchers.IO) {
+        try {
+            val req = Request.Builder()
+                .url("${baseUrl()}/comfychair/models/discrepancies")
+                .get().build()
+            val resp = client.newCall(req).execute()
+            if (!resp.isSuccessful) return@withContext emptyList()
+            val body = resp.body?.string() ?: return@withContext emptyList()
+            val arr = JSONArray(body)
+            (0 until arr.length()).map { i ->
+                val obj = arr.getJSONObject(i)
+                ModelDiscrepancy(
+                    path = obj.getString("path"),
+                    filename = obj.getString("filename"),
+                    currentFolderType = obj.getString("current_folder_type"),
+                    expectedFolderType = obj.getString("expected_folder_type"),
+                    classificationSource = obj.getString("classification_source"),
+                    headerClass = if (obj.isNull("header_class")) null else obj.getString("header_class"),
+                    civitaiType = if (obj.isNull("civitai_type")) null else obj.getString("civitai_type"),
+                    baseModel = if (obj.isNull("base_model")) null else obj.getString("base_model"),
+                    suggestedPath = obj.getString("suggested_path"),
+                    hash = obj.getString("hash")
+                )
+            }
+        } catch (e: Exception) {
+            DebugLogger.w(TAG, "Failed to get discrepancies: ${e.message}")
+            emptyList()
+        }
+    }
+
+    /**
+     * Move a model file from one location to another.
+     * Updates the database and creates intermediate directories if needed.
+     *
+     * @param sourcePath Current file path
+     * @param destPath Target file path
+     * @return true if move succeeded, false otherwise
+     */
+    suspend fun moveModel(sourcePath: String, destPath: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val body = JSONObject().apply {
+                put("source_path", sourcePath)
+                put("dest_path", destPath)
+            }
+            val req = Request.Builder()
+                .url("${baseUrl()}/comfychair/models/move")
+                .post(body.toString().toRequestBody(JSON_MEDIA_TYPE))
+                .build()
+            val resp = client.newCall(req).execute()
+            resp.use { it.isSuccessful && resp.body?.string()?.contains("\"ok\":true") == true }
+        } catch (e: Exception) {
+            DebugLogger.w(TAG, "Failed to move model: ${e.message}")
             false
         }
     }

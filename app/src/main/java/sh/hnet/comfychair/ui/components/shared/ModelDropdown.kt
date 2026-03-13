@@ -14,6 +14,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import sh.hnet.comfychair.connection.MetadataModelEntry
 
 /**
  * A dropdown component for selecting models (checkpoints, UNETs, VAEs, CLIPs, etc.)
@@ -21,11 +22,16 @@ import androidx.compose.ui.Modifier
  * Automatically switches between flat and hierarchical (folder tree) display
  * based on whether any option contains path separators.
  *
+ * When metadataEntries is provided (non-null), delegates to MetadataModelDropdown
+ * for metadata-enriched display grouped by base model.
+ *
  * Hierarchical behavior:
  * - Folders shown first, then root-level models
  * - Clicking a folder expands it (collapses siblings at same level)
  * - Re-opening auto-expands to the currently selected model's folder
  * - Selected model is highlighted in primary color
+ *
+ * @param metadataEntries Optional list of metadata entries for metadata mode
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -34,8 +40,22 @@ fun ModelDropdown(
     selectedValue: String,
     options: List<String>,
     onValueChange: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    metadataEntries: List<MetadataModelEntry>? = null
 ) {
+    // Delegate to MetadataModelDropdown when metadata is available
+    if (metadataEntries != null) {
+        MetadataModelDropdown(
+            label = label,
+            selectedValue = selectedValue,
+            entries = metadataEntries,
+            onValueChange = onValueChange,
+            modifier = modifier
+        )
+        return
+    }
+
+    // Original file path mode implementation
     var expanded by remember { mutableStateOf(false) }
 
     val tree = remember(options) { buildModelTree(options) }

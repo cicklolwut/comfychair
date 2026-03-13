@@ -37,6 +37,7 @@ import sh.hnet.comfychair.cache.MediaCache
 import sh.hnet.comfychair.cache.MediaStateHolder
 import sh.hnet.comfychair.queue.JobRegistry
 import sh.hnet.comfychair.repository.GalleryRepository
+import sh.hnet.comfychair.service.ComfyChairHelperService
 import sh.hnet.comfychair.storage.AppSettings
 import sh.hnet.comfychair.storage.CredentialStorage
 import sh.hnet.comfychair.storage.ObjectInfoCache
@@ -864,6 +865,8 @@ object ConnectionManager {
         // Clear model cache and node registry
         _modelCache.value = ModelCache()
         nodeTypeRegistry.clear()
+        // Clear organized model cache
+        OrganizedModelCache.clear()
     }
 
     // WebSocket management
@@ -1206,6 +1209,31 @@ object ConnectionManager {
                         "${models.unets.size} unets, ${models.vaes.size} vaes, " +
                         "${models.clips.size} clips, ${models.loras.size} loras, " +
                         "${models.samplers.size} samplers, ${models.schedulers.size} schedulers")
+
+                // Fetch organized models if metadata mode is enabled and helper is available
+                val ctx = _applicationContext
+                if (ctx != null && AppSettings.getModelSelectorMode(ctx) == "metadata") {
+                    scope.launch {
+                        try {
+                            val baseUrl = client.getBaseUrl()
+                            if (baseUrl != null) {
+                                val credentials = client.getCredentials()
+                                val helperService = ComfyChairHelperService(
+                                    serverUrlProvider = { baseUrl },
+                                    credentialsProvider = { credentials }
+                                )
+                                if (helperService.isAvailable()) {
+                                    DebugLogger.i(TAG, "Metadata mode enabled and helper available, refreshing organized model cache")
+                                    OrganizedModelCache.refresh(helperService)
+                                } else {
+                                    DebugLogger.d(TAG, "Metadata mode enabled but helper not available, using file path mode")
+                                }
+                            }
+                        } catch (e: Exception) {
+                            DebugLogger.w(TAG, "Failed to refresh organized models: ${e.message}")
+                        }
+                    }
+                }
             } else {
                 DebugLogger.w(TAG, "Failed to fetch server data")
                 _modelCache.value = _modelCache.value.copy(

@@ -71,6 +71,7 @@ fun ApplicationSettingsScreen(
     val isShowBuiltInWorkflows by viewModel.isShowBuiltInWorkflows.collectAsState()
     val isOfflineMode by viewModel.isOfflineMode.collectAsState()
     val edgeRouterId by viewModel.edgeRouterId.collectAsState()
+    val modelSelectorMode by viewModel.modelSelectorMode.collectAsState()
 
     // State and effects
     // Backup/restore state
@@ -393,6 +394,54 @@ fun ApplicationSettingsScreen(
                         checked = isShowBuiltInWorkflows,
                         onCheckedChange = { viewModel.setShowBuiltInWorkflows(context, it) }
                     )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Model selector mode label
+                Text(
+                    text = "Model Selection Display",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Model selector mode toggle (file_path vs metadata)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween)
+                ) {
+                    ToggleButton(
+                        checked = modelSelectorMode == "file_path",
+                        onCheckedChange = { isChecked ->
+                            if (isChecked) viewModel.setModelSelectorMode(context, "file_path")
+                        },
+                        modifier = Modifier.weight(1f),
+                        shapes = ButtonGroupDefaults.connectedLeadingButtonShapes()
+                    ) {
+                        Text("File Path")
+                    }
+                    ToggleButton(
+                        checked = modelSelectorMode == "metadata",
+                        onCheckedChange = { isChecked ->
+                            if (isChecked) viewModel.setModelSelectorMode(context, "metadata")
+                        },
+                        modifier = Modifier.weight(1f),
+                        shapes = ButtonGroupDefaults.connectedTrailingButtonShapes(),
+                        enabled = true  // TODO: Check helper availability when wiring through ViewModels
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("Metadata")
+                            if (modelSelectorMode != "metadata") {
+                                Text(
+                                    text = "(Requires helper)",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }

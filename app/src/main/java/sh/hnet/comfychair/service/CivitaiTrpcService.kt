@@ -531,7 +531,7 @@ class CivitaiTrpcService(
             id = id,
             name = name,
             baseModel = baseModel,
-            downloadUrl = "https://civitai.com/api/download/models/$id?type=Model&format=SafeTensor",
+            downloadUrl = "https://civitai.com/api/download/models/$id",
             filename = "",
             sizeKB = null,
             files = emptyList(),
@@ -624,7 +624,7 @@ class CivitaiTrpcService(
         // Files
         val filesArray = json.optJSONArray("files")
         val files = mutableListOf<ModelFile>()
-        var primaryDownloadUrl = "https://civitai.com/api/download/models/$id?type=Model&format=SafeTensor"
+        var primaryDownloadUrl = "https://civitai.com/api/download/models/$id"
         var primaryFilename = ""
         var primarySizeKB = 0L
         
@@ -634,7 +634,7 @@ class CivitaiTrpcService(
                 val filename = fileObj.optString("name", "")
                 val sizeKB = fileObj.optDouble("sizeKB", 0.0).toLong()
                 val downloadUrl = fileObj.optString("downloadUrl", "")
-                    .ifBlank { "https://civitai.com/api/download/models/$id?type=Model&format=SafeTensor" }
+                    .ifBlank { "https://civitai.com/api/download/models/$id" }
                 val isPrimary = fileObj.optBoolean("primary", false)
                 
                 files.add(

@@ -1211,8 +1211,8 @@ object ConnectionManager {
                         "${models.samplers.size} samplers, ${models.schedulers.size} schedulers")
 
                 // Fetch organized models if metadata mode is enabled and helper is available
-                val ctx = _applicationContext
-                if (ctx != null && AppSettings.getModelSelectorMode(ctx) == "metadata") {
+                val metaCtx = _applicationContext
+                if (metaCtx != null && AppSettings.getModelSelectorMode(metaCtx) == "metadata") {
                     scope.launch {
                         try {
                             val baseUrl = client.getBaseUrl()

@@ -633,18 +633,30 @@ class CivitaiTrpcService(
                 val fileObj = filesArray.getJSONObject(i)
                 val filename = fileObj.optString("name", "")
                 val sizeKB = fileObj.optDouble("sizeKB", 0.0).toLong()
-                // trpc returns "url" (R2 CDN link), REST returns "downloadUrl".
-                // Use whichever is available — trpc url is the direct download link.
-                val downloadUrl = fileObj.optString("downloadUrl", "")
-                    .ifBlank { fileObj.optString("url", "") }
-                    .ifBlank { "https://civitai.com/api/download/models/$id" }
+                // Construct download URL via Civitai's download API, which generates
+                // signed R2 URLs. The trpc "url" field is an unsigned storage path that
+                // returns 400 when accessed directly.
+                // Use file type + format metadata as query params to select the right file
+                // when a version has multiple files (e.g. fp16/fp32, SafeTensor/PickleTensor).
+                val metadata = fileObj.optJSONObject("metadata")
+                val fileType = fileObj.optString("type", "").takeIf { it.isNotBlank() }
+                val fileFormat = metadata?.optString("format", null)?.takeIf { it != "null" && it.isNotBlank() }
+                val downloadUrl = buildString {
+                    append("https://civitai.com/api/download/models/$id")
+                    val params = mutableListOf<String>()
+                    if (fileType != null) params.add("type=$fileType")
+                    if (fileFormat != null) params.add("format=$fileFormat")
+                    if (params.isNotEmpty()) {
+                        append("?")
+                        append(params.joinToString("&"))
+                    }
+                }
                 val isPrimary = fileObj.optBoolean("primary", false)
                 
-                // File metadata (precision, size variant, format)
-                val metadata = fileObj.optJSONObject("metadata")
+                // File metadata (precision, size variant, format) — metadata already parsed above for URL
                 val fp = metadata?.optString("fp", null)?.takeIf { it != "null" }
                 val quantization = metadata?.optString("size", null)?.takeIf { it != "null" }
-                val format = metadata?.optString("format", null)?.takeIf { it != "null" }
+                val format = fileFormat
                 
                 files.add(
                     ModelFile(

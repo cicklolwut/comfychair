@@ -197,6 +197,24 @@ class ComfyUIClient(
 
             override fun onResponse(call: okhttp3.Call, response: Response) {
                 response.use {
+                    // Detect auth redirect: OkHttp follows redirects automatically, so if
+                    // the final request URL is on a different host, we were redirected to
+                    // an auth login page (e.g. Authentik). Treat as authentication failure.
+                    val finalHost = response.request.url.host
+                    val originalHost = hostname
+                    if (response.isSuccessful && !finalHost.equals(originalHost, ignoreCase = true)) {
+                        DebugLogger.w(TAG, "Auth redirect detected: ended up on $finalHost instead of $originalHost")
+                        workingProtocol = protocol  // Protocol works, auth doesn't
+                        callback(
+                            false,
+                            context?.getString(R.string.error_auth_unauthorized)
+                                ?: "Session expired. Please re-authenticate.",
+                            SelfSignedCertHelper.certificateIssue,
+                            ConnectionFailure.AUTHENTICATION
+                        )
+                        return@use
+                    }
+
                     if (response.isSuccessful) {
                         // Validate this is actually a ComfyUI server by checking response content
                         try {
@@ -211,9 +229,19 @@ class ComfyUIClient(
                                 DebugLogger.i(TAG, "Connection successful (protocol: $protocol)")
                                 callback(true, null, certIssue, ConnectionFailure.NONE)
                             } else {
-                                // Response doesn't match ComfyUI format
+                                // Response doesn't match ComfyUI format — could be an auth
+                                // login page served with 200 status on the same host
                                 DebugLogger.w(TAG, "Invalid response: not a ComfyUI server")
-                                if (protocol == "https") {
+                                val contentType = response.header("Content-Type") ?: ""
+                                if (contentType.contains("text/html", ignoreCase = true) &&
+                                    authInterceptor.getCredentials() is AuthCredentials.Cookie) {
+                                    // Got HTML when expecting JSON with cookie auth — likely auth page
+                                    DebugLogger.w(TAG, "Got HTML with cookie auth — treating as session expiry")
+                                    workingProtocol = protocol
+                                    callback(false, context?.getString(R.string.error_auth_unauthorized)
+                                        ?: "Session expired. Please re-authenticate.",
+                                        SelfSignedCertHelper.certificateIssue, ConnectionFailure.AUTHENTICATION)
+                                } else if (protocol == "https") {
                                     tryConnection("http", callback)
                                 } else {
                                     callback(false, context?.getString(R.string.error_not_comfyui_server)

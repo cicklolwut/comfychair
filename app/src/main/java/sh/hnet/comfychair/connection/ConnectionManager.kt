@@ -737,21 +737,56 @@ object ConnectionManager {
                         authDomainCookies = authDomainCookies
                     )
 
-                    // Update in-memory credentials (resets sessionExpiredFired in AuthInterceptor)
-                    _client?.setCredentials(newCreds)
-
-                    // Persist to encrypted storage
-                    val ctx = _applicationContext
-                    val serverId = connState.serverId
-                    if (ctx != null) {
-                        CredentialStorage(ctx).saveCredentials(serverId, newCreds)
+                    // Validate the new cookies actually work before accepting them.
+                    // Build a one-off request with the new cookies (bypass AuthInterceptor
+                    // to avoid triggering another expiry cycle).
+                    val validateClient: OkHttpClient = SelfSignedCertHelper.configureToAcceptSelfSigned(
+                        OkHttpClient.Builder()
+                            .connectTimeout(10, TimeUnit.SECONDS)
+                            .readTimeout(10, TimeUnit.SECONDS)
+                            .followRedirects(false)
+                    ).build()
+                    val validateRequest = Request.Builder()
+                        .url("${connState.protocol}://${connState.hostname}:${connState.port}/system_stats")
+                        .header("Cookie", newCookieString)
+                        .get()
+                        .build()
+                    val validateResponse = try {
+                        validateClient.newCall(validateRequest).execute()
+                    } catch (e: IOException) {
+                        DebugLogger.w(TAG, "Silent cookie refresh: validation request failed: ${e.message}")
+                        null
                     }
 
-                    // Clear expiry flags and reconnect silently
-                    _silentRefreshFailed.value = false
-                    _sessionExpired.value = false
-                    DebugLogger.i(TAG, "Silent cookie refresh: success — reconnecting")
-                    withContext(Dispatchers.Main) { attemptSilentReconnect() }
+                    val validated = validateResponse?.use { resp ->
+                        if (resp.isSuccessful) {
+                            // Verify it's actually ComfyUI JSON, not an HTML login page
+                            val body = resp.body?.string() ?: ""
+                            body.contains("\"system\"") && body.contains("\"os\"")
+                        } else false
+                    } ?: false
+
+                    if (validated) {
+                        // Update in-memory credentials (resets sessionExpiredFired in AuthInterceptor)
+                        _client?.setCredentials(newCreds)
+
+                        // Persist to encrypted storage
+                        val ctx = _applicationContext
+                        val serverId = connState.serverId
+                        if (ctx != null) {
+                            CredentialStorage(ctx).saveCredentials(serverId, newCreds)
+                        }
+
+                        // Clear expiry flags and reconnect silently
+                        _silentRefreshFailed.value = false
+                        _sessionExpired.value = false
+                        DebugLogger.i(TAG, "Silent cookie refresh: validated and saved — reconnecting")
+                        withContext(Dispatchers.Main) { attemptSilentReconnect() }
+                    } else {
+                        DebugLogger.w(TAG, "Silent cookie refresh: redirect succeeded but cookies still invalid — showing UI dialog")
+                        _silentRefreshFailed.value = true
+                        _sessionExpired.value = true
+                    }
                 } else {
                     DebugLogger.w(TAG, "Silent cookie refresh: failed after $redirectCount redirects — showing UI dialog")
                     _silentRefreshFailed.value = true

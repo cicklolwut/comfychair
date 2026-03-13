@@ -64,12 +64,15 @@ class AuthInterceptor(
         if (currentCredentials is AuthCredentials.Cookie && !sessionExpiredFired) {
             val expired = when {
                 response.code == 401 || response.code == 403 -> true
-                // Authentik/OAuth redirects: 302 to a different host (auth domain)
-                response.isRedirect -> {
-                    val location = response.header("Location")
-                    val requestHost = originalRequest.url.host
-                    location != null && !location.contains(requestHost, ignoreCase = true)
-                }
+                // OkHttp follows redirects automatically (this is an application interceptor),
+                // so we never see raw 302 responses. Instead, detect that OkHttp followed a
+                // redirect to a different host (e.g. auth.bun.cafe login page).
+                response.request.url.host != originalRequest.url.host -> true
+                // Fallback: if we got HTML back on an API endpoint, auth proxy likely
+                // served a login page with 200 status.
+                response.header("Content-Type")?.contains("text/html", ignoreCase = true) == true &&
+                    originalRequest.header("Accept")?.contains("application/json", ignoreCase = true) != true &&
+                    !originalRequest.url.encodedPath.contains("view") -> true
                 else -> false
             }
             if (expired) {

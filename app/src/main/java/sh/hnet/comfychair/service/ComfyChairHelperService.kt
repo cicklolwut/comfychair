@@ -361,7 +361,8 @@ class ComfyChairHelperService(
             throw RuntimeException("Server returned invalid response (expected JSON, got: ${respBody.take(100)})")
         }
         if (!resp.isSuccessful) {
-            val errMsg = obj.optString("error", "Download request failed")
+            val errMsg = if (obj.isNull("error")) "Download request failed (HTTP ${resp.code})"
+                         else obj.optString("error", "Download request failed")
             DebugLogger.e(TAG, "downloadModel: server error ${resp.code}: $errMsg")
             throw RuntimeException(errMsg)
         }

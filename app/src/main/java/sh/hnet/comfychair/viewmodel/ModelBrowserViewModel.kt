@@ -767,7 +767,10 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
                     else -> {
                         throw IllegalStateException("No file selected")
                     }
-                    }
+                }
+
+                if (downloadUrl.isBlank()) {
+                    throw IllegalStateException("No download URL available for this file")
                 }
 
                 val savePath = if (subfolder.isBlank()) "default" else subfolder

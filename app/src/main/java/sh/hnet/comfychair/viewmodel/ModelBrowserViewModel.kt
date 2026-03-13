@@ -736,7 +736,12 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
                 when (_uiState.value.selectedProvider) {
                     ModelProvider.CIVITAI -> {
                         downloadUrl = version.downloadUrl
-                        filename = version.filename
+                        filename = version.filename.ifBlank {
+                            // getAll doesn't include files — derive filename
+                            // from the download URL or use a fallback
+                            version.files.firstOrNull()?.filename
+                                ?: "model_v${version.id}.safetensors"
+                        }
                     }
                     ModelProvider.HUGGINGFACE -> {
                         val file = _uiState.value.selectedFile

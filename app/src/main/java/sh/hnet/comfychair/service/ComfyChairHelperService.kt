@@ -340,7 +340,7 @@ class ComfyChairHelperService(
             progress = obj.optDouble("progress", 0.0),
             bytesDone = obj.optLong("bytes_done", 0),
             bytesTotal = obj.optLong("bytes_total", 0),
-            error = obj.optString("error", null),
+            error = if (obj.isNull("error")) null else obj.optString("error", null),
             keyStored = obj.optBoolean("key_stored", false)
         )
     }
@@ -363,7 +363,7 @@ class ComfyChairHelperService(
                 progress = obj.optDouble("progress", 0.0),
                 bytesDone = obj.optLong("bytes_done", 0),
                 bytesTotal = obj.optLong("bytes_total", 0),
-                error = obj.optString("error", null),
+                error = if (obj.isNull("error")) null else obj.optString("error", null),
                 keyStored = false
             )
         } catch (e: Exception) {

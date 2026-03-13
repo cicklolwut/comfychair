@@ -48,7 +48,10 @@ data class ServerSettingsUiState(
     val isLoadingStats: Boolean = false,
     val isClearingHistory: Boolean = false,
     val isRefreshingModels: Boolean = false,
-    val isRestarting: Boolean = false
+    val isRestarting: Boolean = false,
+    val discrepancies: List<sh.hnet.comfychair.service.ModelDiscrepancy> = emptyList(),
+    val isLoadingDiscrepancies: Boolean = false,
+    val helperAvailable: Boolean = false
 )
 
 /**
@@ -205,6 +208,59 @@ class SettingsViewModel : ViewModel() {
     fun stopResourceAutoRefresh() {
         resourceRefreshJob?.cancel()
         resourceRefreshJob = null
+    }
+
+    // ---- Model discrepancy detection ----
+
+    private fun createHelperService(): sh.hnet.comfychair.service.ComfyChairHelperService? {
+        val client = comfyUIClient ?: return null
+        val baseUrl = client.getBaseUrl() ?: return null
+        val credentials = client.getCredentials()
+        return sh.hnet.comfychair.service.ComfyChairHelperService(
+            serverUrlProvider = { baseUrl },
+            credentialsProvider = { credentials }
+        )
+    }
+
+    fun loadDiscrepancies() {
+        viewModelScope.launch {
+            _serverSettingsState.value = _serverSettingsState.value.copy(isLoadingDiscrepancies = true)
+            try {
+                val helper = createHelperService()
+                if (helper != null && helper.isAvailable()) {
+                    _serverSettingsState.value = _serverSettingsState.value.copy(helperAvailable = true)
+                    val discrepancies = helper.getDiscrepancies()
+                    _serverSettingsState.value = _serverSettingsState.value.copy(
+                        discrepancies = discrepancies,
+                        isLoadingDiscrepancies = false
+                    )
+                } else {
+                    _serverSettingsState.value = _serverSettingsState.value.copy(
+                        helperAvailable = false,
+                        isLoadingDiscrepancies = false
+                    )
+                }
+            } catch (e: Exception) {
+                DebugLogger.w("SettingsViewModel", "Failed to load discrepancies: ${e.message}")
+                _serverSettingsState.value = _serverSettingsState.value.copy(isLoadingDiscrepancies = false)
+            }
+        }
+    }
+
+    fun moveModel(discrepancy: sh.hnet.comfychair.service.ModelDiscrepancy) {
+        viewModelScope.launch {
+            try {
+                val helper = createHelperService() ?: return@launch
+                val success = helper.moveModel(discrepancy.path, discrepancy.suggestedPath)
+                if (success) {
+                    _events.emit(SettingsEvent.ShowToast(R.string.button_refresh_models))
+                    // Refresh the discrepancy list
+                    loadDiscrepancies()
+                }
+            } catch (e: Exception) {
+                DebugLogger.w("SettingsViewModel", "Failed to move model: ${e.message}")
+            }
+        }
     }
 
     private fun parseSystemStats(statsJson: JSONObject): SystemStats {

@@ -39,6 +39,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import sh.hnet.comfychair.R
+import sh.hnet.comfychair.service.ModelDiscrepancy
 import sh.hnet.comfychair.ui.components.SettingsScreenScaffold
 import sh.hnet.comfychair.viewmodel.GpuInfo
 import sh.hnet.comfychair.viewmodel.SettingsEvent
@@ -55,9 +56,10 @@ fun ServerSettingsScreen(
     val uiState by viewModel.serverSettingsState.collectAsState()
 
     // State and effects
-    // Load system stats on first composition and start auto-refresh
+    // Load system stats and discrepancies on first composition
     LaunchedEffect(Unit) {
         viewModel.loadSystemStats()
+        viewModel.loadDiscrepancies()
     }
 
     // Start/stop auto-refresh when screen is shown/hidden
@@ -322,6 +324,17 @@ fun ServerSettingsScreen(
                     }
                 }
             }
+
+        // Model Organization (discrepancy detection)
+        if (uiState.helperAvailable) {
+            Spacer(modifier = Modifier.height(16.dp))
+            ModelOrganizationSection(
+                discrepancies = uiState.discrepancies,
+                isLoading = uiState.isLoadingDiscrepancies,
+                onMove = { viewModel.moveModel(it) },
+                onRefresh = { viewModel.loadDiscrepancies() }
+            )
+        }
 
         // Bottom padding
         Spacer(modifier = Modifier.height(16.dp))

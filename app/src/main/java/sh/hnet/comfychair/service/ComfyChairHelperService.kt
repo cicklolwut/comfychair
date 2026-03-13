@@ -329,6 +329,7 @@ class ComfyChairHelperService(
         apiKey: String? = null,
         storeKey: Boolean = false
     ): DownloadJob = withContext(Dispatchers.IO) {
+        DebugLogger.d(TAG, "downloadModel: POST url=${url.take(80)}, filename=$filename, type=$modelType, versionId=$versionId")
         val body = JSONObject().apply {
             put("url", url)
             put("filename", filename)
@@ -347,6 +348,7 @@ class ComfyChairHelperService(
             .build()
 
         val resp = client.newCall(req).execute()
+        DebugLogger.d(TAG, "downloadModel: response code=${resp.code}, contentType=${resp.header("Content-Type")}")
         requireJsonResponse(resp, "model download")
 
         val respBody = resp.body?.string()
@@ -355,12 +357,16 @@ class ComfyChairHelperService(
         val obj = try {
             JSONObject(respBody)
         } catch (e: org.json.JSONException) {
+            DebugLogger.e(TAG, "downloadModel: invalid JSON response: ${respBody.take(200)}")
             throw RuntimeException("Server returned invalid response (expected JSON, got: ${respBody.take(100)})")
         }
         if (!resp.isSuccessful) {
-            throw RuntimeException(obj.optString("error", "Download request failed"))
+            val errMsg = obj.optString("error", "Download request failed")
+            DebugLogger.e(TAG, "downloadModel: server error ${resp.code}: $errMsg")
+            throw RuntimeException(errMsg)
         }
 
+        DebugLogger.d(TAG, "downloadModel: job created id=${obj.optString("id")}, status=${obj.optString("status")}")
         DownloadJob(
             id = obj.getString("id"),
             status = obj.getString("status"),

@@ -712,16 +712,25 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
      * because it validates against a whitelist that excludes most Civitai models.
      */
     fun downloadModel(subfolder: String = "", storeApiKey: Boolean = false) {
-        val model = _uiState.value.selectedModel ?: return
-        val version = _uiState.value.selectedVersion ?: return
+        val model = _uiState.value.selectedModel ?: run {
+            DebugLogger.w(TAG, "downloadModel: no model selected")
+            return
+        }
+        val version = _uiState.value.selectedVersion ?: run {
+            DebugLogger.w(TAG, "downloadModel: no version selected")
+            return
+        }
         val modelType = _uiState.value.selectedModelType
 
         if (modelType == null) {
+            DebugLogger.w(TAG, "downloadModel: no model type selected")
             viewModelScope.launch {
                 _events.emit(ModelBrowserEvent.ShowToast("Select a model type first"))
             }
             return
         }
+
+        DebugLogger.d(TAG, "downloadModel: model=${model.name} (${model.id}), version=${version.id}, type=${modelType.value}, provider=${_uiState.value.selectedProvider}")
 
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(
@@ -738,10 +747,12 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
                     ModelProvider.CIVITAI -> {
                         downloadUrl = version.downloadUrl
                         filename = version.filename.ifBlank {
-                            // getAll doesn't include files — derive filename
-                            // from the download URL or use a fallback
                             version.files.firstOrNull()?.filename
                                 ?: "model_v${version.id}.safetensors"
+                        }
+                        DebugLogger.d(TAG, "downloadModel: Civitai url=${downloadUrl.take(120)}, filename=$filename")
+                        if (downloadUrl.isBlank()) {
+                            throw IllegalStateException("No download URL for this model version. The model may require login on Civitai.")
                         }
                     }
                     ModelProvider.HUGGINGFACE -> {
@@ -749,12 +760,14 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
                             ?: throw IllegalStateException("No file selected")
                         downloadUrl = file.downloadUrl
                         filename = file.filename
+                        DebugLogger.d(TAG, "downloadModel: HuggingFace url=${downloadUrl.take(120)}, filename=$filename")
                     }
                 }
 
                 val savePath = if (subfolder.isBlank()) "default" else subfolder
 
                 // Check if helper node is available
+                DebugLogger.d(TAG, "downloadModel: checking helper availability")
                 if (!helperService.isAvailable()) {
                     throw IllegalStateException(
                         "ComfyChair Helper node is required for model downloads. " +
@@ -767,7 +780,9 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
 
                 // Check if helper already has a stored key
                 val helperHasKey = helperService.hasStoredApiKey()
+                DebugLogger.d(TAG, "downloadModel: apiKey=${if (apiKey != null) "present" else "none"}, helperHasKey=$helperHasKey")
 
+                DebugLogger.d(TAG, "downloadModel: sending POST to helper")
                 val job = helperService.downloadModel(
                     url = downloadUrl,
                     filename = filename,
@@ -777,6 +792,7 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
                     apiKey = if (!helperHasKey) apiKey else null,
                     storeKey = storeApiKey && !helperHasKey
                 )
+                DebugLogger.d(TAG, "downloadModel: job queued, id=${job.id}, status=${job.status}")
 
                 // If we sent an API key but didn't store it, prompt user
                 if (apiKey != null && !helperHasKey && !storeApiKey) {
@@ -790,9 +806,15 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
                 )
 
                 var jobId = job.id
+                var pollCount = 0
                 while (true) {
                     delay(500) // poll every 500ms
-                    val status = helperService.getDownloadStatus(jobId) ?: break
+                    val status = helperService.getDownloadStatus(jobId)
+                    if (status == null) {
+                        DebugLogger.w(TAG, "downloadModel: poll returned null after $pollCount polls, breaking")
+                        break
+                    }
+                    pollCount++
 
                     when (status.status) {
                         "downloading" -> {
@@ -803,6 +825,7 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
                             )
                         }
                         "done" -> {
+                            DebugLogger.i(TAG, "downloadModel: complete after $pollCount polls")
                             _uiState.value = _uiState.value.copy(
                                 isDownloading = false,
                                 downloadProgress = null,
@@ -812,9 +835,14 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
                             break
                         }
                         "error" -> {
+                            DebugLogger.e(TAG, "downloadModel: server error: ${status.error}")
                             throw RuntimeException(status.error ?: "Download failed on server")
                         }
-                        else -> { /* queued — keep polling */ }
+                        else -> {
+                            if (pollCount % 20 == 0) {
+                                DebugLogger.d(TAG, "downloadModel: still ${status.status} after $pollCount polls")
+                            }
+                        }
                     }
                 }
 
@@ -836,7 +864,7 @@ class ModelBrowserViewModel(application: Application) : AndroidViewModel(applica
                 )
                 _events.emit(ModelBrowserEvent.ShowError("Session expired — please re-authenticate"))
             } catch (e: Exception) {
-                DebugLogger.w(TAG, "Download failed: ${e.message}")
+                DebugLogger.w(TAG, "Download failed [${e.javaClass.simpleName}]: ${e.message}")
                 _uiState.value = _uiState.value.copy(
                     isDownloading = false,
                     downloadProgress = null,

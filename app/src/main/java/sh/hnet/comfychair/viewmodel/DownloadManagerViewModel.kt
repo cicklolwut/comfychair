@@ -31,8 +31,11 @@ class DownloadManagerViewModel : ViewModel() {
 
     private var pollJob: Job? = null
 
-    private fun helperService(): ComfyChairHelperService? =
-        ConnectionManager.instance?.helperService
+    private val helperService = ComfyChairHelperService(
+        serverUrlProvider = { ConnectionManager.client.getBaseUrl() ?: "" },
+        credentialsProvider = { ConnectionManager.client.getCredentials() },
+        onSessionExpired = { ConnectionManager.handleSessionExpired() }
+    )
 
     // ---------------------------------------------------------------------------
     // Load
@@ -42,7 +45,7 @@ class DownloadManagerViewModel : ViewModel() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
             try {
-                val result = helperService()?.listDownloads()
+                val result = helperService.listDownloads()
                 if (result != null) {
                     _uiState.update {
                         it.copy(
@@ -76,7 +79,7 @@ class DownloadManagerViewModel : ViewModel() {
             while (true) {
                 delay(POLL_INTERVAL_MS)
                 try {
-                    val result = helperService()?.listDownloads() ?: break
+                    val result = helperService.listDownloads() ?: break
                     _uiState.update {
                         it.copy(downloads = result.jobs, summary = result.summary)
                     }
@@ -106,7 +109,7 @@ class DownloadManagerViewModel : ViewModel() {
     fun cancelDownload(jobId: String) {
         viewModelScope.launch {
             try {
-                val ok = helperService()?.cancelDownload(jobId) ?: false
+                val ok = helperService.cancelDownload(jobId)
                 if (ok) {
                     // Optimistically mark as cancelling
                     _uiState.update { state ->
@@ -134,7 +137,7 @@ class DownloadManagerViewModel : ViewModel() {
     fun removeDownload(jobId: String) {
         viewModelScope.launch {
             try {
-                val ok = helperService()?.removeDownload(jobId) ?: false
+                val ok = helperService.removeDownload(jobId)
                 if (ok) {
                     _uiState.update { state ->
                         state.copy(downloads = state.downloads.filter { it.id != jobId })
@@ -149,7 +152,7 @@ class DownloadManagerViewModel : ViewModel() {
     fun clearFinished() {
         viewModelScope.launch {
             try {
-                val count = helperService()?.clearFinishedDownloads() ?: -1
+                val count = helperService.clearFinishedDownloads()
                 if (count >= 0) {
                     DebugLogger.d(TAG, "clearFinished: removed $count jobs")
                     loadDownloads()

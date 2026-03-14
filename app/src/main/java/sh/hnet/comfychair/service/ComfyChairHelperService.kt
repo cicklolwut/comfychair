@@ -62,6 +62,32 @@ data class ScanStatus(
 )
 
 /**
+ * Helper configuration data from GET /comfychair/config
+ */
+data class HelperConfig(
+    val civitaiApiKeySet: Boolean,
+    val scanOnStartup: Boolean,
+    val scanStartupDelay: Double,
+    val scanAutoInterval: Int,
+    val lookupRateLimit: Double,
+    val lookupMaxAgeHours: Int,
+    val lookupNotFoundDays: Int,
+    val lookupEnabled: Boolean,
+    val downloadMaxConcurrent: Int,
+    val downloadAutoScan: Boolean,
+    val modelsDirOverride: String
+)
+
+/**
+ * Result of updating helper configuration
+ */
+data class ConfigUpdateResult(
+    val ok: Boolean,
+    val applied: List<String>,
+    val errors: Map<String, String>
+)
+
+/**
  * Represents a model file that is in the wrong folder according to its classification.
  */
 data class ModelDiscrepancy(
@@ -296,16 +322,164 @@ class ComfyChairHelperService(
         }
     }
 
+    /**
+     * Get the full helper configuration.
+     * Returns null if helper doesn't support the new config endpoint (backward compat).
+     */
+    suspend fun getConfig(): HelperConfig? = withContext(Dispatchers.IO) {
+        try {
+            val req = Request.Builder()
+                .url("${baseUrl()}/comfychair/config")
+                .get().build()
+            val resp = client.newCall(req).execute()
+            if (!resp.isSuccessful) return@withContext null
+            val body = resp.body?.string() ?: return@withContext null
+            val obj = JSONObject(body)
+
+            // Check if this is the new structured response or old minimal response
+            // Old response only had: civitai_api_key_set, last_scan
+            // New response has all config fields
+            if (!obj.has("scan_on_startup")) {
+                // Old helper version, return null to indicate not supported
+                return@withContext null
+            }
+
+            HelperConfig(
+                civitaiApiKeySet = obj.optBoolean("civitai_api_key_set", false),
+                scanOnStartup = obj.optBoolean("scan_on_startup", true),
+                scanStartupDelay = obj.optDouble("scan_startup_delay", 10.0),
+                scanAutoInterval = obj.optInt("scan_auto_interval", 0),
+                lookupRateLimit = obj.optDouble("lookup_rate_limit", 1.0),
+                lookupMaxAgeHours = obj.optInt("lookup_max_age_hours", 72),
+                lookupNotFoundDays = obj.optInt("lookup_not_found_days", 30),
+                lookupEnabled = obj.optBoolean("lookup_enabled", true),
+                downloadMaxConcurrent = obj.optInt("download_max_concurrent", 2),
+                downloadAutoScan = obj.optBoolean("download_auto_scan", true),
+                modelsDirOverride = obj.optString("models_dir_override", "")
+            )
+        } catch (e: Exception) {
+            DebugLogger.w(TAG, "Failed to get config: ${e.message}")
+            null
+        }
+    }
+
+    /**
+     * Update helper configuration fields.
+     * Only sends the fields that are provided in the map.
+     */
+    suspend fun updateConfig(fields: Map<String, Any>): ConfigUpdateResult = withContext(Dispatchers.IO) {
+        try {
+            val body = JSONObject()
+            for ((key, value) in fields) {
+                when (value) {
+                    is Boolean -> body.put(key, value)
+                    is Int -> body.put(key, value)
+                    is Double -> body.put(key, value)
+                    is Float -> body.put(key, value.toDouble())
+                    is String -> body.put(key, value)
+                    else -> body.put(key, value.toString())
+                }
+            }
+
+            val req = Request.Builder()
+                .url("${baseUrl()}/comfychair/config")
+                .post(body.toString().toRequestBody(JSON_MEDIA_TYPE))
+                .build()
+
+            val resp = client.newCall(req).execute()
+            val respBody = resp.body?.string()
+
+            if (respBody == null) {
+                return@withContext ConfigUpdateResult(
+                    ok = false,
+                    applied = emptyList(),
+                    errors = mapOf("_request" to "Empty response")
+                )
+            }
+
+            val obj = JSONObject(respBody)
+
+            // Handle old helper that just returns {"ok": true}
+            if (!obj.has("applied")) {
+                return@withContext ConfigUpdateResult(
+                    ok = obj.optBoolean("ok", resp.isSuccessful),
+                    applied = fields.keys.toList(),
+                    errors = emptyMap()
+                )
+            }
+
+            // New helper returns detailed response
+            val appliedArr = obj.optJSONArray("applied") ?: JSONArray()
+            val errorsObj = obj.optJSONObject("errors") ?: JSONObject()
+
+            val applied = (0 until appliedArr.length()).map { appliedArr.getString(it) }
+            val errors = mutableMapOf<String, String>()
+            errorsObj.keys().forEach { key ->
+                errors[key] = errorsObj.optString(key, "Unknown error")
+            }
+
+            ConfigUpdateResult(
+                ok = obj.optBoolean("ok", false),
+                applied = applied,
+                errors = errors
+            )
+        } catch (e: Exception) {
+            DebugLogger.w(TAG, "Failed to update config: ${e.message}")
+            ConfigUpdateResult(
+                ok = false,
+                applied = emptyList(),
+                errors = mapOf("_request" to (e.message ?: "Unknown error"))
+            )
+        }
+    }
+
+    /**
+     * Clear the stored Civitai API key.
+     */
+    suspend fun clearApiKey(): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val req = Request.Builder()
+                .url("${baseUrl()}/comfychair/config/apikey")
+                .delete()
+                .build()
+            val resp = client.newCall(req).execute()
+            resp.use { it.isSuccessful }
+        } catch (e: Exception) {
+            DebugLogger.w(TAG, "Failed to clear API key: ${e.message}")
+            false
+        }
+    }
+
     // ---- Model downloads ----
 
     data class DownloadJob(
         val id: String,
-        val status: String,       // queued | downloading | done | error
+        val status: String,       // queued | downloading | done | error | cancelled | cancelling | interrupted
         val progress: Double,
         val bytesDone: Long,
         val bytesTotal: Long,
         val error: String?,
-        val keyStored: Boolean    // true if the helper stored the API key
+        val keyStored: Boolean,   // true if the helper stored the API key
+        val filename: String? = null,
+        val modelType: String? = null,
+        val startedAt: Double? = null,
+        val finishedAt: Double? = null,
+        val civitaiVersionId: Long? = null
+    )
+
+    data class DownloadSummary(
+        val queued: Int,
+        val downloading: Int,
+        val done: Int,
+        val error: Int,
+        val cancelled: Int,
+        val interrupted: Int,
+        val totalBytesDownloaded: Long
+    )
+
+    data class DownloadListResponse(
+        val jobs: List<DownloadJob>,
+        val summary: DownloadSummary
     )
 
     /**
@@ -384,15 +558,7 @@ class ComfyChairHelperService(
         }
 
         DebugLogger.d(TAG, "downloadModel: job created id=${obj.optString("id")}, status=${obj.optString("status")}")
-        DownloadJob(
-            id = obj.getString("id"),
-            status = obj.getString("status"),
-            progress = obj.optDouble("progress", 0.0),
-            bytesDone = obj.optLong("bytes_done", 0),
-            bytesTotal = obj.optLong("bytes_total", 0),
-            error = if (obj.isNull("error")) null else obj.optString("error", null),
-            keyStored = obj.optBoolean("key_stored", false)
-        )
+        parseDownloadJob(obj, keyStored = obj.optBoolean("key_stored", false))
     }
 
     /**
@@ -407,22 +573,159 @@ class ComfyChairHelperService(
             requireJsonResponse(resp, "download status poll")
             if (!resp.isSuccessful) return@withContext null
             val body = resp.body?.string() ?: return@withContext null
-            val obj = JSONObject(body)
-            DownloadJob(
-                id = obj.getString("id"),
-                status = obj.getString("status"),
-                progress = obj.optDouble("progress", 0.0),
-                bytesDone = obj.optLong("bytes_done", 0),
-                bytesTotal = obj.optLong("bytes_total", 0),
-                error = if (obj.isNull("error")) null else obj.optString("error", null),
-                keyStored = false
-            )
+            parseDownloadJob(JSONObject(body))
         } catch (e: SessionExpiredException) {
             throw e // Don't swallow auth errors — let them propagate
         } catch (e: Exception) {
             null
         }
     }
+
+    /**
+     * List all known downloads (active + finished) with a summary.
+     */
+    suspend fun listDownloads(): DownloadListResponse? = withContext(Dispatchers.IO) {
+        try {
+            val req = Request.Builder()
+                .url("${baseUrl()}/comfychair/downloads")
+                .get().build()
+            val resp = client.newCall(req).execute()
+            requireJsonResponse(resp, "list downloads")
+            if (!resp.isSuccessful) return@withContext null
+            val body = resp.body?.string() ?: return@withContext null
+            val root = JSONObject(body)
+            val jobsArr = root.optJSONArray("jobs") ?: return@withContext null
+            val summaryObj = root.optJSONObject("summary")
+            val jobs = (0 until jobsArr.length()).map { parseDownloadJob(jobsArr.getJSONObject(it)) }
+            val summary = if (summaryObj != null) {
+                DownloadSummary(
+                    queued = summaryObj.optInt("queued"),
+                    downloading = summaryObj.optInt("downloading"),
+                    done = summaryObj.optInt("done"),
+                    error = summaryObj.optInt("error"),
+                    cancelled = summaryObj.optInt("cancelled"),
+                    interrupted = summaryObj.optInt("interrupted"),
+                    totalBytesDownloaded = summaryObj.optLong("total_bytes_downloaded")
+                )
+            } else {
+                DownloadSummary(0, 0, jobs.count { it.status == "done" }, 0, 0, 0, 0)
+            }
+            DownloadListResponse(jobs, summary)
+        } catch (e: SessionExpiredException) {
+            throw e
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /**
+     * Cancel an active download. Returns true if the cancel was accepted.
+     * The download may still be in 'cancelling' state briefly — poll until 'cancelled'.
+     */
+    suspend fun cancelDownload(jobId: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val req = Request.Builder()
+                .url("${baseUrl()}/comfychair/download/$jobId/cancel")
+                .post("".toRequestBody(JSON_MEDIA_TYPE))
+                .build()
+            val resp = client.newCall(req).execute()
+            requireJsonResponse(resp, "cancel download")
+            resp.isSuccessful
+        } catch (e: SessionExpiredException) {
+            throw e
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /**
+     * Remove a finished job from the helper's in-memory list.
+     * Will fail (return false) if the job is still active — cancel it first.
+     */
+    suspend fun removeDownload(jobId: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val req = Request.Builder()
+                .url("${baseUrl()}/comfychair/download/$jobId")
+                .delete()
+                .build()
+            val resp = client.newCall(req).execute()
+            requireJsonResponse(resp, "remove download")
+            resp.isSuccessful
+        } catch (e: SessionExpiredException) {
+            throw e
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /**
+     * Clear all finished downloads. Pass a list of statuses to target specific states,
+     * or null to clear all terminal states (done, error, cancelled, interrupted).
+     * Returns the number of jobs cleared, or -1 on error.
+     */
+    suspend fun clearFinishedDownloads(statuses: List<String>? = null): Int = withContext(Dispatchers.IO) {
+        try {
+            val bodyJson = if (statuses != null) {
+                JSONObject().put("status", org.json.JSONArray(statuses)).toString()
+            } else {
+                "{}"
+            }
+            val req = Request.Builder()
+                .url("${baseUrl()}/comfychair/downloads/clear")
+                .post(bodyJson.toRequestBody(JSON_MEDIA_TYPE))
+                .build()
+            val resp = client.newCall(req).execute()
+            requireJsonResponse(resp, "clear downloads")
+            if (!resp.isSuccessful) return@withContext -1
+            val body = resp.body?.string() ?: return@withContext -1
+            JSONObject(body).optInt("cleared", -1)
+        } catch (e: SessionExpiredException) {
+            throw e
+        } catch (e: Exception) {
+            -1
+        }
+    }
+
+    /**
+     * Fetch persistent download history from the helper's DB.
+     * Survives helper restarts. Includes interrupted/failed downloads.
+     */
+    suspend fun getDownloadHistory(limit: Int = 50, offset: Int = 0): List<DownloadJob> = withContext(Dispatchers.IO) {
+        try {
+            val req = Request.Builder()
+                .url("${baseUrl()}/comfychair/downloads/history?limit=$limit&offset=$offset")
+                .get().build()
+            val resp = client.newCall(req).execute()
+            requireJsonResponse(resp, "download history")
+            if (!resp.isSuccessful) return@withContext emptyList()
+            val body = resp.body?.string() ?: return@withContext emptyList()
+            val root = JSONObject(body)
+            val arr = root.optJSONArray("history") ?: return@withContext emptyList()
+            (0 until arr.length()).map { parseDownloadJob(arr.getJSONObject(it)) }
+        } catch (e: SessionExpiredException) {
+            throw e
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    // --- Helpers ---
+
+    private fun parseDownloadJob(obj: JSONObject, keyStored: Boolean = false): DownloadJob =
+        DownloadJob(
+            id = obj.optString("id", ""),
+            status = obj.optString("status", "unknown"),
+            progress = obj.optDouble("progress", 0.0),
+            bytesDone = obj.optLong("bytes_done", 0),
+            bytesTotal = obj.optLong("bytes_total", 0),
+            error = if (obj.isNull("error")) null else obj.optString("error", null),
+            keyStored = keyStored,
+            filename = obj.optString("filename").takeIf { it.isNotEmpty() },
+            modelType = obj.optString("model_type").takeIf { it.isNotEmpty() },
+            startedAt = if (obj.isNull("started_at")) null else obj.optDouble("started_at"),
+            finishedAt = if (obj.isNull("finished_at")) null else obj.optDouble("finished_at"),
+            civitaiVersionId = if (obj.isNull("civitai_version_id")) null else obj.optLong("civitai_version_id")
+        )
 
     // ---- Installation via ComfyUI-Manager ----
 

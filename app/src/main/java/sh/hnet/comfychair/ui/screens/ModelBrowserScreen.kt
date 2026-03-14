@@ -79,6 +79,8 @@ import sh.hnet.comfychair.model.ModelFile
 import sh.hnet.comfychair.model.ModelType
 import sh.hnet.comfychair.model.ModelVersion
 import sh.hnet.comfychair.viewmodel.ModelBrowserEvent
+import androidx.lifecycle.viewmodel.compose.viewModel
+import sh.hnet.comfychair.viewmodel.DownloadManagerViewModel
 import sh.hnet.comfychair.viewmodel.ModelBrowserViewModel
 
 private val NSFW_LEVELS = listOf(
@@ -114,7 +116,9 @@ fun ModelBrowserScreen(
     var showAnimationDialog by remember { mutableStateOf(false) }
     var showRestartDialog by remember { mutableStateOf<String?>(null) }
     var showStoreApiKeyDialog by remember { mutableStateOf(false) }
-    
+    var showDownloadManager by remember { mutableStateOf(false) }
+    val downloadManagerViewModel: DownloadManagerViewModel = viewModel()
+
     // Browse mode: true = browse/search, false = installed models
     var browseMode by remember { mutableStateOf(true) }
 
@@ -184,9 +188,20 @@ fun ModelBrowserScreen(
                     )
                 }
 
-                // Settings button
-                IconButton(onClick = { showSettingsSheet = true; settingsNsfwMax = uiState.nsfwLevels.maxOrNull() ?: 2; settingsBlurThreshold = uiState.blurThreshold; settingsShowAnimations = uiState.showAnimations; settingsAutoplayVideos = uiState.autoplayVideos; settingsApiKey = uiState.apiKey; settingsCacheLimitMb = viewModel.mediaCache.cacheLimitMb; settingsPrefetchEnabled = viewModel.mediaCache.prefetchEnabled; settingsPrefetchCount = viewModel.mediaCache.prefetchCount }) {
-                    Icon(Icons.Default.Settings, "Settings")
+                Row {
+                    // Downloads button (only when helper is available)
+                    if (uiState.helperAvailable == true) {
+                        IconButton(onClick = {
+                            showDownloadManager = true
+                            downloadManagerViewModel.loadDownloads()
+                        }) {
+                            Icon(Icons.Default.Download, contentDescription = "Downloads")
+                        }
+                    }
+                    // Settings button
+                    IconButton(onClick = { showSettingsSheet = true; settingsNsfwMax = uiState.nsfwLevels.maxOrNull() ?: 2; settingsBlurThreshold = uiState.blurThreshold; settingsShowAnimations = uiState.showAnimations; settingsAutoplayVideos = uiState.autoplayVideos; settingsApiKey = uiState.apiKey; settingsCacheLimitMb = viewModel.mediaCache.cacheLimitMb; settingsPrefetchEnabled = viewModel.mediaCache.prefetchEnabled; settingsPrefetchCount = viewModel.mediaCache.prefetchCount }) {
+                        Icon(Icons.Default.Settings, "Settings")
+                    }
                 }
             }
 
@@ -718,6 +733,18 @@ fun ModelBrowserScreen(
                     }
                 }
             }
+        }
+    }
+
+    // Download manager bottom sheet
+    if (showDownloadManager) {
+        ModalBottomSheet(
+            onDismissRequest = { showDownloadManager = false }
+        ) {
+            DownloadManagerSheet(
+                onDismiss = { showDownloadManager = false },
+                viewModel = downloadManagerViewModel
+            )
         }
     }
 
